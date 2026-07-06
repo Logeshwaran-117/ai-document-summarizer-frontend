@@ -15,7 +15,16 @@ const DEFAULT_FILTERS = {
     sort: "newest",
 };
 
+const DEFAULT_SIMPLE_FILTERS = {
+    fileType: "all",
+    dateFrom: "",
+    dateTo: "",
+    sort: "newest",
+};
+
 function History() {
+    const [activeTab, setActiveTab] = useState("documents"); // "documents" | "presentations" | "tables"
+
     const [history, setHistory] = useState([]);
     const [search, setSearch] = useState("");
     const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -25,10 +34,34 @@ function History() {
     const [loading, setLoading] = useState(true);
     const [showFilters, setShowFilters] = useState(false);
     const [filters, setFilters] = useState(DEFAULT_FILTERS);
+
+    // Presentations tab state
+    const [presentations, setPresentations] = useState([]);
+    const [presPage, setPresPage] = useState(1);
+    const [presTotalPages, setPresTotalPages] = useState(1);
+    const [presTotal, setPresTotal] = useState(0);
+    const [presLoading, setPresLoading] = useState(true);
+    const [downloadingId, setDownloadingId] = useState(null);
+    const [presSearch, setPresSearch] = useState("");
+    const [presDebouncedSearch, setPresDebouncedSearch] = useState("");
+    const [presShowFilters, setPresShowFilters] = useState(false);
+    const [presFilters, setPresFilters] = useState(DEFAULT_SIMPLE_FILTERS);
+
+    // Tables tab state
+    const [tables, setTables] = useState([]);
+    const [tablePage, setTablePage] = useState(1);
+    const [tableTotalPages, setTableTotalPages] = useState(1);
+    const [tableTotal, setTableTotal] = useState(0);
+    const [tableLoading, setTableLoading] = useState(true);
+    const [tableSearch, setTableSearch] = useState("");
+    const [tableDebouncedSearch, setTableDebouncedSearch] = useState("");
+    const [tableShowFilters, setTableShowFilters] = useState(false);
+    const [tableFilters, setTableFilters] = useState(DEFAULT_SIMPLE_FILTERS);
+
     const navigate = useNavigate();
     const { addNotification } = useNotifications();
 
-    // Debounce search
+    // Debounce search (documents)
     useEffect(() => {
         const timer = setTimeout(() => {
             setDebouncedSearch(search);
@@ -37,10 +70,192 @@ function History() {
         return () => clearTimeout(timer);
     }, [search]);
 
+    // Debounce search (presentations)
     useEffect(() => {
-        fetchHistory();
+        const timer = setTimeout(() => {
+            setPresDebouncedSearch(presSearch);
+            setPresPage(1);
+        }, 400);
+        return () => clearTimeout(timer);
+    }, [presSearch]);
+
+    // Debounce search (tables)
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setTableDebouncedSearch(tableSearch);
+            setTablePage(1);
+        }, 400);
+        return () => clearTimeout(timer);
+    }, [tableSearch]);
+
+    useEffect(() => {
+        if (activeTab === "documents") fetchHistory();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [page, debouncedSearch, filters]);
+    }, [page, debouncedSearch, filters, activeTab]);
+
+    useEffect(() => {
+        if (activeTab === "presentations") fetchPresentations();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [presPage, presDebouncedSearch, presFilters, activeTab]);
+
+    useEffect(() => {
+        if (activeTab === "tables") fetchTables();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [tablePage, tableDebouncedSearch, tableFilters, activeTab]);
+
+    async function fetchTables() {
+        setTableLoading(true);
+        try {
+            const response = await api.get("/api/tables", {
+                params: {
+                    page: tablePage,
+                    limit: PAGE_SIZE,
+                    search: tableDebouncedSearch || undefined,
+                    fileType: tableFilters.fileType,
+                    dateFrom: tableFilters.dateFrom || undefined,
+                    dateTo: tableFilters.dateTo || undefined,
+                    sort: tableFilters.sort,
+                },
+            });
+            const data = response.data;
+            setTables(data.tables || []);
+            setTableTotal(data.total || 0);
+            setTableTotalPages(data.totalPages || 1);
+        } catch (error) {
+            console.log(error);
+            toast.error("Failed to load tables");
+        } finally {
+            setTableLoading(false);
+        }
+    }
+
+    function updateTableFilter(key, value) {
+        setTableFilters((prev) => ({ ...prev, [key]: value }));
+        setTablePage(1);
+    }
+
+    function resetTableFilters() {
+        setTableFilters(DEFAULT_SIMPLE_FILTERS);
+        setTablePage(1);
+    }
+
+    const tableActiveFilterCount =
+        (tableFilters.fileType !== "all" ? 1 : 0) +
+        (tableFilters.dateFrom ? 1 : 0) +
+        (tableFilters.dateTo ? 1 : 0) +
+        (tableFilters.sort !== "newest" ? 1 : 0);
+
+    async function deleteTable(e, id, filename) {
+        e.stopPropagation();
+        if (!window.confirm(`Delete "${filename}"? This can't be undone.`)) return;
+        try {
+            await api.delete(`/api/tables/${id}`);
+            toast.success("Table deleted");
+            addNotification({ title: "Table deleted", message: `${filename} removed.`, type: "info" });
+            if (tables.length === 1 && tablePage > 1) {
+                setTablePage((p) => p - 1);
+            } else {
+                fetchTables();
+            }
+        } catch (error) {
+            console.log(error);
+            toast.error("Failed to delete table");
+        }
+    }
+
+    async function fetchPresentations() {
+        setPresLoading(true);
+        try {
+            const response = await api.get("/api/presentations", {
+                params: {
+                    page: presPage,
+                    limit: PAGE_SIZE,
+                    search: presDebouncedSearch || undefined,
+                    fileType: presFilters.fileType,
+                    dateFrom: presFilters.dateFrom || undefined,
+                    dateTo: presFilters.dateTo || undefined,
+                    sort: presFilters.sort,
+                },
+            });
+            const data = response.data;
+            setPresentations(data.presentations || []);
+            setPresTotal(data.total || 0);
+            setPresTotalPages(data.totalPages || 1);
+        } catch (error) {
+            console.log(error);
+            toast.error("Failed to load presentations");
+        } finally {
+            setPresLoading(false);
+        }
+    }
+
+    function updatePresFilter(key, value) {
+        setPresFilters((prev) => ({ ...prev, [key]: value }));
+        setPresPage(1);
+    }
+
+    function resetPresFilters() {
+        setPresFilters(DEFAULT_SIMPLE_FILTERS);
+        setPresPage(1);
+    }
+
+    const presActiveFilterCount =
+        (presFilters.fileType !== "all" ? 1 : 0) +
+        (presFilters.dateFrom ? 1 : 0) +
+        (presFilters.dateTo ? 1 : 0) +
+        (presFilters.sort !== "newest" ? 1 : 0);
+
+    async function downloadPresentation(id, filename) {
+        setDownloadingId(id);
+        try {
+            const response = await api.get(`/api/presentations/${id}/download`, { responseType: "blob" });
+            const blob = new Blob([response.data], {
+                type: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = filename || "Presentation.pptx";
+            a.click();
+            URL.revokeObjectURL(url);
+            toast.success("Presentation downloaded!");
+        } catch (error) {
+            console.log(error);
+            toast.error("Failed to download presentation");
+        } finally {
+            setDownloadingId(null);
+        }
+    }
+
+    async function deletePresentation(e, id, filename) {
+        e.stopPropagation();
+        if (!window.confirm(`Delete "${filename}"? This can't be undone.`)) return;
+        try {
+            await api.delete(`/api/presentations/${id}`);
+            toast.success("Presentation deleted");
+            addNotification({ title: "Presentation deleted", message: `${filename} removed.`, type: "info" });
+            if (presentations.length === 1 && presPage > 1) {
+                setPresPage((p) => p - 1);
+            } else {
+                fetchPresentations();
+            }
+        } catch (error) {
+            console.log(error);
+            toast.error("Failed to delete presentation");
+        }
+    }
+
+    const THEME_LABELS = {
+        navyGold: "Navy & Gold",
+        tealSlate: "Teal & Slate",
+        charcoalRuby: "Charcoal & Ruby",
+    };
+
+    function formatBytes(bytes) {
+        if (!bytes) return "0 KB";
+        const kb = bytes / 1024;
+        return kb > 1024 ? `${(kb / 1024).toFixed(1)} MB` : `${Math.round(kb)} KB`;
+    }
 
     async function fetchHistory() {
         setLoading(true);
@@ -145,12 +360,51 @@ function History() {
     return (
         <div className="p-6">
             <div className="mb-6">
-                <h1 className="text-3xl font-bold mb-2 text-gray-900 dark:text-white">Summary History</h1>
+                <h1 className="text-3xl font-bold mb-2 text-gray-900 dark:text-white">History</h1>
                 <p className="text-gray-500 dark:text-gray-400">
-                    {loading ? "Loading..." : total > 0 ? `${total} document${total !== 1 ? 's' : ''} summarized` : "No documents yet"}
+                    {activeTab === "documents"
+                        ? (loading ? "Loading..." : total > 0 ? `${total} document${total !== 1 ? 's' : ''} summarized` : "No documents yet")
+                        : (presLoading ? "Loading..." : presTotal > 0 ? `${presTotal} presentation${presTotal !== 1 ? 's' : ''} generated` : "No presentations yet")
+                    }
                 </p>
             </div>
 
+            {/* Tabs */}
+            <div className="flex gap-2 mb-6 border-b border-gray-200 dark:border-gray-800">
+                <button
+                    onClick={() => setActiveTab("documents")}
+                    className={`px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px transition ${
+                        activeTab === "documents"
+                            ? "border-blue-600 text-blue-600 dark:text-blue-400"
+                            : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                    }`}
+                >
+                    📄 Documents
+                </button>
+                <button
+                    onClick={() => setActiveTab("presentations")}
+                    className={`px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px transition ${
+                        activeTab === "presentations"
+                            ? "border-blue-600 text-blue-600 dark:text-blue-400"
+                            : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                    }`}
+                >
+                    📊 Presentations
+                </button>
+                <button
+                    onClick={() => setActiveTab("tables")}
+                    className={`px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px transition ${
+                        activeTab === "tables"
+                            ? "border-blue-600 text-blue-600 dark:text-blue-400"
+                            : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                    }`}
+                >
+                    🧮 Tables
+                </button>
+            </div>
+
+            {activeTab === "documents" && (
+            <>
             {/* Search + Filter toggle */}
             <div className="flex gap-3 mb-4">
                 <input
@@ -198,6 +452,9 @@ function History() {
                             <option value="pdf">PDF</option>
                             <option value="docx">DOCX</option>
                             <option value="txt">TXT</option>
+                            <option value="xlsx">Excel (XLSX/XLS/CSV)</option>
+                            <option value="jpg">JPG</option>
+                            <option value="png">PNG</option>
                         </select>
                     </div>
 
@@ -397,6 +654,398 @@ function History() {
                                 Page {page} of {totalPages} ({total} total)
                             </span>
                         </div>
+                    )}
+                </>
+            )}
+            </>
+            )}
+
+            {/* ── Presentations Tab ── */}
+            {activeTab === "presentations" && (
+                <>
+                    {/* Search + Filter toggle */}
+                    <div className="flex gap-3 mb-4">
+                        <input
+                            type="text"
+                            placeholder="Search by filename..."
+                            value={presSearch}
+                            onChange={(e) => setPresSearch(e.target.value)}
+                            className="flex-1 border border-gray-300 dark:border-gray-700 p-3 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                        />
+                        <button
+                            onClick={() => setPresShowFilters((s) => !s)}
+                            className={`relative px-4 py-3 rounded-lg font-medium text-sm flex items-center gap-2 transition shrink-0 border ${
+                                presShowFilters
+                                    ? "bg-blue-600 text-white border-blue-600"
+                                    : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700"
+                            }`}
+                        >
+                            🎛️ Filters
+                            {presActiveFilterCount > 0 && (
+                                <span className="bg-red-500 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                                    {presActiveFilterCount}
+                                </span>
+                            )}
+                        </button>
+                    </div>
+
+                    {presDebouncedSearch && !presLoading && (
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4 -mt-2">
+                            Found {presTotal} result{presTotal !== 1 ? "s" : ""} for "{presDebouncedSearch}"
+                        </p>
+                    )}
+
+                    {presShowFilters && (
+                        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-5 mb-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wide">Source File Type</label>
+                                <select
+                                    value={presFilters.fileType}
+                                    onChange={(e) => updatePresFilter("fileType", e.target.value)}
+                                    className="w-full border border-gray-300 dark:border-gray-700 rounded-lg p-2.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                                >
+                                    <option value="all">All Types</option>
+                                    <option value="pdf">PDF</option>
+                                    <option value="docx">DOCX</option>
+                                    <option value="txt">TXT</option>
+                                    <option value="xlsx">Excel (XLSX/XLS/CSV)</option>
+                                    <option value="jpg">JPG</option>
+                                    <option value="png">PNG</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wide">Sort By</label>
+                                <select
+                                    value={presFilters.sort}
+                                    onChange={(e) => updatePresFilter("sort", e.target.value)}
+                                    className="w-full border border-gray-300 dark:border-gray-700 rounded-lg p-2.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                                >
+                                    <option value="newest">Newest First</option>
+                                    <option value="oldest">Oldest First</option>
+                                </select>
+                            </div>
+
+                            <div className="flex items-end">
+                                <button
+                                    onClick={resetPresFilters}
+                                    disabled={presActiveFilterCount === 0}
+                                    className="w-full px-4 py-2.5 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                                >
+                                    ↺ Reset Filters
+                                </button>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wide">From Date</label>
+                                <input
+                                    type="date"
+                                    value={presFilters.dateFrom}
+                                    onChange={(e) => updatePresFilter("dateFrom", e.target.value)}
+                                    className="w-full border border-gray-300 dark:border-gray-700 rounded-lg p-2.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wide">To Date</label>
+                                <input
+                                    type="date"
+                                    value={presFilters.dateTo}
+                                    onChange={(e) => updatePresFilter("dateTo", e.target.value)}
+                                    className="w-full border border-gray-300 dark:border-gray-700 rounded-lg p-2.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                                />
+                            </div>
+                        </div>
+                    )}
+
+                    {presLoading ? (
+                        <div className="flex items-center justify-center py-20">
+                            <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                        </div>
+                    ) : presentations.length === 0 ? (
+                        <div className="text-center py-12 text-gray-400 dark:text-gray-500">
+                            <p className="text-4xl mb-3">📊</p>
+                            <p className="text-lg">No presentations yet</p>
+                            <p className="text-sm mt-2">Generate one from a document's summary to see it here</p>
+                        </div>
+                    ) : (
+                        <>
+                            <div className="space-y-4 mb-8">
+                                {presentations.map((p) => (
+                                    <div
+                                        key={p._id}
+                                        className="bg-white dark:bg-gray-900 rounded-xl shadow-md p-5 transition-all duration-200"
+                                    >
+                                        <div className="flex items-start justify-between mb-3">
+                                            <div className="flex items-center gap-3 min-w-0">
+                                                <div className="bg-orange-100 dark:bg-orange-900/40 rounded-lg p-2 text-xl shrink-0">
+                                                    📊
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <h2 className="text-lg font-bold text-orange-600 dark:text-orange-400 truncate">
+                                                        {p.filename}
+                                                    </h2>
+                                                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                                                        {new Date(p.createdAt).toLocaleString()}
+                                                        {p.sourceFilename ? ` · from ${p.sourceFilename}` : ""}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={(e) => deletePresentation(e, p._id, p.filename)}
+                                                className="text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 text-lg ml-3 shrink-0 transition"
+                                                title="Delete"
+                                            >
+                                                🗑️
+                                            </button>
+                                        </div>
+
+                                        <div className="flex gap-2 mb-4 flex-wrap">
+                                            <span className="text-xs bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 px-2 py-1 rounded-full">
+                                                🎨 {THEME_LABELS[p.theme] || p.theme}
+                                            </span>
+                                            <span className="text-xs bg-purple-50 dark:bg-purple-900/40 text-purple-600 dark:text-purple-300 px-2 py-1 rounded-full">
+                                                📏 {p.detailLevel}
+                                            </span>
+                                            <span className="text-xs bg-green-50 dark:bg-green-900/40 text-green-600 dark:text-green-300 px-2 py-1 rounded-full">
+                                                🗂️ {p.slideCount} slides
+                                            </span>
+                                            <span className="text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 px-2 py-1 rounded-full">
+                                                💾 {formatBytes(p.sizeBytes)}
+                                            </span>
+                                        </div>
+
+                                        <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-gray-800">
+                                            <button
+                                                onClick={() => downloadPresentation(p._id, p.filename)}
+                                                disabled={downloadingId === p._id}
+                                                className="text-blue-600 dark:text-blue-400 text-sm font-medium hover:underline disabled:opacity-50"
+                                            >
+                                                {downloadingId === p._id ? "⏳ Downloading..." : "⬇️ Download"}
+                                            </button>
+                                            {p.documentId && (
+                                                <button
+                                                    onClick={() => navigate(`/history/${p.documentId}`)}
+                                                    className="text-gray-500 dark:text-gray-400 text-sm hover:underline"
+                                                >
+                                                    View source document →
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {presTotalPages > 1 && (
+                                <div className="flex items-center justify-center gap-2 flex-wrap">
+                                    <button
+                                        onClick={() => setPresPage((p) => Math.max(1, p - 1))}
+                                        disabled={presPage === 1}
+                                        className="px-3 py-2 rounded-lg text-sm font-medium bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-gray-800 transition"
+                                    >
+                                        ← Prev
+                                    </button>
+                                    <span className="text-sm text-gray-500 dark:text-gray-400 mx-2">
+                                        Page {presPage} of {presTotalPages} ({presTotal} total)
+                                    </span>
+                                    <button
+                                        onClick={() => setPresPage((p) => Math.min(presTotalPages, p + 1))}
+                                        disabled={presPage === presTotalPages}
+                                        className="px-3 py-2 rounded-lg text-sm font-medium bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-gray-800 transition"
+                                    >
+                                        Next →
+                                    </button>
+                                </div>
+                            )}
+                        </>
+                    )}
+                </>
+            )}
+
+            {/* ── Tables Tab ── */}
+            {activeTab === "tables" && (
+                <>
+                    {/* Search + Filter toggle */}
+                    <div className="flex gap-3 mb-4">
+                        <input
+                            type="text"
+                            placeholder="Search by filename..."
+                            value={tableSearch}
+                            onChange={(e) => setTableSearch(e.target.value)}
+                            className="flex-1 border border-gray-300 dark:border-gray-700 p-3 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                        />
+                        <button
+                            onClick={() => setTableShowFilters((s) => !s)}
+                            className={`relative px-4 py-3 rounded-lg font-medium text-sm flex items-center gap-2 transition shrink-0 border ${
+                                tableShowFilters
+                                    ? "bg-blue-600 text-white border-blue-600"
+                                    : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700"
+                            }`}
+                        >
+                            🎛️ Filters
+                            {tableActiveFilterCount > 0 && (
+                                <span className="bg-red-500 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                                    {tableActiveFilterCount}
+                                </span>
+                            )}
+                        </button>
+                    </div>
+
+                    {tableDebouncedSearch && !tableLoading && (
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4 -mt-2">
+                            Found {tableTotal} result{tableTotal !== 1 ? "s" : ""} for "{tableDebouncedSearch}"
+                        </p>
+                    )}
+
+                    {tableShowFilters && (
+                        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-5 mb-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wide">File Type</label>
+                                <select
+                                    value={tableFilters.fileType}
+                                    onChange={(e) => updateTableFilter("fileType", e.target.value)}
+                                    className="w-full border border-gray-300 dark:border-gray-700 rounded-lg p-2.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                                >
+                                    <option value="all">All Types</option>
+                                    <option value="pdf">PDF</option>
+                                    <option value="docx">DOCX</option>
+                                    <option value="txt">TXT</option>
+                                    <option value="xlsx">Excel (XLSX/XLS/CSV)</option>
+                                    <option value="jpg">JPG</option>
+                                    <option value="png">PNG</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wide">Sort By</label>
+                                <select
+                                    value={tableFilters.sort}
+                                    onChange={(e) => updateTableFilter("sort", e.target.value)}
+                                    className="w-full border border-gray-300 dark:border-gray-700 rounded-lg p-2.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                                >
+                                    <option value="newest">Newest First</option>
+                                    <option value="oldest">Oldest First</option>
+                                </select>
+                            </div>
+
+                            <div className="flex items-end">
+                                <button
+                                    onClick={resetTableFilters}
+                                    disabled={tableActiveFilterCount === 0}
+                                    className="w-full px-4 py-2.5 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                                >
+                                    ↺ Reset Filters
+                                </button>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wide">From Date</label>
+                                <input
+                                    type="date"
+                                    value={tableFilters.dateFrom}
+                                    onChange={(e) => updateTableFilter("dateFrom", e.target.value)}
+                                    className="w-full border border-gray-300 dark:border-gray-700 rounded-lg p-2.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wide">To Date</label>
+                                <input
+                                    type="date"
+                                    value={tableFilters.dateTo}
+                                    onChange={(e) => updateTableFilter("dateTo", e.target.value)}
+                                    className="w-full border border-gray-300 dark:border-gray-700 rounded-lg p-2.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                                />
+                            </div>
+                        </div>
+                    )}
+
+                    {tableLoading ? (
+                        <div className="flex items-center justify-center py-20">
+                            <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                        </div>
+                    ) : tables.length === 0 ? (
+                        <div className="text-center py-12 text-gray-400 dark:text-gray-500">
+                            <p className="text-4xl mb-3">🧮</p>
+                            <p className="text-lg">No tables yet</p>
+                            <p className="text-sm mt-2">Generate one from the Excel Summary page to see it here</p>
+                        </div>
+                    ) : (
+                        <>
+                            <div className="space-y-4 mb-8">
+                                {tables.map((t) => (
+                                    <div
+                                        key={t._id}
+                                        onClick={() => navigate(`/tables/${t._id}`)}
+                                        className="bg-white dark:bg-gray-900 rounded-xl shadow-md p-5 cursor-pointer hover:shadow-lg hover:ring-1 hover:ring-blue-200 dark:hover:ring-blue-900 transition-all duration-200"
+                                    >
+                                        <div className="flex items-start justify-between mb-3">
+                                            <div className="flex items-center gap-3 min-w-0">
+                                                <div className="bg-purple-100 dark:bg-purple-900/40 rounded-lg p-2 text-xl shrink-0">
+                                                    🧮
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <h2 className="text-lg font-bold text-purple-700 dark:text-purple-400 truncate">
+                                                        {t.filename}
+                                                    </h2>
+                                                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                                                        {new Date(t.createdAt).toLocaleString()}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={(e) => deleteTable(e, t._id, t.filename)}
+                                                className="text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 text-lg ml-3 shrink-0 transition"
+                                                title="Delete"
+                                            >
+                                                🗑️
+                                            </button>
+                                        </div>
+
+                                        <div className="flex gap-2 mb-3 flex-wrap">
+                                            <span className="text-xs bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 px-2 py-1 rounded-full">
+                                                📋 {t.fields.length} field{t.fields.length !== 1 ? "s" : ""}
+                                            </span>
+                                            <span className="text-xs bg-green-50 dark:bg-green-900/40 text-green-600 dark:text-green-300 px-2 py-1 rounded-full">
+                                                📊 {t.rows.length} row{t.rows.length !== 1 ? "s" : ""}
+                                            </span>
+                                        </div>
+
+                                        <p className="text-gray-600 dark:text-gray-400 text-sm truncate">
+                                            {t.fields.join(" · ")}
+                                        </p>
+
+                                        <div className="flex items-center justify-between pt-2 mt-3 border-t border-gray-100 dark:border-gray-800">
+                                            <span className="text-blue-600 dark:text-blue-400 text-sm font-medium">
+                                                🧮 View full table →
+                                            </span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {tableTotalPages > 1 && (
+                                <div className="flex items-center justify-center gap-2 flex-wrap">
+                                    <button
+                                        onClick={() => setTablePage((p) => Math.max(1, p - 1))}
+                                        disabled={tablePage === 1}
+                                        className="px-3 py-2 rounded-lg text-sm font-medium bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-gray-800 transition"
+                                    >
+                                        ← Prev
+                                    </button>
+                                    <span className="text-sm text-gray-500 dark:text-gray-400 mx-2">
+                                        Page {tablePage} of {tableTotalPages} ({tableTotal} total)
+                                    </span>
+                                    <button
+                                        onClick={() => setTablePage((p) => Math.min(tableTotalPages, p + 1))}
+                                        disabled={tablePage === tableTotalPages}
+                                        className="px-3 py-2 rounded-lg text-sm font-medium bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-gray-800 transition"
+                                    >
+                                        Next →
+                                    </button>
+                                </div>
+                            )}
+                        </>
                     )}
                 </>
             )}

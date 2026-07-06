@@ -12,7 +12,7 @@ function Signup({ setIsAuthenticated }) {
     try {
       await api.post("/auth/signup", { email, password });
       setIsAuthenticated(true);
-      navigate("/dashboard");
+      navigate("/");
     } catch (err) {
       setError(err.response?.data?.message || "Signup failed");
     }

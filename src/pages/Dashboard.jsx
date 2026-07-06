@@ -7,6 +7,8 @@ import DashboardCards from "../components/DashboardCards";
 import { Routes, Route } from "react-router-dom";
 import Settings from "./Settings";
 import SummaryDetailPage from "./SummaryDetailPage";
+import ExcelSummary from "./ExcelSummary";
+import TableDetailPage from "./TableDetailPage";
 
 function Dashboard({ setIsAuthenticated, user }) {
     return (
@@ -23,6 +25,8 @@ function Dashboard({ setIsAuthenticated, user }) {
                         <Route path="/history" element={<History />} />
                         <Route path="/history/:id" element={<SummaryDetailPage />} />
                         <Route path="/settings" element={<Settings user={user} setIsAuthenticated={setIsAuthenticated} />} />
+                        <Route path="/excel" element={<ExcelSummary />} />
+                        <Route path="/tables/:id" element={<TableDetailPage />} />
                     </Routes>
                 </main>
             </div>

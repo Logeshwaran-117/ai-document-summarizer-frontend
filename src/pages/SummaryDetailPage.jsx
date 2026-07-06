@@ -7,12 +7,11 @@ import toast from "react-hot-toast";
 import { jsPDF } from "jspdf";
 import { useNotifications } from "../context/NotificationContext";
 
-// Import DocumentChat if it exists — gracefully skip if not
 let DocumentChat = null;
 try {
     DocumentChat = (await import("../components/DocumentChat")).default;
 } catch {
-    // DocumentChat component not found, will skip it
+    // DocumentChat component not found
 }
 
 function SummaryDetailPage() {
@@ -22,6 +21,7 @@ function SummaryDetailPage() {
     const [loading, setLoading] = useState(true);
     const [notFound, setNotFound] = useState(false);
     const [deleting, setDeleting] = useState(false);
+    const [pptLoading, setPptLoading] = useState(false);
     const { addNotification } = useNotifications();
 
     useEffect(() => {
@@ -33,7 +33,6 @@ function SummaryDetailPage() {
         setLoading(true);
         setNotFound(false);
         try {
-            // Use the dedicated GET /api/history/:id endpoint — not fetching all
             const res = await api.get(`/api/history/${id}`);
             setDoc(res.data);
         } catch (error) {
@@ -84,6 +83,42 @@ function SummaryDetailPage() {
             toast.success("Downloaded as PDF");
         } catch {
             toast.error("Failed to download PDF");
+        }
+    }
+
+    async function downloadPPT() {
+        if (!doc?.summary) return;
+        try {
+            setPptLoading(true);
+            toast("Generating presentation...", { icon: "⏳" });
+
+            const response = await api.post(
+                "/api/generate-ppt",
+                { summary: doc.summary, filename: doc.filename },
+                { responseType: "blob" }
+            );
+
+            const blob = new Blob([response.data], {
+                type: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            const safeName = doc.filename.replace(/\.[^/.]+$/, "");
+            a.download = `${safeName}.pptx`;
+            a.click();
+            URL.revokeObjectURL(url);
+            toast.success("Presentation downloaded!");
+            addNotification({
+                title: "Download complete",
+                message: `${safeName}.pptx was downloaded.`,
+                type: "info",
+            });
+        } catch (err) {
+            console.error(err);
+            toast.error("Failed to generate presentation");
+        } finally {
+            setPptLoading(false);
         }
     }
 
@@ -207,12 +242,19 @@ function SummaryDetailPage() {
                     <button onClick={downloadPDF} className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-red-700 transition font-medium">
                         📑 Download PDF
                     </button>
+                    <button
+                        onClick={downloadPPT}
+                        disabled={pptLoading}
+                        className={`px-4 py-2 rounded-lg text-sm text-white transition font-medium
+                            ${pptLoading ? "bg-orange-400 cursor-not-allowed" : "bg-orange-500 hover:bg-orange-600"}`}
+                    >
+                        {pptLoading ? "⏳ Generating..." : "📊 Download PPT"}
+                    </button>
                     <button onClick={() => navigate("/history")} className="bg-gray-600 dark:bg-gray-700 text-white px-4 py-2 rounded-lg text-sm hover:bg-gray-700 dark:hover:bg-gray-600 transition font-medium">
                         ← Back
                     </button>
                 </div>
 
-                {/* DocumentChat — only renders if the component exists */}
                 {DocumentChat && (
                     <DocumentChat
                         documentId={doc._id}

@@ -139,21 +139,37 @@ function DashboardCards({ user }) {
                         <p>No documents yet. Upload one to get started!</p>
                     </div>
                 ) : (
-                    <div className="space-y-3">
+                    <div>
+                        {/* Column headers */}
+                        <div className="flex items-center justify-between px-4 pb-2 mb-1">
+                            <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+                                Document
+                            </p>
+                            <div className="flex items-center gap-6 shrink-0">
+                                <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+                                    Word Count
+                                </p>
+                                <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+                                    Status
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="space-y-3">
                         {recentDocs.map((doc) => (
                             <a
                                 href={`/history/${doc._id}`}
                                 key={doc._id}
                                 className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition"
                             >
-                                <div className="flex items-center gap-3">
-                                    <div className="bg-blue-100 dark:bg-blue-900/40 rounded-lg p-2 text-xl">📄</div>
-                                    <div>
-                                        <p className="font-medium text-gray-800 dark:text-gray-200 text-sm">{doc.filename}</p>
+                                <div className="flex items-center gap-3 min-w-0">
+                                    <div className="bg-blue-100 dark:bg-blue-900/40 rounded-lg p-2 text-xl shrink-0">📄</div>
+                                    <div className="min-w-0">
+                                        <p className="font-medium text-gray-800 dark:text-gray-200 text-sm truncate">{doc.filename}</p>
                                         <p className="text-xs text-gray-400 dark:text-gray-500">{new Date(doc.uploadedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</p>
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-3 shrink-0 ml-4">
                                     {doc.stats && (
                                         <span className="text-xs bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 px-2 py-1 rounded-full">
                                             {doc.stats.words} words
@@ -163,6 +179,7 @@ function DashboardCards({ user }) {
                                 </div>
                             </a>
                         ))}
+                        </div>
                     </div>
                 )}
             </div>
@@ -175,13 +192,13 @@ function DashboardCards({ user }) {
                         <span className="text-3xl mb-2">📤</span>
                         <span className="text-sm font-medium text-blue-700 dark:text-blue-300">Upload Doc</span>
                     </a>
+                     <a href="/excel" className="flex flex-col items-center justify-center p-4 bg-purple-50 dark:bg-purple-900/30 rounded-xl hover:bg-purple-100 dark:hover:bg-purple-900/50 transition cursor-pointer">
+                        <span className="text-3xl mb-2">🧮</span>
+                        <span className="text-sm font-medium text-purple-700 dark:text-purple-300">Table Generator</span>
+                    </a>
                     <a href="/history" className="flex flex-col items-center justify-center p-4 bg-green-50 dark:bg-green-900/30 rounded-xl hover:bg-green-100 dark:hover:bg-green-900/50 transition cursor-pointer">
                         <span className="text-3xl mb-2">📋</span>
                         <span className="text-sm font-medium text-green-700 dark:text-green-300">View History</span>
-                    </a>
-                    <a href="/upload" className="flex flex-col items-center justify-center p-4 bg-purple-50 dark:bg-purple-900/30 rounded-xl hover:bg-purple-100 dark:hover:bg-purple-900/50 transition cursor-pointer">
-                        <span className="text-3xl mb-2">🤖</span>
-                        <span className="text-sm font-medium text-purple-700 dark:text-purple-300">New Summary</span>
                     </a>
                     <a href="/settings" className="flex flex-col items-center justify-center p-4 bg-orange-50 dark:bg-orange-900/30 rounded-xl hover:bg-orange-100 dark:hover:bg-orange-900/50 transition cursor-pointer">
                         <span className="text-3xl mb-2">⚙️</span>
@@ -194,4 +211,4 @@ function DashboardCards({ user }) {
     );
 }
 
-export default DashboardCards;
+export default DashboardCards;5

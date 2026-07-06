@@ -1,33 +1,284 @@
 import api from "../api";
-import { useState } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { jsPDF } from "jspdf";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import toast from "react-hot-toast";
 import { useNotifications } from "../context/NotificationContext";
 import DocumentChat from "./DocumentChat";
+import PptOptionsModal from "./PptOptionsModal";
+
+// ── File type helpers ─────────────────────────────────────────────────────────
+
+const ALLOWED_TYPES = [
+  "application/pdf",
+  "text/plain",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-excel",
+  "text/csv", "application/csv",
+];
+
+const EXCEL_EXTENSIONS = [".xlsx", ".xls", ".csv"];
+
+function getExt(file) {
+  return "." + file.name.split(".").pop().toLowerCase();
+}
+function isImageFile(file)  { return file && file.type.startsWith("image/"); }
+function isPdfFile(file)    { return file && (file.type === "application/pdf" || getExt(file) === ".pdf"); }
+function isExcelFile(file)  { return file && EXCEL_EXTENSIONS.includes(getExt(file)); }
+function isTextFile(file)   { return file && (file.type === "text/plain" || getExt(file) === ".txt"); }
+function isDocxFile(file)   { return file && (getExt(file) === ".docx"); }
+function isAllowedFile(file){ return file && (ALLOWED_TYPES.includes(file.type) || isExcelFile(file)); }
+
+function fileTypeLabel(file) {
+  if (isImageFile(file))  return { label: "Image",       color: "bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300", icon: "🖼️" };
+  if (isPdfFile(file))    return { label: "PDF",         color: "bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300",             icon: "📑" };
+  if (isExcelFile(file))  return { label: "Spreadsheet", color: "bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300", icon: "📊" };
+  if (isDocxFile(file))   return { label: "Word Doc",    color: "bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300",         icon: "📝" };
+  if (isTextFile(file))   return { label: "Text",        color: "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300",         icon: "📄" };
+  return                         { label: "Document",    color: "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300",         icon: "📄" };
+}
+
+// ── FilePreview component ─────────────────────────────────────────────────────
+// Renders an appropriate preview panel for every supported file type.
+
+function FilePreview({ file }) {
+  const [preview, setPreview] = useState(null); // { type, content }
+  const [loading, setLoading] = useState(false);
+  const objUrlRef = useRef(null);
+
+  useEffect(() => {
+    if (!file) { setPreview(null); return; }
+
+    // Revoke previous object URL
+    if (objUrlRef.current) { URL.revokeObjectURL(objUrlRef.current); objUrlRef.current = null; }
+    setPreview(null);
+
+    // ── Image: object URL → <img> ──────────────────────────────────────────
+    if (isImageFile(file)) {
+      const url = URL.createObjectURL(file);
+      objUrlRef.current = url;
+      setPreview({ type: "image", src: url });
+      return;
+    }
+
+    // ── PDF: object URL → <iframe> or <embed> ─────────────────────────────
+    if (isPdfFile(file)) {
+      const url = URL.createObjectURL(file);
+      objUrlRef.current = url;
+      setPreview({ type: "pdf", src: url });
+      return;
+    }
+
+    // ── TXT: FileReader → plain text ──────────────────────────────────────
+    if (isTextFile(file)) {
+      setLoading(true);
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const text = e.target.result || "";
+        setPreview({ type: "text", content: text.slice(0, 2000) + (text.length > 2000 ? "\n…" : "") });
+        setLoading(false);
+      };
+      reader.onerror = () => setLoading(false);
+      reader.readAsText(file);
+      return;
+    }
+
+    // ── CSV: FileReader → parse first 10 rows ─────────────────────────────
+    if (getExt(file) === ".csv") {
+      setLoading(true);
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const text = e.target.result || "";
+        const rows = text.trim().split("\n").slice(0, 10).map(r =>
+          r.split(",").map(c => c.replace(/^"|"$/g, "").trim())
+        );
+        setPreview({ type: "table", rows });
+        setLoading(false);
+      };
+      reader.onerror = () => setLoading(false);
+      reader.readAsText(file);
+      return;
+    }
+
+    // ── XLSX / XLS: use SheetJS in-browser ────────────────────────────────
+    if (isExcelFile(file)) {
+      setLoading(true);
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          // Dynamic import so it doesn't crash if not installed
+          const XLSX = await import("https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs");
+          const wb = XLSX.read(e.target.result, { type: "array" });
+          const sheetName = wb.SheetNames[0];
+          const ws = wb.Sheets[sheetName];
+          const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+          setPreview({ type: "table", rows: rows.slice(0, 10), sheetName, totalSheets: wb.SheetNames.length });
+        } catch {
+          setPreview({ type: "error", message: "Could not render spreadsheet preview." });
+        }
+        setLoading(false);
+      };
+      reader.onerror = () => { setPreview({ type: "error", message: "Failed to read file." }); setLoading(false); };
+      reader.readAsArrayBuffer(file);
+      return;
+    }
+
+    // ── DOCX: show metadata only (no browser-side DOCX renderer without heavy lib) ──
+    if (isDocxFile(file)) {
+      setPreview({ type: "docx", name: file.name, size: file.size });
+      return;
+    }
+
+  }, [file]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => { if (objUrlRef.current) URL.revokeObjectURL(objUrlRef.current); };
+  }, []);
+
+  if (!file) return null;
+
+  const wrapper = (children) => (
+    <div className="mt-4 w-full rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700">
+      <div className="px-4 py-2 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex items-center gap-2">
+        <span className="text-sm font-medium text-gray-500 dark:text-gray-400">👁️ Preview</span>
+        <span className="text-xs text-gray-400 dark:text-gray-500">— {file.name}</span>
+      </div>
+      <div className="bg-white dark:bg-gray-900 p-4">
+        {children}
+      </div>
+    </div>
+  );
+
+  if (loading) return wrapper(
+    <div className="flex items-center justify-center py-8 text-gray-400 dark:text-gray-500 gap-2">
+      <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+      </svg>
+      <span className="text-sm">Loading preview…</span>
+    </div>
+  );
+
+  if (!preview) return null;
+
+  // Image
+  if (preview.type === "image") return wrapper(
+    <div className="flex justify-center">
+      <img src={preview.src} alt={file.name}
+        className="max-h-72 max-w-full rounded-lg object-contain shadow-md" />
+    </div>
+  );
+
+  // PDF
+  if (preview.type === "pdf") return wrapper(
+    <div className="w-full" style={{ height: "320px" }}>
+      <iframe
+        src={preview.src + "#toolbar=0&navpanes=0&scrollbar=0&page=1"}
+        title="PDF Preview"
+        className="w-full h-full rounded border-0"
+      />
+    </div>
+  );
+
+  // Plain text
+  if (preview.type === "text") return wrapper(
+    <pre className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words max-h-56 overflow-y-auto font-mono leading-relaxed">
+      {preview.content || "(empty file)"}
+    </pre>
+  );
+
+  // Table (CSV or XLSX)
+  if (preview.type === "table") {
+    const [header, ...rows] = preview.rows;
+    return wrapper(
+      <div>
+        {preview.sheetName && (
+          <p className="text-xs text-gray-400 dark:text-gray-500 mb-2">
+            Sheet: <strong>{preview.sheetName}</strong>
+            {preview.totalSheets > 1 && ` (+${preview.totalSheets - 1} more)`}
+          </p>
+        )}
+        <div className="overflow-x-auto max-h-56 overflow-y-auto rounded border border-gray-200 dark:border-gray-700">
+          <table className="text-xs w-full border-collapse">
+            {header && header.length > 0 && (
+              <thead>
+                <tr className="bg-gray-100 dark:bg-gray-800 sticky top-0">
+                  {header.map((h, i) => (
+                    <th key={i} className="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-200 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap">
+                      {String(h || "")}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+            )}
+            <tbody>
+              {rows.map((row, ri) => (
+                <tr key={ri} className={ri % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50 dark:bg-gray-800/50"}>
+                  {(Array.isArray(row) ? row : []).map((cell, ci) => (
+                    <td key={ci} className="px-3 py-1.5 text-gray-700 dark:text-gray-300 border-b border-gray-100 dark:border-gray-800 whitespace-nowrap max-w-xs truncate">
+                      {String(cell ?? "")}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
+          Showing up to 10 rows
+        </p>
+      </div>
+    );
+  }
+
+  // DOCX — no browser renderer, show styled card instead
+  if (preview.type === "docx") return wrapper(
+    <div className="flex items-center gap-4 py-4">
+      <div className="text-5xl">📝</div>
+      <div>
+        <p className="font-semibold text-gray-800 dark:text-gray-200">{preview.name}</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+          Word Document · {(preview.size / 1024).toFixed(1)} KB
+        </p>
+        <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+          Click "Summarize Document" to extract and analyze content
+        </p>
+      </div>
+    </div>
+  );
+
+  // Error fallback
+  if (preview.type === "error") return wrapper(
+    <p className="text-sm text-red-500 dark:text-red-400 py-4 text-center">{preview.message}</p>
+  );
+
+  return null;
+}
+
+// ── Main Uploadcard ───────────────────────────────────────────────────────────
 
 function Uploadcard() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [dragging, setDragging] = useState(false);
   const [summary, setSummary] = useState("");
+  const [filename, setFilename] = useState("");
   const [loading, setLoading] = useState(false);
+  const [pptLoading, setPptLoading] = useState(false);
   const [stats, setStats] = useState(null);
   const [copied, setCopied] = useState(false);
   const [documentId, setDocumentId] = useState(null);
+  const [showPptModal, setShowPptModal] = useState(false);
   const { addNotification } = useNotifications();
 
   async function handleSummarize() {
     if (!selectedFile) return;
 
-    const allowed = [
-      "application/pdf",
-      "text/plain",
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    ];
-
-    if (!allowed.includes(selectedFile.type)) {
-      toast.error("Only PDF, DOCX and TXT files are allowed");
+    if (!isAllowedFile(selectedFile)) {
+      toast.error("Only PDF, DOCX, TXT, XLSX, XLS, CSV, JPG, PNG, and WEBP files are allowed");
       return;
     }
 
@@ -45,6 +296,7 @@ function Uploadcard() {
       const data = response.data;
 
       setSummary(data.summary);
+      setFilename(data.filename || selectedFile.name);
       setStats(data.stats);
       setDocumentId(data._id);
       toast.success("Summary generated successfully!");
@@ -62,6 +314,10 @@ function Uploadcard() {
         message: `${selectedFile?.name || "Document"}: ${message}`,
         type: "error",
       });
+      // Clear any previous result so stale summary + download buttons don't linger
+      setSummary("");
+      setStats(null);
+      setDocumentId(null);
     } finally {
       setLoading(false);
     }
@@ -73,7 +329,7 @@ function Uploadcard() {
       setCopied(true);
       toast.success("Copied to clipboard!");
       setTimeout(() => setCopied(false), 2000);
-    } catch (error) {
+    } catch {
       toast.error("Failed to copy");
     }
   }
@@ -83,19 +339,11 @@ function Uploadcard() {
       const blob = new Blob([summary], { type: "text/plain" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = url;
-      a.download = "Summary.txt";
-      a.click();
+      a.href = url; a.download = "Summary.txt"; a.click();
       URL.revokeObjectURL(url);
       toast.success("Downloaded as TXT");
-      addNotification({
-        title: "Download complete",
-        message: "Summary.txt was downloaded.",
-        type: "info",
-      });
-    } catch (error) {
-      toast.error("Failed to download");
-    }
+      addNotification({ title: "Download complete", message: "Summary.txt was downloaded.", type: "info" });
+    } catch { toast.error("Failed to download"); }
   }
 
   function downloadPDF() {
@@ -104,375 +352,226 @@ function Uploadcard() {
       pdf.setFontSize(18);
       pdf.text("AI Document Summary", 10, 15);
       pdf.setFontSize(11);
-      const lines = pdf.splitTextToSize(summary, 180);
-      pdf.text(lines, 10, 30);
+      pdf.text(pdf.splitTextToSize(summary, 180), 10, 30);
       pdf.save("Summary.pdf");
       toast.success("Downloaded as PDF");
+      addNotification({ title: "Download complete", message: "Summary.pdf was downloaded.", type: "info" });
+    } catch { toast.error("Failed to download PDF"); }
+  }
+
+  async function downloadPPT(options) {
+    if (!summary) return;
+    try {
+      setPptLoading(true);
+      toast("Generating presentation...", { icon: "⏳" });
+
+      const response = await api.post(
+        "/api/generate-ppt",
+        { summary, filename: filename || selectedFile?.name || "Summary", documentId, options },
+        { responseType: "blob" }
+      );
+
+      const blob = new Blob([response.data], {
+        type: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const safeName = (options?.title || filename || "Summary").replace(/\.[^/.]+$/, "");
+      a.download = `${safeName}.pptx`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Presentation downloaded!");
       addNotification({
         title: "Download complete",
-        message: "Summary.pdf was downloaded.",
+        message: `${safeName}.pptx was downloaded and saved to your Presentations history.`,
         type: "info",
       });
-    } catch (error) {
-      toast.error("Failed to download PDF");
+      setShowPptModal(false);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to generate presentation");
+    } finally {
+      setPptLoading(false);
     }
   }
 
   function clearFile() {
     setSelectedFile(null);
     setSummary("");
+    setFilename("");
     setStats(null);
     setDocumentId(null);
   }
 
+  function handleFileSelect(file) {
+    if (!file) return;
+    setSelectedFile(file);
+    setSummary("");
+    setStats(null);
+    setDocumentId(null);
+  }
+
+  // ── Derived labels ──────────────────────────────────────────────────────────
+  const { icon: fileIcon } = selectedFile ? fileTypeLabel(selectedFile) : { icon: "📄" };
+
+  const dropLabel = selectedFile && isImageFile(selectedFile) ? "Image ready for analysis"
+    : selectedFile && isPdfFile(selectedFile)   ? "PDF ready for summary"
+    : selectedFile && isExcelFile(selectedFile) ? "Spreadsheet ready for summary"
+    : selectedFile && isDocxFile(selectedFile)  ? "Word document ready for summary"
+    : selectedFile && isTextFile(selectedFile)  ? "Text file ready for summary"
+    : "Drag & Drop your file here";
+
+  const summarizeLabel = loading
+    ? (isImageFile(selectedFile) ? "Analyzing Image…" : isExcelFile(selectedFile) ? "Summarizing Spreadsheet…" : "Generating Summary…")
+    : (isImageFile(selectedFile) ? "Analyze Image"    : isExcelFile(selectedFile) ? "Summarize Spreadsheet"    : "Summarize Document");
+
+  const loadingTitle = isImageFile(selectedFile) ? "Analyzing image with AI…"
+    : isExcelFile(selectedFile) ? "Summarizing spreadsheet with AI…"
+    : "Generating AI Summary…";
+
+  const loadingSubtitle = isImageFile(selectedFile) ? "Gemini Vision is reading your image."
+    : isExcelFile(selectedFile) ? "AI is reading your spreadsheet data."
+    : "Please wait while AI analyzes your document.";
+
+  const { label: typeLabel, color: typeBadgeColor } = selectedFile ? fileTypeLabel(selectedFile) : {};
+
   return (
     <section className="bg-white dark:bg-gray-900 rounded-xl shadow-lg p-6 transition-colors duration-300">
 
-      <h2 className="text-3xl font-bold mb-6 text-gray-900 dark:text-white">
-        Upload Document
-      </h2>
+      <h2 className="text-3xl font-bold mb-6 text-gray-900 dark:text-white">Upload Document</h2>
 
+      {/* Drop Zone */}
       <div
         className={`border-2 border-dashed rounded-xl p-12 flex flex-col items-center transition-all duration-300
-        ${
-          dragging
-            ? "border-blue-500 bg-blue-50 dark:bg-blue-950/30"
-            : "border-gray-300 dark:border-gray-700"
-        }`}
-
-        onDragOver={(e) => {
-          e.preventDefault();
-          setDragging(true);
-        }}
-
-        onDragLeave={() => {
-          setDragging(false);
-        }}
-
-        onDrop={(e) => {
-          e.preventDefault();
-          setDragging(false);
-          const file = e.dataTransfer.files[0];
-          if (file) {
-            setSelectedFile(file);
-            setSummary("");
-            setStats(null);
-            setDocumentId(null);
-          }
-        }}
+          ${dragging ? "border-blue-500 bg-blue-50 dark:bg-blue-950/30" : "border-gray-300 dark:border-gray-700"}`}
+        onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(e) => { e.preventDefault(); setDragging(false); handleFileSelect(e.dataTransfer.files[0]); }}
       >
+        <div className="text-6xl">{selectedFile ? fileIcon : "📄"}</div>
 
-        <div className="text-6xl">
-          📄
-        </div>
-
-        <h3 className="text-2xl font-semibold mt-4 text-gray-900 dark:text-white">
-          Drag & Drop your file here
-        </h3>
-
-        <p className="text-gray-500 dark:text-gray-400 mt-2">
-          PDF, DOCX and TXT supported
-        </p>
+        <h3 className="text-2xl font-semibold mt-4 text-gray-900 dark:text-white">{dropLabel}</h3>
+        <p className="text-gray-500 dark:text-gray-400 mt-2">PDF, DOCX, TXT, XLSX, CSV, JPG, PNG, WEBP supported</p>
 
         <label className="mt-6 bg-blue-600 text-white px-6 py-3 rounded-lg cursor-pointer hover:bg-blue-700 transition">
-
           Browse Files
-
-          <input
-            type="file"
-            className="hidden"
-
-            onChange={(e) => {
-
-              const file = e.target.files[0];
-
-              setSelectedFile(file);
-
-              setSummary("");
-
-              setStats(null);
-
-              setDocumentId(null);
-
-            }}
-
-          />
-
+          <input type="file" className="hidden"
+            accept=".pdf,.txt,.docx,.xlsx,.xls,.csv,.jpg,.jpeg,.png,.webp,.gif"
+            onChange={(e) => handleFileSelect(e.target.files[0])} />
         </label>
 
+        {/* File info row */}
         {selectedFile && (
-
-          <div className="mt-6 bg-gray-100 dark:bg-gray-800 rounded-lg p-4 w-full flex justify-between">
-
-            <div>
-
+          <div className="mt-6 bg-gray-100 dark:bg-gray-800 rounded-lg p-4 w-full flex justify-between items-center">
+            <div className="flex items-center gap-2 flex-wrap">
               <p className="font-semibold text-green-700 dark:text-green-400">
-
-                📄 {selectedFile.name}
-
+                {fileIcon} {selectedFile.name}
               </p>
-
+              {typeLabel && (
+                <span className={`text-xs px-2 py-0.5 rounded-full ${typeBadgeColor}`}>{typeLabel}</span>
+              )}
             </div>
-
-            <div className="text-gray-700 dark:text-gray-300">
-
+            <div className="text-gray-700 dark:text-gray-300 text-sm shrink-0 ml-4">
               {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
-
             </div>
-
           </div>
-
         )}
-
       </div>
 
+      {/* File Preview — rendered outside drop zone so it has full width and no overflow clipping */}
+      {selectedFile && <FilePreview file={selectedFile} />}
+
+      {/* Action Buttons */}
       <div className="flex gap-4 mt-6">
-
-        <button
-
-          onClick={clearFile}
-
-          className="bg-red-600 text-white px-5 py-3 rounded-lg hover:bg-red-700 transition"
-
-        >
-
+        <button onClick={clearFile}
+          className="bg-red-600 text-white px-5 py-3 rounded-lg hover:bg-red-700 transition">
           ❌
-
         </button>
-
-        <button
-
-          onClick={handleSummarize}
-
-          disabled={!selectedFile || loading}
-
+        <button onClick={handleSummarize} disabled={!selectedFile || loading}
           className={`px-6 py-3 rounded-lg text-white transition
-          ${
-            loading
-              ? "bg-yellow-500 cursor-not-allowed"
-              : selectedFile
-              ? "bg-green-600 hover:bg-green-700"
-              : "bg-gray-400 dark:bg-gray-700 cursor-not-allowed"
-          }`}
-
-        >
-
-          {loading
-            ? "Generating Summary..."
-            : "Summarize Document"}
-
+            ${loading ? "bg-yellow-500 cursor-not-allowed"
+              : selectedFile ? "bg-green-600 hover:bg-green-700"
+              : "bg-gray-400 dark:bg-gray-700 cursor-not-allowed"}`}>
+          {summarizeLabel}
         </button>
-
       </div>
 
+      {/* Loading bar */}
       {loading && (
-
         <div className="mt-6 bg-blue-50 dark:bg-blue-950/30 p-5 rounded-lg">
-
-          <h2 className="font-bold text-blue-700 dark:text-blue-400">
-
-            Generating AI Summary...
-
-          </h2>
-
-          <p className="text-sm text-gray-600 dark:text-gray-400">
-
-            Please wait while AI analyzes your document.
-
-          </p>
-
+          <h2 className="font-bold text-blue-700 dark:text-blue-400">{loadingTitle}</h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400">{loadingSubtitle}</p>
           <div className="w-full bg-gray-300 dark:bg-gray-700 rounded mt-4">
-
-            <div className="bg-blue-600 h-3 rounded animate-pulse w-full"></div>
-
+            <div className="bg-blue-600 h-3 rounded animate-pulse w-full" />
           </div>
-
         </div>
-
       )}
 
+      {/* Summary Output */}
       {summary && (
-
         <div className="mt-8 bg-white dark:bg-gray-900 shadow rounded-xl p-6 border border-transparent dark:border-gray-800">
+          <h2 className="text-3xl font-bold mb-6 text-gray-900 dark:text-white">AI Summary</h2>
 
-          <h2 className="text-3xl font-bold mb-6 text-gray-900 dark:text-white">
-
-            AI Summary
-
-          </h2>
-
-          <ReactMarkdown remarkPlugins={[remarkGfm]}
-
-            components={{
-
-              h1: ({ children }) => (
-
-                <h1 className="text-3xl font-bold text-blue-700 dark:text-blue-400 mb-4">
-
-                  {children}
-
-                </h1>
-
-              ),
-
-              h2: ({ children }) => (
-
-                <h2 className="text-2xl font-semibold mt-5 mb-3 text-gray-900 dark:text-white">
-
-                  {children}
-
-                </h2>
-
-              ),
-
-              p: ({ children }) => (
-
-                <p className="leading-7 mb-3 text-gray-700 dark:text-gray-300">
-
-                  {children}
-
-                </p>
-
-              ),
-
-              ul: ({ children }) => (
-
-                <ul className="list-disc ml-6 mb-3 text-gray-700 dark:text-gray-300">
-
-                  {children}
-
-                </ul>
-
-              ),
-
-              li: ({ children }) => (
-
-                <li className="mb-2">
-
-                  {children}
-
-                </li>
-
-              ),
-
-              strong: ({ children }) => (
-
-                <strong className="font-bold text-gray-900 dark:text-white">
-
-                  {children}
-
-                </strong>
-
-              ),
-
-            }}
-
-          >
-
+          <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
+            h1: ({ children }) => <h1 className="text-3xl font-bold text-blue-700 dark:text-blue-400 mb-4">{children}</h1>,
+            h2: ({ children }) => <h2 className="text-2xl font-semibold mt-5 mb-3 text-gray-900 dark:text-white">{children}</h2>,
+            p:  ({ children }) => <p className="leading-7 mb-3 text-gray-700 dark:text-gray-300">{children}</p>,
+            ul: ({ children }) => <ul className="list-disc ml-6 mb-3 text-gray-700 dark:text-gray-300">{children}</ul>,
+            li: ({ children }) => <li className="mb-2">{children}</li>,
+            strong: ({ children }) => <strong className="font-bold text-gray-900 dark:text-white">{children}</strong>,
+          }}>
             {summary}
-
           </ReactMarkdown>
 
+          {/* Stats */}
           {stats && (
-
             <div className="mt-8">
-
-              <h2 className="text-2xl font-bold mb-4 text-gray-900 dark:text-white">
-
-                Document Statistics
-
-              </h2>
-
+              <h2 className="text-2xl font-bold mb-4 text-gray-900 dark:text-white">Document Statistics</h2>
               <div className="grid grid-cols-3 gap-5">
-
-                <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-5 shadow">
-
-                  <h3 className="text-gray-700 dark:text-gray-300">📝 Words</h3>
-
-                  <p className="text-3xl font-bold text-gray-900 dark:text-white">
-
-                    {stats.words}
-
-                  </p>
-
-                </div>
-
-                <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-5 shadow">
-
-                  <h3 className="text-gray-700 dark:text-gray-300">🔤 Characters</h3>
-
-                  <p className="text-3xl font-bold text-gray-900 dark:text-white">
-
-                    {stats.characters}
-
-                  </p>
-
-                </div>
-
-                <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-5 shadow">
-
-                  <h3 className="text-gray-700 dark:text-gray-300">⏱ Reading Time</h3>
-
-                  <p className="text-3xl font-bold text-gray-900 dark:text-white">
-
-                    {stats.readingTime} min
-
-                  </p>
-
-                </div>
-
+                {[
+                  { icon: "📝", label: "Words",        value: stats.words },
+                  { icon: "🔤", label: "Characters",   value: stats.characters },
+                  { icon: "⏱",  label: "Reading Time", value: `${stats.readingTime} min` },
+                ].map(({ icon, label, value }) => (
+                  <div key={label} className="bg-gray-100 dark:bg-gray-800 rounded-lg p-5 shadow">
+                    <h3 className="text-gray-700 dark:text-gray-300">{icon} {label}</h3>
+                    <p className="text-3xl font-bold text-gray-900 dark:text-white">{value}</p>
+                  </div>
+                ))}
               </div>
-
             </div>
-
           )}
 
+          {/* Download Actions */}
           <div className="flex gap-4 mt-8 flex-wrap">
-
-            <button
-
-              onClick={copySummary}
-
-              className="bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 transition"
-
-            >
-
+            <button onClick={copySummary} className="bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 transition">
               {copied ? "✅ Copied!" : "📋 Copy"}
-
             </button>
-
-            <button
-
-              onClick={downloadTXT}
-
-              className="bg-green-600 text-white px-5 py-2 rounded-lg hover:bg-green-700 transition"
-
-            >
-
+            <button onClick={downloadTXT} className="bg-green-600 text-white px-5 py-2 rounded-lg hover:bg-green-700 transition">
               📄 Download TXT
-
             </button>
-
-            <button
-
-              onClick={downloadPDF}
-
-              className="bg-red-600 text-white px-5 py-2 rounded-lg hover:bg-red-700 transition"
-
-            >
-
+            <button onClick={downloadPDF} className="bg-red-600 text-white px-5 py-2 rounded-lg hover:bg-red-700 transition">
               📑 Download PDF
-
             </button>
-
+            <button onClick={() => setShowPptModal(true)} disabled={pptLoading}
+              className={`px-5 py-2 rounded-lg text-white transition font-medium
+                ${pptLoading ? "bg-orange-400 cursor-not-allowed" : "bg-orange-500 hover:bg-orange-600"}`}>
+              {pptLoading ? "⏳ Generating..." : "📊 Download PPT"}
+            </button>
           </div>
 
           <DocumentChat documentId={documentId} />
-
         </div>
-
       )}
 
+      <PptOptionsModal
+        open={showPptModal}
+        defaultTitle={(filename || selectedFile?.name || "Summary").replace(/\.[^/.]+$/, "")}
+        onCancel={() => setShowPptModal(false)}
+        onConfirm={downloadPPT}
+        loading={pptLoading}
+      />
     </section>
   );
 }

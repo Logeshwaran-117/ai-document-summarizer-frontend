@@ -13,11 +13,24 @@ function Auth({ setIsAuthenticated }) {
     try {
       await api.post("/auth/login", { email, password });
       setIsAuthenticated(true);
-      navigate("/dashboard");
+      navigate("/");
     } catch (err) {
       setError(err.response?.data?.message || "Login failed");
     }
   };
+
+  const handleLogout = async () => {
+  await api.post('/auth/logout');         // clear server session
+  setIsAuthenticated(false);
+
+  // This forces Google to show account picker next time
+  window.open(
+    'https://accounts.google.com/logout',
+    '_blank'
+   );
+
+  navigate('/login');
+};
 
   return (
     <div className="flex justify-center items-center h-screen bg-gray-100 dark:bg-gray-950 transition-colors duration-300">
