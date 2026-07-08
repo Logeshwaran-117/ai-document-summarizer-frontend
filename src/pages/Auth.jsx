@@ -3,7 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import api from "../api";
 import googleLogo from "../assets/google.png";
 
-function Auth({ setIsAuthenticated }) {
+function Auth({ setIsAuthenticated, setUser }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -11,7 +11,8 @@ function Auth({ setIsAuthenticated }) {
 
   const handleLogin = async () => {
     try {
-      await api.post("/auth/login", { email, password });
+      const r = await api.post("/auth/login", { email, password });
+      setUser?.(r.data.user);
       setIsAuthenticated(true);
       navigate("/");
     } catch (err) {

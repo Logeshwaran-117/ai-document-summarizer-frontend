@@ -138,9 +138,15 @@ function ExcelSummary() {
       });
     } catch (error) {
       console.error(error);
-      const message = error.response?.data?.message || "Error extracting table";
-      toast.error(message);
-      addNotification({ title: "Extraction failed", message, type: "error" });
+      const errData = error.response?.data || {};
+      const message = errData.message || "Error extracting table";
+      if (errData.limitReached) {
+        toast.error(`Plan limit reached — ${message}`);
+        addNotification({ title: "Usage limit reached", message: `Upgrade your plan to continue. ${message}`, type: "warning" });
+      } else {
+        toast.error(message);
+        addNotification({ title: "Extraction failed", message, type: "error" });
+      }
       // Clear any previous result so stale table + download buttons don't persist
       setResult(null);
     } finally {

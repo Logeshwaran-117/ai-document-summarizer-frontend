@@ -70,6 +70,7 @@ function Navbar({ setIsAuthenticated, user }) {
                   {user?.displayName || user?.name || "User"}
                 </p>
                 <p className="text-xs text-gray-500 dark:text-gray-400">{user?.email}</p>
+                {user?.role === 'admin' && <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300">🛡️ Admin</span>}
               </div>
               <button
                 onClick={() => { setShowDropdown(false); navigate("/settings"); }}

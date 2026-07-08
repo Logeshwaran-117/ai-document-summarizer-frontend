@@ -1,5 +1,6 @@
 import { useState } from "react";
 import api from "../api";
+import { Link } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
 
 function Settings({ user, setIsAuthenticated }) {
@@ -68,6 +69,7 @@ function Settings({ user, setIsAuthenticated }) {
     const tabs = [
         { id: "profile", label: "👤 Profile", },
         { id: "password", label: "🔒 Password" },
+        { id: "billing", label: "💳 Billing" },
         { id: "danger", label: "⚠️ Danger Zone" },
     ];
 
@@ -196,6 +198,30 @@ function Settings({ user, setIsAuthenticated }) {
                     >
                         Update Password
                     </button>
+                </div>
+            )}
+
+
+            {/* Billing Tab */}
+            {activeTab === "billing" && (
+                <div className="bg-white dark:bg-gray-900 rounded-2xl shadow p-6 space-y-5 transition-colors duration-300">
+                    <div className="flex items-center justify-between">
+                        <h2 className="text-lg font-semibold text-gray-700 dark:text-gray-200">Billing & Plan</h2>
+                        <Link to="/pricing"
+                            className="text-sm bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl font-medium transition">
+                            Manage Plan →
+                        </Link>
+                    </div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                        View your current plan, usage limits, and upgrade options on the Plans & Billing page.
+                    </p>
+                    <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-4 flex items-center gap-3">
+                        <span className="text-2xl">{user?.plan === 'pro' ? '⭐' : user?.plan === 'enterprise' ? '🏢' : '🆓'}</span>
+                        <div>
+                            <p className="font-semibold text-gray-800 dark:text-white capitalize">{user?.plan || 'Free'} Plan</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">Click "Manage Plan" to see usage and upgrade</p>
+                        </div>
+                    </div>
                 </div>
             )}
 

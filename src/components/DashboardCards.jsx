@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import api from "../api";
+import { Link } from "react-router-dom";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid } from "recharts";
 
 function DashboardCards({ user }) {
     const [stats, setStats] = useState(null);
     const [recentDocs, setRecentDocs] = useState([]);
     const [chartData, setChartData] = useState([]);
+    const [billing, setBilling] = useState(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -14,14 +16,16 @@ function DashboardCards({ user }) {
 
     async function loadAll() {
         try {
-            const [statsRes, historyRes, weeklyRes] = await Promise.all([
+            const [statsRes, historyRes, weeklyRes, billingRes] = await Promise.all([
                 api.get("/api/dashboard/stats"),
                 api.get("/api/history", { params: { page: 1, limit: 5 } }),
                 api.get("/api/dashboard/weekly-uploads"),
+                api.get("/api/billing/status").catch(() => ({ data: null })),
             ]);
             setStats(statsRes.data);
             setRecentDocs(historyRes.data.documents || []);
             setChartData(weeklyRes.data || []);
+            setBilling(billingRes.data);
         } catch (error) {
             console.log(error);
         } finally {
@@ -126,6 +130,48 @@ function DashboardCards({ user }) {
                     </ResponsiveContainer>
                 </div>
             </div>
+
+
+            {/* Plan Usage Card */}
+            {billing && (
+                <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5">
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2">
+                            <span className="text-lg">{billing.plan === 'pro' ? '⭐' : billing.plan === 'enterprise' ? '🏢' : '🆓'}</span>
+                            <div>
+                                <p className="font-semibold text-gray-800 dark:text-white text-sm capitalize">{billing.planName} Plan</p>
+                                <p className="text-xs text-gray-400">Resets {new Date(billing.currentPeriodEnd).toLocaleDateString('en-IN', { day:'numeric', month:'short' })}</p>
+                            </div>
+                        </div>
+                        <Link to="/pricing" className="text-xs text-blue-600 dark:text-blue-400 font-semibold hover:underline">
+                            {billing.plan === 'free' ? 'Upgrade →' : 'Manage →'}
+                        </Link>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        {[
+                            { label: "Summaries", icon: "📄", key: "summarize" },
+                            { label: "Tables",    icon: "📊", key: "tables" },
+                        ].map(({ label, icon, key }) => {
+                            const u = billing.usage?.[key] || {};
+                            const pct = u.limit === -1 ? 0 : Math.min(100, Math.round(((u.used||0) / (u.limit||20)) * 100));
+                            return (
+                                <div key={key}>
+                                    <div className="flex justify-between text-xs mb-1">
+                                        <span className="text-gray-600 dark:text-gray-400">{icon} {label}</span>
+                                        <span className="text-gray-500 dark:text-gray-500">
+                                            {u.limit === -1 ? `${u.used||0} / ∞` : `${u.used||0} / ${u.limit||20}`}
+                                        </span>
+                                    </div>
+                                    <div className="h-2 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
+                                        <div className={`h-full rounded-full transition-all ${pct >= 90 ? 'bg-red-500' : pct >= 70 ? 'bg-orange-400' : 'bg-blue-500'}`}
+                                            style={{ width: `${u.limit === -1 ? 0 : pct}%` }}/>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
 
             {/* Recent Documents */}
             <div className="bg-white dark:bg-gray-900 rounded-2xl shadow p-6 transition-colors duration-300">

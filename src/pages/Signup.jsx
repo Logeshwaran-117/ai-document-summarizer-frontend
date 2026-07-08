@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import api from "../api";
 
-function Signup({ setIsAuthenticated }) {
+function Signup({ setIsAuthenticated, setUser }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -10,7 +10,8 @@ function Signup({ setIsAuthenticated }) {
 
   const handleSignup = async () => {
     try {
-      await api.post("/auth/signup", { email, password });
+      const r = await api.post("/auth/signup", { email, password });
+      setUser?.(r.data.user);
       setIsAuthenticated(true);
       navigate("/");
     } catch (err) {

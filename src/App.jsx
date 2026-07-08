@@ -41,7 +41,7 @@ function App() {
         <ToastProvider />
         <div className="h-screen w-full">
           <Routes>
-            <Route path="/login" element={<Auth setIsAuthenticated={setIsAuthenticated} />} />
+            <Route path="/login" element={<Auth setIsAuthenticated={setIsAuthenticated} setUser={setUser} />} />
             <Route
               path="/*"
               element={
@@ -53,13 +53,14 @@ function App() {
                     setStats={setStats}
                     setIsAuthenticated={setIsAuthenticated}
                     user={user}
+                    setUser={setUser}
                   />
                 ) : (
                   <Navigate to="/login" />
                 )
               }
             />
-            <Route path="/signup" element={<Signup setIsAuthenticated={setIsAuthenticated} />} />
+            <Route path="/signup" element={<Signup setIsAuthenticated={setIsAuthenticated} setUser={setUser} />} />
           </Routes>
         </div>
       </NotificationProvider>
