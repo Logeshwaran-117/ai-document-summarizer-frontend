@@ -483,7 +483,7 @@ export default function Pricing({ user }) {
               { label:"Table Extractions",  key:"tables",    icon:"📊" },
             ].map(({ label, key, icon }) => {
               const u   = billing.usage?.[key] || {};
-              const pct = usagePct(u.used || 0, u.limit || 20);
+              const pct = usagePct(u.used || 0, u.limit || 5);
               const unlimited = u.limit === -1;
               return (
                 <div key={key}>
@@ -499,7 +499,7 @@ export default function Pricing({ user }) {
                       style={{ width: unlimited ? "30%" : `${pct}%` }}/>
                   </div>
                   <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                    {unlimited ? "Unlimited" : `${u.remaining || 0} remaining · resets ${new Date(billing.currentPeriodEnd).toLocaleDateString("en-IN", { day:"numeric", month:"short" })}`}
+                    {unlimited ? "Unlimited" : `${u.remaining || 0} remaining · resets daily at midnight`}
                   </p>
                 </div>
               );
@@ -565,8 +565,8 @@ export default function Pricing({ user }) {
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
                   {[
-                    ["Summaries / month",         "20",       "500",        "Unlimited"],
-                    ["Table extractions / month",  "20",       "500",        "Unlimited"],
+                    ["Summaries / day",            "5",        "15",         "Unlimited"],
+                    ["Table extractions / day",    "5",        "15",         "Unlimited"],
                     ["Max file size",              "10 MB",    "50 MB",      "200 MB"],
                     ["History retention",          "30 days",  "1 year",     "Forever"],
                     ["All AI models",              "❌",       "✅",         "✅"],
@@ -600,7 +600,7 @@ export default function Pricing({ user }) {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               {[
                 ["What counts as one summary?","Each file you upload and summarize counts as one use, regardless of file size or document length."],
-                ["Do unused limits roll over?","No — your usage resets at the start of each billing period (monthly or yearly)."],
+                ["Do unused limits roll over?","No — your summary and table limits reset daily at midnight. Billing (monthly or yearly) is separate and only affects your subscription price."],
                 ["Can I switch plans anytime?","Yes. Upgrading takes effect immediately. Downgrading or cancelling takes effect at the end of the current period."],
                 ["What payment methods are accepted?","UPI, debit/credit cards (Visa, Mastercard, RuPay), net banking, and wallets via Razorpay."],
                 ["Is billing in INR?","Yes, all prices are in Indian Rupees (₹) including 18% GST."],
