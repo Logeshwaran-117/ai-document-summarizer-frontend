@@ -2,16 +2,17 @@ import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 
 const USER_LINKS = [
-  { to: "/",         icon: "🏠", label: "Dashboard",      sub: "Overview & stats"    },
-  { to: "/upload",   icon: "📤", label: "Summarize",       sub: "Upload & summarize"  },
-  { to: "/excel",    icon: "📊", label: "Table Generator", sub: "Extract data tables" },
-  { to: "/history",  icon: "🗂️", label: "History",         sub: "Past summaries"      },
-  { to: "/pricing",  icon: "💳", label: "Plans & Billing",  sub: "Upgrade your plan"   },
-  { to: "/settings", icon: "⚙️", label: "Settings",        sub: "Account & prefs"     },
+  { to: "/",         icon: "🏠", label: "Dashboard",       sub: "Overview & stats"     },
+  { to: "/upload",   icon: "📤", label: "Summarize",        sub: "Upload & summarize"   },
+  { to: "/excel",    icon: "📊", label: "Table Generator",  sub: "Extract data tables"  },
+  { to: "/banking",  icon: "🏦", label: "Banking",          sub: "Financial analysis"   },  // ← NEW
+  { to: "/history",  icon: "🗂️", label: "History",          sub: "Past summaries"       },
+  { to: "/pricing",  icon: "💳", label: "Plans & Billing",   sub: "Upgrade your plan"    },
+  { to: "/settings", icon: "⚙️", label: "Settings",         sub: "Account & prefs"      },
 ];
 
 const ADMIN_LINKS = [
-  { to: "/admin",    icon: "🛡️", label: "Admin Panel",    sub: "Manage users"        },
+  { to: "/admin",    icon: "🛡️", label: "Admin Panel",     sub: "Manage users"         },
 ];
 
 function NavLink({ to, icon, label, sub, collapsed, isActive, accent }) {

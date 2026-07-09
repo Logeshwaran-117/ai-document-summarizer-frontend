@@ -17,26 +17,34 @@ const DETAIL_LEVELS = [
  *  - open: boolean
  *  - defaultTitle: string
  *  - onCancel: () => void
- *  - onConfirm: (options) => void   options = { title, theme, detailLevel, includeAgenda, includeNotes }
+ *  - onConfirm: (options) => void   options = { title, theme, detailLevel, includeAgenda, includeNotes, exportAsPdf }
+ *  - onConfirmPdf?: (options) => void  — if provided, separate PDF export handler
  *  - loading: boolean
  */
-function PptOptionsModal({ open, defaultTitle = "", onCancel, onConfirm, loading = false }) {
+function PptOptionsModal({ open, defaultTitle = "", onCancel, onConfirm, onConfirmPdf, loading = false }) {
   const [title, setTitle] = useState(defaultTitle);
   const [theme, setTheme] = useState("navyGold");
   const [detailLevel, setDetailLevel] = useState("standard");
   const [includeAgenda, setIncludeAgenda] = useState(true);
   const [includeNotes, setIncludeNotes] = useState(true);
+  const [exportFormat, setExportFormat] = useState("pptx"); // "pptx" | "pdf"
 
   if (!open) return null;
 
+  const options = {
+    title: title.trim() || defaultTitle,
+    theme,
+    detailLevel,
+    includeAgenda,
+    includeNotes,
+  };
+
   function handleConfirm() {
-    onConfirm({
-      title: title.trim() || defaultTitle,
-      theme,
-      detailLevel,
-      includeAgenda,
-      includeNotes,
-    });
+    if (exportFormat === "pdf" && onConfirmPdf) {
+      onConfirmPdf(options);
+    } else {
+      onConfirm(options);
+    }
   }
 
   return (
@@ -118,6 +126,33 @@ function PptOptionsModal({ open, defaultTitle = "", onCancel, onConfirm, loading
             </div>
           </div>
 
+          {/* Export Format */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+              Export Format
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { key: "pptx", icon: "📊", label: "PowerPoint (.pptx)", hint: "Open in PowerPoint / Slides" },
+                { key: "pdf",  icon: "📑", label: "PDF (.pdf)",          hint: "Ready to share or print" },
+              ].map(f => (
+                <button
+                  key={f.key}
+                  type="button"
+                  onClick={() => setExportFormat(f.key)}
+                  className={`text-left px-3 py-2.5 rounded-lg border text-sm transition ${
+                    exportFormat === f.key
+                      ? "border-blue-500 bg-blue-50 dark:bg-blue-950/40 ring-1 ring-blue-500"
+                      : "border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
+                  }`}
+                >
+                  <p className="font-semibold text-gray-800 dark:text-gray-100">{f.icon} {f.label}</p>
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">{f.hint}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Toggles */}
           <div className="space-y-3">
             <label className="flex items-center justify-between cursor-pointer">
@@ -158,9 +193,15 @@ function PptOptionsModal({ open, defaultTitle = "", onCancel, onConfirm, loading
           <button
             onClick={handleConfirm}
             disabled={loading}
-            className="flex-1 px-4 py-2.5 rounded-lg text-sm font-medium bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
+            className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium text-white disabled:opacity-50 disabled:cursor-not-allowed transition ${
+              exportFormat === "pdf" ? "bg-red-600 hover:bg-red-700" : "bg-orange-500 hover:bg-orange-600"
+            }`}
           >
-            {loading ? "⏳ Generating..." : "Generate PPT"}
+            {loading
+              ? "⏳ Generating..."
+              : exportFormat === "pdf"
+                ? "📑 Generate PDF"
+                : "📊 Generate PPT"}
           </button>
         </div>
       </div>

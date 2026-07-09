@@ -326,6 +326,8 @@ function Uploadcard() {
   const [filename,      setFilename]      = useState("");
   const [loading,       setLoading]       = useState(false);
   const [pptLoading,    setPptLoading]    = useState(false);
+  const [pptPdfLoading, setPptPdfLoading] = useState(false);
+  const [showPptPdfMenu, setShowPptPdfMenu] = useState(false);
   const [stats,         setStats]         = useState(null);
   const [copied,        setCopied]        = useState(false);
   const [documentId,    setDocumentId]    = useState(null);
@@ -448,6 +450,72 @@ function Uploadcard() {
       toast.error("Failed to generate presentation");
     } finally {
       setPptLoading(false);
+    }
+  }
+
+  async function downloadPPTAsPDF(options) {
+    if (!summary) return;
+    try {
+      setPptPdfLoading(true);
+      toast("Generating presentation PDF...", { icon: "⏳" });
+      // First generate the PPTX (it gets saved server-side)
+      const response = await api.post(
+        "/api/generate-ppt",
+        { summary, filename: filename || selectedFile?.name || "Summary", documentId, options },
+        { responseType: "blob" }
+      );
+      // Now export PDF cover page using jsPDF
+      const { jsPDF } = await import("jspdf");
+      const pdfName = (options?.title || filename || "Summary").replace(/\.[^/.]+$/, "");
+      const pdf = new jsPDF({ orientation: "landscape", unit: "pt", format: "letter" });
+
+      // Cover
+      pdf.setFillColor(30, 39, 97);
+      pdf.rect(0, 0, 792, 612, "F");
+      pdf.setFontSize(30);
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFont("helvetica", "bold");
+      const titleLines = pdf.splitTextToSize(pdfName, 680);
+      pdf.text(titleLines, 56, 210);
+      pdf.setFontSize(14);
+      pdf.setFont("helvetica", "normal");
+      pdf.setTextColor(201, 168, 76);
+      pdf.text("AI Document Summarizer — Presentation Export", 56, 280);
+      pdf.setFontSize(11);
+      pdf.setTextColor(160, 176, 208);
+      pdf.text(`Generated on ${new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}`, 56, 308);
+      pdf.setFillColor(201, 168, 76);
+      pdf.rect(56, 330, 120, 4, "F");
+
+      // Summary page
+      pdf.addPage();
+      pdf.setFillColor(247, 249, 252);
+      pdf.rect(0, 0, 792, 612, "F");
+      pdf.setFillColor(30, 39, 97);
+      pdf.rect(0, 0, 792, 60, "F");
+      pdf.setFontSize(16);
+      pdf.setFont("helvetica", "bold");
+      pdf.setTextColor(255, 255, 255);
+      pdf.text("AI Summary Excerpt", 40, 38);
+      pdf.setFontSize(10);
+      pdf.setFont("helvetica", "normal");
+      pdf.setTextColor(26, 26, 46);
+      const cleanSummary = summary.replace(/[#*_`>]/g, "").trim().slice(0, 1200);
+      const summaryLines = pdf.splitTextToSize(cleanSummary, 710);
+      pdf.text(summaryLines.slice(0, 38), 40, 90);
+      pdf.setFillColor(201, 168, 76);
+      pdf.rect(0, 600, 792, 12, "F");
+
+      pdf.save(`${pdfName}.pdf`);
+      toast.success("Presentation PDF downloaded!");
+      addNotification({ title: "PDF download complete", message: `${pdfName}.pdf was downloaded.`, type: "info" });
+      setShowPptPdfMenu(false);
+      setShowPptModal(false);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to generate presentation PDF");
+    } finally {
+      setPptPdfLoading(false);
     }
   }
 
@@ -585,10 +653,52 @@ function Uploadcard() {
             </button>
             <button onClick={downloadTXT} className="bg-green-600 text-white px-5 py-2 rounded-lg hover:bg-green-700 transition">📄 Download TXT</button>
             <button onClick={downloadPDF} className="bg-red-600 text-white px-5 py-2 rounded-lg hover:bg-red-700 transition">📑 Download PDF</button>
-            <button onClick={() => setShowPptModal(true)} disabled={pptLoading}
-              className={`px-5 py-2 rounded-lg text-white transition font-medium ${pptLoading ? "bg-orange-400 cursor-not-allowed" : "bg-orange-500 hover:bg-orange-600"}`}>
-              {pptLoading ? "⏳ Generating..." : "📊 Download PPT"}
-            </button>
+            {/* PPT / PDF split button */}
+            <div className="relative flex rounded-lg overflow-hidden shadow-sm">
+              <button
+                onClick={() => setShowPptModal(true)}
+                disabled={pptLoading || pptPdfLoading}
+                className={`px-4 py-2 text-white transition font-medium text-sm flex items-center gap-1.5 ${pptLoading ? "bg-orange-400 cursor-not-allowed" : "bg-orange-500 hover:bg-orange-600"}`}
+              >
+                {pptLoading ? "⏳ Generating..." : "📊 Download PPT"}
+              </button>
+              <div className="w-px bg-orange-400" />
+              <div className="relative">
+                
+                {showPptPdfMenu && (
+                  <div
+                    className="absolute right-0 bottom-full mb-1 w-52 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl z-50"
+                    onMouseLeave={() => setShowPptPdfMenu(false)}
+                  >
+                    <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-3 pt-2.5 pb-1">Export as PDF</p>
+                    {[
+                      { key: "navyGold",      label: "Navy & Gold",      colors: ["#1E2761", "#C9A84C"] },
+                      { key: "tealSlate",     label: "Teal & Slate",     colors: ["#0F3D3E", "#3FBFAE"] },
+                      { key: "charcoalRuby",  label: "Charcoal & Ruby",  colors: ["#231F20", "#C0392B"] },
+                    ].map(t => (
+                      <button
+                        key={t.key}
+                        onClick={() => downloadPPTAsPDF({ title: (filename || selectedFile?.name || "Summary").replace(/\.[^/.]+$/, ""), theme: t.key, detailLevel: "standard", includeAgenda: true, includeNotes: false })}
+                        className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+                      >
+                        <span className="flex gap-1">
+                          <span className="w-3 h-3 rounded-full" style={{ background: t.colors[0] }} />
+                          <span className="w-3 h-3 rounded-full" style={{ background: t.colors[1] }} />
+                        </span>
+                        {t.label}
+                      </button>
+                    ))}
+                    <div className="border-t border-gray-100 dark:border-gray-800 mt-1 mb-1" />
+                    <button
+                      onClick={() => { setShowPptPdfMenu(false); setShowPptModal(true); }}
+                      className="flex items-center gap-2 w-full px-3 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition"
+                    >
+                      ⚙️ Custom options…
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
           <DocumentChat documentId={documentId} />
@@ -600,7 +710,8 @@ function Uploadcard() {
         defaultTitle={(filename || selectedFile?.name || "Summary").replace(/\.[^/.]+$/, "")}
         onCancel={() => setShowPptModal(false)}
         onConfirm={downloadPPT}
-        loading={pptLoading}
+        onConfirmPdf={downloadPPTAsPDF}
+        loading={pptLoading || pptPdfLoading}
       />
     </section>
   );
