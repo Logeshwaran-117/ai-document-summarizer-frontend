@@ -11,7 +11,8 @@ import ExcelSummary from "./ExcelSummary";
 import TableDetailPage from "./TableDetailPage";
 import AdminPanel from "./AdminPanel";
 import Pricing from "./Pricing";
-import Banking from "./Banking";   // ← NEW
+import Banking from "./Banking";
+import UsageDashboard from "./UsageDashboard"; // ← NEW
 
 function AdminGuard({ user, children }) {
   if (!user || user.role !== "admin") {
@@ -44,10 +45,16 @@ function Dashboard({ setIsAuthenticated, user }) {
                         <Route path="/excel" element={<ExcelSummary />} />
                         <Route path="/tables/:id" element={<TableDetailPage />} />
                         <Route path="/pricing" element={<Pricing user={user}/>} />
-                        <Route path="/banking" element={<Banking />} />   {/* ← NEW */}
+                        <Route path="/banking" element={<Banking user={user} />} />
                         <Route path="/admin" element={
                           <AdminGuard user={user}>
                             <AdminPanel />
+                          </AdminGuard>
+                        } />
+                        {/* ── NEW: API Key Usage Dashboard ── */}
+                        <Route path="/usage-dashboard" element={
+                          <AdminGuard user={user}>
+                            <UsageDashboard />
                           </AdminGuard>
                         } />
                         <Route path="*" element={<Navigate to="/" />} />

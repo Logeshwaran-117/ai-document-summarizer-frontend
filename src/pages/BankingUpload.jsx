@@ -11,7 +11,7 @@ const TYPE_LABELS = {
   unknown: "Financial Document",
 };
 
-export default function BankingUpload() {
+export default function BankingUpload({ onAnalysisDone }) {
   const [file, setFile] = useState(null);
   const [dragging, setDragging] = useState(false);
   const [stage, setStage] = useState("idle"); // idle | uploading | done | error
@@ -73,6 +73,7 @@ export default function BankingUpload() {
       setStageLabel("Done!");
       setResult(res.data);
       setStage("done");
+      if (onAnalysisDone) onAnalysisDone();
     } catch (err) {
       clearInterval(ticker);
       setError(err.response?.data?.message || "Analysis failed. Please try again.");

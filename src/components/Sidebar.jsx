@@ -1,18 +1,21 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
+import UsageBadge from "./UsageBadge";
 
 const USER_LINKS = [
   { to: "/",         icon: "🏠", label: "Dashboard",       sub: "Overview & stats"     },
   { to: "/upload",   icon: "📤", label: "Summarize",        sub: "Upload & summarize"   },
   { to: "/excel",    icon: "📊", label: "Table Generator",  sub: "Extract data tables"  },
-  { to: "/banking",  icon: "🏦", label: "Banking",          sub: "Financial analysis"   },  // ← NEW
+  { to: "/banking",  icon: "🏦", label: "Banking",          sub: "Financial analysis"   },
   { to: "/history",  icon: "🗂️", label: "History",          sub: "Past summaries"       },
   { to: "/pricing",  icon: "💳", label: "Plans & Billing",   sub: "Upgrade your plan"    },
   { to: "/settings", icon: "⚙️", label: "Settings",         sub: "Account & prefs"      },
 ];
 
 const ADMIN_LINKS = [
-  { to: "/admin",    icon: "🛡️", label: "Admin Panel",     sub: "Manage users"         },
+  { to: "/admin",           icon: "🛡️", label: "Admin Panel",     sub: "Manage users"         },
+  // ── NEW ──────────────────────────────────────────────────────────────────────
+  { to: "/usage-dashboard", icon: "📡", label: "API Key Usage",    sub: "Gemini key stats"     },
 ];
 
 function NavLink({ to, icon, label, sub, collapsed, isActive, accent }) {
@@ -80,12 +83,9 @@ function Sidebar({ user }) {
         {isAdmin && (
           <>
             {!collapsed && (
-              <div className="pt-3 pb-1.5 px-2">
-                <div className="border-t border-gray-800 mb-2"/>
-                <p className="text-[10px] uppercase tracking-widest text-yellow-600/70 font-semibold">Admin</p>
-              </div>
+              <p className="text-[10px] uppercase tracking-widest text-gray-600 font-semibold px-2 pb-1.5 pt-3">Admin</p>
             )}
-            {collapsed && <div className="my-2 mx-auto w-6 border-t border-gray-700"/>}
+            {collapsed && <div className="my-1 border-t border-gray-800" />}
             {ADMIN_LINKS.map(l => (
               <NavLink key={l.to} {...l} collapsed={collapsed} isActive={location.pathname === l.to} accent="yellow"/>
             ))}
@@ -93,22 +93,10 @@ function Sidebar({ user }) {
         )}
       </nav>
 
-      {/* User chip at bottom */}
+      {/* Usage badge */}
       {!collapsed && (
-        <div className="px-2 pb-4 shrink-0">
-          <div className={`rounded-xl px-3 py-2.5 ${isAdmin ? "bg-yellow-500/10 border border-yellow-500/20" : "bg-gray-800"}`}>
-            <div className="flex items-center gap-2.5">
-              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold shrink-0">
-                {(user?.name || user?.email || "?")[0].toUpperCase()}
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-medium text-gray-300 truncate">{user?.name || user?.email || "User"}</p>
-                <p className={`text-[10px] font-semibold capitalize ${isAdmin ? "text-yellow-400" : "text-gray-500"}`}>
-                  {isAdmin ? "🛡️ Admin" : "User"}
-                </p>
-              </div>
-            </div>
-          </div>
+        <div className="p-3 border-t border-gray-800">
+          <UsageBadge user={user} />
         </div>
       )}
     </aside>

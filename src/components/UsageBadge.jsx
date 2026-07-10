@@ -1,171 +1,144 @@
-/**
- * UsageBadge.jsx
- * src/components/UsageBadge.jsx
- *
- * Fetches /api/usage and renders a compact card showing how many
- * summarise + table credits have been used / remain for this billing period.
- *
- * Props:
- *   type  — 'summarize' | 'tables' | 'both'  (default 'both')
- *   className — extra Tailwind classes for the wrapper
- *
- * Usage:
- *   <UsageBadge type="summarize" />   ← only summary bar
- *   <UsageBadge type="tables" />      ← only table bar
- *   <UsageBadge />                    ← both bars (default)
- */
-
-import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import React, { useEffect, useState } from "react";
 import api from "../api";
 
-const PLAN_COLORS = {
-  free:       "bg-gray-100  dark:bg-gray-800  text-gray-600  dark:text-gray-300",
-  pro:        "bg-blue-100  dark:bg-blue-900  text-blue-700  dark:text-blue-300",
-  enterprise: "bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300",
-};
-
-const PLAN_LABEL = {
-  free:       "Free",
-  pro:        "Pro",
-  enterprise: "Enterprise",
-};
-
-/** Single horizontal progress bar for one action */
-function UsageBar({ label, icon, used, limit, remaining }) {
-  const isUnlimited = limit === null || limit === undefined || limit === Infinity;
-  const pct         = isUnlimited ? 0 : Math.min((used / limit) * 100, 100);
-  const danger      = !isUnlimited && remaining <= 1;
-  const warn        = !isUnlimited && !danger && remaining <= Math.ceil(limit * 0.2);
-
-  const barColor = danger ? "bg-red-500"
-    : warn       ? "bg-yellow-400"
-    :              "bg-blue-500";
-
-  const textColor = danger ? "text-red-600 dark:text-red-400"
-    : warn        ? "text-yellow-600 dark:text-yellow-400"
-    :               "text-gray-500 dark:text-gray-400";
-
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-xs font-semibold text-gray-700 dark:text-gray-200 flex items-center gap-1">
-          {icon} {label}
-        </span>
-        <span className={`text-xs font-medium ${textColor}`}>
-          {isUnlimited
-            ? `${used} used · Unlimited`
-            : `${used} / ${limit} used · ${remaining} left`}
-        </span>
-      </div>
-
-      {/* Track */}
-      <div className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-        {isUnlimited ? (
-          <div className="h-2 w-full bg-gradient-to-r from-blue-400 to-purple-500 rounded-full opacity-40" />
-        ) : (
-          <div
-            className={`h-2 rounded-full transition-all duration-700 ${barColor}`}
-            style={{ width: `${pct}%` }}
-          />
-        )}
-      </div>
-
-      {/* Warning caption */}
-      {danger && !isUnlimited && (
-        <p className="text-xs text-red-500 dark:text-red-400 mt-0.5">
-          Limit reached — <Link to="/pricing" className="underline font-semibold">upgrade your plan</Link>
-        </p>
-      )}
-      {warn && !danger && !isUnlimited && (
-        <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-0.5">
-          Almost out — <Link to="/pricing" className="underline font-semibold">upgrade</Link> for more
-        </p>
-      )}
-    </div>
-  );
-}
-
-export default function UsageBadge({ type = "both", className = "" }) {
-  const [usage,   setUsage]   = useState(null);
+/**
+ * GeminiUsagePanel — Full token-usage display for all 3 summarizer UIs.
+ *
+ * Props:
+ *   type  — "summarize" | "tables" | "banking"  (which quota bucket to highlight)
+ *   className — extra Tailwind classes
+ *
+ * Fetches /api/billing/status on mount (and whenever `key` changes from parent).
+ */
+export default function UsageBadge({ type = "summarize", className = "" }) {
+  const [data, setData]     = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError]   = useState(false);
 
   useEffect(() => {
-    let cancelled = false;
-    api.get("/api/usage")
-      .then(r => { if (!cancelled) setUsage(r.data); })
-      .catch(() => {})
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
+    setLoading(true);
+    setError(false);
+    api.get("/api/billing/status")
+      .then(r => { setData(r.data); setLoading(false); })
+      .catch(() => { setError(true); setLoading(false); });
   }, []);
 
-  if (loading) {
-    return (
-      <div className={`rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 ${className}`}>
-        <div className="animate-pulse space-y-3">
-          <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-1/3" />
-          <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded" />
-          <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded w-3/4" />
-        </div>
-      </div>
-    );
-  }
+  if (loading) return (
+    <div className={`p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 animate-pulse ${className}`}>
+      <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mb-3" />
+      <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full mb-3" />
+      <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded w-1/2" />
+    </div>
+  );
 
-  if (!usage) return null;
+  if (error || !data) return null;
 
-  const plan      = usage.plan || "free";
-  const isAdmin   = usage.role === "admin";
-  const badgeClass = PLAN_COLORS[plan] || PLAN_COLORS.free;
+  // Pluck the relevant usage bucket
+  const usage   = data.usage?.[type] || {};
+  const used      = usage.used      ?? 0;
+  const limit     = usage.limit     ?? 0;
+  const remaining = usage.remaining ?? 0;
+  const resetDate = usage.resetDate ?? data.resetDate;
+  const unlimited = limit === -1;
+  const pct       = unlimited ? 0 : Math.min(100, limit > 0 ? Math.round((used / limit) * 100) : 0);
+
+  // Gemini token counts (global, from billing status if available)
+  const tokens       = data.tokens    || {};
+  const tokensUsed   = tokens.used      ?? null;
+  const tokensLimit  = tokens.limit     ?? null;
+  const tokensRemain = tokens.remaining ?? null;
+  const tokensPct    = (tokensLimit && tokensLimit > 0 && tokensUsed !== null)
+    ? Math.min(100, Math.round((tokensUsed / tokensLimit) * 100))
+    : null;
+
+  const formattedReset = resetDate
+    ? new Date(resetDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+    : null;
+
+  const barColor = pct >= 90 ? "bg-red-500"
+    : pct >= 70 ? "bg-yellow-500"
+    : "bg-blue-500";
+
+  const LABELS = { summarize: "Doc Summaries", tables: "Table Extractions", banking: "Banking Analyses" };
+  const label = LABELS[type] || "API Requests";
 
   return (
-    <div className={`rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 space-y-3 ${className}`}>
-      {/* Header row */}
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wide">
-          Monthly Usage
-        </span>
-        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${badgeClass}`}>
-          {isAdmin ? "Admin ∞" : PLAN_LABEL[plan] || plan}
+    <div className={`rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm overflow-hidden ${className}`}>
+      {/* Header */}
+      <div className="px-4 pt-4 pb-3 border-b border-gray-100 dark:border-gray-700 flex items-center gap-2">
+        <span className="text-base">✨</span>
+        <h4 className="text-xs font-bold text-gray-800 dark:text-gray-100 tracking-wide uppercase">Gemini Usage</h4>
+        <span className="ml-auto text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300">
+          {data.planName || "Free"}
         </span>
       </div>
 
-      {/* Bars */}
-      {isAdmin ? (
-        <p className="text-xs text-gray-400 dark:text-gray-500 italic">
-          Admins have unlimited access — no usage limits apply.
-        </p>
-      ) : (
-        <>
-          {(type === "summarize" || type === "both") && (
-            <UsageBar
-              label="Summaries"
-              icon="📄"
-              used={usage.summarize.used}
-              limit={usage.summarize.limit}
-              remaining={usage.summarize.remaining}
-            />
+      <div className="px-4 py-3 space-y-3">
+        {/* This-type quota */}
+        <div>
+          <div className="flex justify-between items-center mb-1">
+            <span className="text-[11px] font-semibold text-gray-600 dark:text-gray-300">{label}</span>
+            <span className="text-[11px] font-bold text-gray-700 dark:text-gray-200 tabular-nums">
+              {unlimited ? "∞ Unlimited" : `${used} / ${limit}`}
+            </span>
+          </div>
+          {!unlimited && (
+            <div className="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+              <div
+                className={`h-1.5 rounded-full transition-all duration-500 ${barColor}`}
+                style={{ width: `${pct}%` }}
+              />
+            </div>
           )}
-          {(type === "tables" || type === "both") && (
-            <UsageBar
-              label="Table Extractions"
-              icon="📊"
-              used={usage.tables.used}
-              limit={usage.tables.limit}
-              remaining={usage.tables.remaining}
-            />
-          )}
-        </>
-      )}
+          <div className="flex justify-between mt-1">
+            {!unlimited && (
+              <span className={`text-[10px] font-medium ${remaining === 0 ? "text-red-500" : "text-gray-400 dark:text-gray-500"}`}>
+                {remaining === 0 ? "Limit reached" : `${remaining} remaining`}
+              </span>
+            )}
+            {!unlimited && (
+              <span className="text-[10px] text-gray-400 dark:text-gray-500 tabular-nums ml-auto">{pct}%</span>
+            )}
+          </div>
+        </div>
 
-      {/* Upgrade CTA */}
-      {!isAdmin && plan !== "enterprise" && (
-        <Link
-          to="/pricing"
-          className="block text-center text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline pt-1"
-        >
-          {plan === "free" ? "⚡ Upgrade to Pro for more" : "⚡ Upgrade to Enterprise"}
-        </Link>
-      )}
+        {/* Gemini token pool (if backend exposes it) */}
+        {tokensUsed !== null && tokensLimit !== null && (
+          <div className="pt-2 border-t border-gray-100 dark:border-gray-700">
+            <div className="flex justify-between items-center mb-1">
+              <span className="text-[11px] font-semibold text-gray-600 dark:text-gray-300">Gemini Tokens</span>
+              <span className="text-[11px] font-bold text-gray-700 dark:text-gray-200 tabular-nums">
+                {tokensUsed.toLocaleString()} / {tokensLimit === -1 ? "∞" : tokensLimit.toLocaleString()}
+              </span>
+            </div>
+            {tokensLimit !== -1 && tokensPct !== null && (
+              <div className="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                <div
+                  className={`h-1.5 rounded-full transition-all duration-500 ${tokensPct >= 90 ? "bg-red-500" : tokensPct >= 70 ? "bg-yellow-500" : "bg-indigo-500"}`}
+                  style={{ width: `${tokensPct}%` }}
+                />
+              </div>
+            )}
+            <div className="flex justify-between mt-1">
+              <span className="text-[10px] text-gray-400 dark:text-gray-500">
+                {tokensRemain !== null && tokensLimit !== -1
+                  ? `${tokensRemain.toLocaleString()} remaining`
+                  : "Unlimited"}
+              </span>
+              {tokensPct !== null && tokensLimit !== -1 && (
+                <span className="text-[10px] text-gray-400 dark:text-gray-500 tabular-nums">{tokensPct}%</span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Reset info */}
+        {formattedReset && (
+          <p className="text-[10px] text-gray-400 dark:text-gray-500 pt-1 border-t border-gray-100 dark:border-gray-700">
+            🔄 Resets on <span className="font-medium text-gray-500 dark:text-gray-400">{formattedReset}</span>
+          </p>
+        )}
+      </div>
     </div>
   );
 }
