@@ -1,5 +1,4 @@
 // src/components/dashboard/HeroSection.jsx
-// Unified hero: greeting + plan badge + quick actions + stat cards — all in one box
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import {
@@ -46,10 +45,74 @@ function PlanBadge({ billing }) {
   );
 }
 
+/* ── Helpers to derive real ring percentages ── */
+
+/**
+ * Returns { pct, label, sublabel } for each ring.
+ *
+ * billing.usage.summarize = { used, limit, remaining }   (limit=-1 means unlimited)
+ * billing.usage.tables    = { used, limit, remaining }
+ * user.tokensUsed / user.tokenLimit                      (raw token consumption)
+ * user.plan                                              (free / pro / enterprise)
+ *
+ * "Storage" ring: maps plan tier to a capacity percentage
+ *   free=25%, pro=60%, enterprise=100%   — represents plan tier headroom, not disk bytes
+ * "Quota" ring:  summarize used/limit for today
+ * "Credits" ring: tokens used / tokenLimit
+ * "Tables" ring:  table extractions used/limit
+ */
+function deriveRings(billing, user) {
+  // ── Storage: plan-tier proxy (free plan = 25 % of max feature set) ──
+  const planPct = { free: 25, pro: 60, enterprise: 100 };
+  const storagePct = planPct[user?.plan || billing?.plan || "free"] ?? 25;
+
+  // ── Quota: summarize used / daily limit ──
+  const sumUsed    = billing?.usage?.summarize?.used    ?? 0;
+  const sumLimit   = billing?.usage?.summarize?.limit   ?? null; // null = unknown
+  let   quotaPct   = 0;
+  let   quotaLabel = "Quota";
+  if (sumLimit === -1) {
+    // Unlimited plan — show 100 % (full green ring)
+    quotaPct   = 100;
+    quotaLabel = "Quota ∞";
+  } else if (sumLimit && sumLimit > 0) {
+    quotaPct = Math.min(100, Math.round((sumUsed / sumLimit) * 100));
+  }
+
+  // ── Credits: AI token consumption ──
+  const tokensUsed  = user?.tokensUsed  ?? 0;
+  const tokenLimit  = user?.tokenLimit  ?? 1000000;
+  const creditsPct  = tokenLimit > 0
+    ? Math.min(100, Math.round((tokensUsed / tokenLimit) * 100))
+    : 0;
+
+  // ── Tables: table extraction used / daily limit ──
+  const tblUsed  = billing?.usage?.tables?.used  ?? 0;
+  const tblLimit = billing?.usage?.tables?.limit ?? null;
+  let   tblPct   = 0;
+  let   tblLabel = "Tables";
+  if (tblLimit === -1) {
+    tblPct   = 100;
+    tblLabel = "Tables ∞";
+  } else if (tblLimit && tblLimit > 0) {
+    tblPct = Math.min(100, Math.round((tblUsed / tblLimit) * 100));
+  }
+
+  return [
+    { pct: storagePct, color: "var(--primary)", label: "Plan"      },
+    { pct: quotaPct,   color: "var(--success)", label: quotaLabel  },
+    { pct: creditsPct, color: "var(--warning)", label: "Tokens"    },
+    { pct: tblPct,     color: "#ec4899",        label: tblLabel    },
+  ];
+}
+
 /* ── Compact radial ring ── */
 function MiniRing({ pct, color, label }) {
   const r    = 18;
   const circ = 2 * Math.PI * r;
+  // Clamp and round to avoid floating point artifacts
+  const safePct = Math.min(100, Math.max(0, Math.round(pct)));
+
   return (
     <div className="flex flex-col items-center gap-1">
       <svg width="44" height="44" className="-rotate-90">
@@ -59,7 +122,7 @@ function MiniRing({ pct, color, label }) {
           fill="none" stroke={color} strokeWidth="3.5" strokeLinecap="round"
           strokeDasharray={circ}
           initial={{ strokeDashoffset: circ }}
-          animate={{ strokeDashoffset: circ - circ * (pct / 100) }}
+          animate={{ strokeDashoffset: circ - circ * (safePct / 100) }}
           transition={{ duration: 1.1, delay: 0.5, ease: "easeOut" }}
         />
         <text
@@ -67,7 +130,7 @@ function MiniRing({ pct, color, label }) {
           textAnchor="middle" dominantBaseline="central"
           style={{ transform: "rotate(90deg)", transformOrigin: "22px 22px", fontSize: 9, fontWeight: 700, fill: "currentColor" }}
         >
-          {pct}%
+          {safePct}%
         </text>
       </svg>
       <p className="text-[10px] font-medium text-center leading-tight" style={{ color: "var(--muted)" }}>{label}</p>
@@ -158,6 +221,9 @@ function HeroSection({ user, stats, billing }) {
     { icon: CheckCircle2, value: `${rate}%`,    label: "Success Rate",  color: "#ec4899"        },
   ];
 
+  // ── Derive real ring data from billing + user ──
+  const rings = deriveRings(billing, user);
+
   return (
     <motion.div
       {...f()}
@@ -196,13 +262,21 @@ function HeroSection({ user, stats, billing }) {
             {/* Plan badge — top right */}
             <PlanBadge billing={billing} />
 
-            {/* Mini rings */}
+            {/* Mini rings — real data */}
             <div className="hidden sm:flex items-center gap-3">
-              <MiniRing pct={42} color="var(--primary)" label="Storage" />
-              <MiniRing pct={63} color="var(--success)" label="Quota"   />
-              <MiniRing pct={78} color="var(--warning)" label="Credits" />
-              <MiniRing pct={55} color="#ec4899"        label="Tokens"  />
+              {rings.map((r) => (
+                <MiniRing key={r.label} pct={r.pct} color={r.color} label={r.label} />
+              ))}
             </div>
+
+            {/* Tooltip row — shown under the rings on hover via title attribute */}
+            {billing && (
+              <p className="hidden sm:block text-[10px] text-right leading-tight" style={{ color: "var(--muted)" }}>
+                {billing.usage?.summarize?.limit !== -1
+                  ? `${billing.usage?.summarize?.remaining ?? "—"} summaries left today`
+                  : "Unlimited summaries"}
+              </p>
+            )}
           </div>
         </div>
 

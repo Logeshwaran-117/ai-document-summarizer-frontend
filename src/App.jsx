@@ -2,10 +2,12 @@ import { useState, useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Dashboard from "./pages/Dashboard";
 import Auth from "./pages/Auth";
-import axios from "axios";
+import api from "./api";
 import Signup from "./pages/Signup";
 import { ToastProvider } from "./components/toastProvider";
 import { NotificationProvider } from "./context/NotificationContext";
+import LandingPage from "./pages/LandingPage";
+import SharedSummaryPage from "./pages/SharedSummaryPage";
 
 function App() {
   const [summary, setSummary] = useState("");
@@ -15,7 +17,8 @@ function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    axios.get("http://localhost:5000/auth/status", { withCredentials: true })
+    // Uses VITE_API_URL in production; falls back to localhost only in dev
+    api.get("/auth/status")
       .then((res) => {
         setIsAuthenticated(true);
         setUser(res.data.user);
@@ -41,7 +44,10 @@ function App() {
         <ToastProvider />
         <div className="h-screen w-full">
           <Routes>
+            {/* Public landing page — always accessible */}
+            <Route path="/home" element={<LandingPage />} />
             <Route path="/login" element={<Auth setIsAuthenticated={setIsAuthenticated} setUser={setUser} />} />
+            <Route path="/shared/:token" element={<SharedSummaryPage />} />
             <Route
               path="/*"
               element={
@@ -56,7 +62,7 @@ function App() {
                     setUser={setUser}
                   />
                 ) : (
-                  <Navigate to="/login" />
+                  <Navigate to="/home" />
                 )
               }
             />

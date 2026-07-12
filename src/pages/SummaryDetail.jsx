@@ -7,6 +7,7 @@ import toast from "react-hot-toast";
 import { jsPDF } from "jspdf";
 import { useNotifications } from "../context/NotificationContext";
 import DocumentChat from "../components/DocumentChat";
+import { Link2, LinkOff, Copy, Check } from "lucide-react";
 
 function SummaryDetail() {
   const { id } = useParams();
@@ -15,6 +16,12 @@ function SummaryDetail() {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  // Share-link state
+  const [shareUrl, setShareUrl]       = useState(null);
+  const [shareLoading, setShareLoading] = useState(false);
+  const [copied, setCopied]           = useState(false);
+
   const { addNotification } = useNotifications();
 
   useEffect(() => {
@@ -28,6 +35,10 @@ function SummaryDetail() {
     try {
       const res = await api.get(`/api/history/${id}`);
       setDoc(res.data);
+      // If the document already has a share token, rebuild the URL
+      if (res.data.shareToken) {
+        setShareUrl(`${window.location.origin}/shared/${res.data.shareToken}`);
+      }
     } catch (error) {
       if (error.response?.status === 404) {
         setNotFound(true);
@@ -96,6 +107,46 @@ function SummaryDetail() {
     }
   }
 
+  // ── Share link handlers ────────────────────────────────────────────────────
+  async function handleCreateShare() {
+    setShareLoading(true);
+    try {
+      const res = await api.post(`/api/history/${id}/share`);
+      setShareUrl(res.data.shareUrl);
+      toast.success("Share link created!");
+    } catch {
+      toast.error("Failed to create share link");
+    } finally {
+      setShareLoading(false);
+    }
+  }
+
+  async function handleRevokeShare() {
+    if (!window.confirm("Revoke the share link? Anyone with it will lose access.")) return;
+    setShareLoading(true);
+    try {
+      await api.delete(`/api/history/${id}/share`);
+      setShareUrl(null);
+      toast.success("Share link revoked");
+    } catch {
+      toast.error("Failed to revoke share link");
+    } finally {
+      setShareLoading(false);
+    }
+  }
+
+  async function handleCopyShareLink() {
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+      toast.success("Link copied!");
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("Failed to copy link");
+    }
+  }
+
+  // ── Render states ──────────────────────────────────────────────────────────
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -162,6 +213,61 @@ function SummaryDetail() {
             </div>
           </div>
         )}
+
+        {/* ── Share Link section ───────────────────────────────────────── */}
+        <div className="mb-6 rounded-xl border border-dashed border-gray-200 dark:border-gray-700 p-4">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <p className="text-sm font-semibold text-gray-700 dark:text-gray-200 flex items-center gap-1.5">
+                <Link2 size={14} className="text-blue-500" />
+                Share this summary
+              </p>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                {shareUrl
+                  ? "Anyone with the link can view this summary (read-only)."
+                  : "Generate a public link to share this summary with a colleague."}
+              </p>
+            </div>
+
+            {!shareUrl ? (
+              <button
+                onClick={handleCreateShare}
+                disabled={shareLoading}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition disabled:opacity-60"
+              >
+                <Link2 size={14} />
+                {shareLoading ? "Creating…" : "Create link"}
+              </button>
+            ) : (
+              <button
+                onClick={handleRevokeShare}
+                disabled={shareLoading}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-sm font-medium hover:bg-red-200 dark:hover:bg-red-900/50 transition disabled:opacity-60"
+              >
+                <LinkOff size={14} />
+                {shareLoading ? "Revoking…" : "Revoke link"}
+              </button>
+            )}
+          </div>
+
+          {/* Share URL display */}
+          {shareUrl && (
+            <div className="mt-3 flex items-center gap-2">
+              <div className="flex-1 bg-gray-50 dark:bg-gray-800 rounded-lg px-3 py-2 text-xs text-gray-600 dark:text-gray-300 font-mono truncate border border-gray-200 dark:border-gray-700">
+                {shareUrl}
+              </div>
+              <button
+                onClick={handleCopyShareLink}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition font-medium shrink-0"
+                title="Copy link"
+              >
+                {copied ? <Check size={13} className="text-green-500" /> : <Copy size={13} />}
+                {copied ? "Copied!" : "Copy"}
+              </button>
+            </div>
+          )}
+        </div>
+        {/* ── End share section ─────────────────────────────────────────── */}
 
         {/* Summary */}
         <div className="border-t border-gray-100 dark:border-gray-800 pt-6">

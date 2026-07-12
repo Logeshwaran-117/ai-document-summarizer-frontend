@@ -7,6 +7,8 @@ import HeroSection     from "./dashboard/HeroSection";
 import AnalyticsCharts from "./dashboard/AnalyticsCharts";
 import RecentDocuments from "./dashboard/RecentDocuments";
 import SidePanel       from "./dashboard/SidePanel";
+import { useNavigate } from "react-router-dom";
+import OnboardingWizard from "./OnboardingWizard";
 
 /* ── Skeleton ── */
 function Skeleton({ className }) {
@@ -65,6 +67,15 @@ function DashboardCards({ user }) {
     }
   }
 
+  const storageKey = `onboarding_done_${user?._id}`;
+  const [showOnboarding, setShowOnboarding] = useState(
+    !localStorage.getItem(storageKey)
+ );
+  const handleDismissOnboarding = () => {
+    localStorage.setItem(storageKey, "1");
+    setShowOnboarding(false);
+ };
+
   if (loading) return <DashboardSkeleton />;
 
   return (
@@ -74,6 +85,10 @@ function DashboardCards({ user }) {
       transition={{ duration: 0.3 }}
       className="p-4 md:p-6 space-y-6 max-w-[1600px] mx-auto"
     >
+
+      {showOnboarding && (
+        <OnboardingWizard user={user} onDismiss={handleDismissOnboarding} />
+      )}
       {/* ── Unified Hero: greeting + plan badge + quick actions + stat pills ── */}
       <HeroSection user={user} stats={stats} billing={billing} />
 

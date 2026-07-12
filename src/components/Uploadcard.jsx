@@ -45,43 +45,59 @@ function useProgress() {
 
 // ── Stage label map ───────────────────────────────────────────────────────────
 const STAGE_STEPS = [
-  { key: "uploading",  label: "Upload",   icon: "⬆️" },
-  { key: "extracting", label: "Extract",  icon: "📖" },
-  { key: "ai",         label: "AI",       icon: "🤖" },
-  { key: "saving",     label: "Save",     icon: "💾" },
-  { key: "done",       label: "Done",     icon: "✅" },
+  { key: "uploading",  label: "Upload",  icon: "⬆️" },
+  { key: "extracting", label: "Extract", icon: "📖" },
+  { key: "ai",         label: "AI",      icon: "🤖" },
+  { key: "saving",     label: "Save",    icon: "💾" },
+  { key: "done",       label: "Done",    icon: "✅" },
 ];
 
 const STAGE_ORDER = STAGE_STEPS.map(s => s.key);
 
+// ── ProgressBar — uses CSS design token vars, not raw Tailwind colour classes ─
 function ProgressBar({ progress, isImage }) {
   const { stage, percent, message, error } = progress;
-
   const currentIdx = error ? -1 : STAGE_ORDER.indexOf(stage);
 
-  const barColor = error ? "bg-red-500" : percent === 100 ? "bg-green-500" : "bg-blue-500";
-  const titleColor = error ? "text-red-600 dark:text-red-400" : "text-blue-700 dark:text-blue-400";
+  // Colours sourced from design token vars so they survive a palette change
+  const barBg    = error ? "var(--danger)"  : percent === 100 ? "var(--success)" : "var(--primary)";
+  const titleCol = error ? "var(--danger)"  : "var(--primary)";
 
   return (
-    <div className="mt-6 bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900 p-5 rounded-xl">
-      {/* Title */}
+    <div
+      className="mt-6 p-5 rounded-xl"
+      style={{
+        background: "rgba(var(--primary-rgb), .06)",
+        border: "1px solid rgba(var(--primary-rgb), .15)",
+      }}
+    >
+      {/* Title row */}
       <div className="flex items-center justify-between mb-1">
-        <h2 className={`font-bold text-sm ${titleColor}`}>
-          {error ? "❌ Error" : stage === "done" ? "✅ Summary Complete!" : isImage ? "🖼️ Analyzing image with AI…" : "📄 Generating AI Summary…"}
+        <h2 className="font-bold text-sm" style={{ color: titleCol }}>
+          {error
+            ? "Error"
+            : stage === "done"
+            ? "Summary Complete!"
+            : isImage
+            ? "Analyzing image with AI…"
+            : "Generating AI Summary…"}
         </h2>
-        <span className={`text-sm font-bold tabular-nums ${error ? "text-red-500" : "text-blue-600 dark:text-blue-400"}`}>
+        <span className="text-sm font-bold tabular-nums" style={{ color: error ? "var(--danger)" : "var(--primary)" }}>
           {error ? "Failed" : `${percent}%`}
         </span>
       </div>
 
       {/* Sub-message */}
-      <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">{message}</p>
+      <p className="text-xs mb-3" style={{ color: "var(--muted)" }}>{message}</p>
 
       {/* Bar track */}
-      <div className="w-full h-3 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+      <div
+        className="w-full h-3 rounded-full overflow-hidden"
+        style={{ background: "var(--secondary)" }}
+      >
         <div
-          className={`h-3 rounded-full transition-all duration-500 ${barColor} ${stage !== "done" && !error ? "relative overflow-hidden" : ""}`}
-          style={{ width: `${error ? 100 : percent}%` }}
+          className={`h-3 rounded-full transition-all duration-500 ${stage !== "done" && !error ? "relative overflow-hidden" : ""}`}
+          style={{ width: `${error ? 100 : percent}%`, background: barBg }}
         >
           {/* Shimmer while in progress */}
           {stage !== "done" && !error && (
@@ -93,20 +109,35 @@ function ProgressBar({ progress, isImage }) {
       {/* Step indicators */}
       <div className="flex justify-between mt-3">
         {STAGE_STEPS.map((step, idx) => {
-          const done    = !error && currentIdx >= idx;
-          const active  = !error && currentIdx === idx;
+          const done   = !error && currentIdx >= idx;
+          const active = !error && currentIdx === idx;
           return (
             <div key={step.key} className="flex flex-col items-center gap-0.5" style={{ flex: 1 }}>
-              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs transition-all duration-300
-                ${done   ? "bg-blue-600 text-white shadow-sm shadow-blue-300"
-                : error  ? "bg-red-200 dark:bg-red-900 text-red-500"
-                :          "bg-gray-200 dark:bg-gray-700 text-gray-400"}`}>
+              <div
+                className="w-6 h-6 rounded-full flex items-center justify-center text-xs transition-all duration-300"
+                style={{
+                  background: done
+                    ? "var(--primary)"
+                    : error
+                    ? "rgba(239,68,68,.2)"
+                    : "var(--secondary)",
+                  color: done
+                    ? "#fff"
+                    : error
+                    ? "var(--danger)"
+                    : "var(--muted)",
+                  boxShadow: done ? "0 1px 4px rgba(var(--primary-rgb),.3)" : "none",
+                }}
+              >
                 {done ? (active && stage !== "done" ? "⋯" : step.icon) : step.icon}
               </div>
-              <span className={`text-[10px] font-medium leading-none
-                ${done   ? "text-blue-600 dark:text-blue-400"
-                : error  ? "text-red-400"
-                :          "text-gray-400 dark:text-gray-500"}`}>
+              <span
+                className="text-[10px] font-medium leading-none"
+                style={{
+                  color: done ? "var(--primary)" : error ? "var(--danger)" : "var(--muted)",
+                  opacity: done ? 1 : 0.6,
+                }}
+              >
                 {step.label}
               </span>
             </div>
@@ -225,17 +256,18 @@ function FilePreview({ file }) {
   if (!file) return null;
 
   const wrapper = (children) => (
-    <div className="mt-4 w-full rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700">
-      <div className="px-4 py-2 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex items-center gap-2">
-        <span className="text-sm font-medium text-gray-500 dark:text-gray-400">👁️ Preview</span>
-        <span className="text-xs text-gray-400 dark:text-gray-500">— {file.name}</span>
+    <div className="mt-4 w-full rounded-xl overflow-hidden" style={{ border: "1px solid var(--border)" }}>
+      <div className="px-4 py-2 flex items-center gap-2"
+        style={{ background: "var(--secondary)", borderBottom: "1px solid var(--border)" }}>
+        <span className="text-sm font-medium" style={{ color: "var(--muted)" }}>👁️ Preview</span>
+        <span className="text-xs" style={{ color: "var(--muted)", opacity: 0.6 }}>— {file.name}</span>
       </div>
-      <div className="bg-white dark:bg-gray-900 p-4">{children}</div>
+      <div style={{ background: "var(--card)" }} className="p-4">{children}</div>
     </div>
   );
 
   if (loading) return wrapper(
-    <div className="flex items-center justify-center py-8 text-gray-400 gap-2">
+    <div className="flex items-center justify-center py-8 gap-2" style={{ color: "var(--muted)" }}>
       <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none">
         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
@@ -259,7 +291,8 @@ function FilePreview({ file }) {
   );
 
   if (preview.type === "text") return wrapper(
-    <pre className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words max-h-56 overflow-y-auto font-mono leading-relaxed">
+    <pre className="text-xs whitespace-pre-wrap break-words max-h-56 overflow-y-auto font-mono leading-relaxed"
+      style={{ color: "var(--text)" }}>
       {preview.content || "(empty file)"}
     </pre>
   );
@@ -269,33 +302,39 @@ function FilePreview({ file }) {
     return wrapper(
       <div>
         {preview.sheetName && (
-          <p className="text-xs text-gray-400 dark:text-gray-500 mb-2">
+          <p className="text-xs mb-2" style={{ color: "var(--muted)" }}>
             Sheet: <strong>{preview.sheetName}</strong>{preview.totalSheets > 1 && ` (+${preview.totalSheets - 1} more)`}
           </p>
         )}
-        <div className="overflow-x-auto max-h-56 overflow-y-auto rounded border border-gray-200 dark:border-gray-700">
+        <div className="overflow-x-auto max-h-56 overflow-y-auto rounded" style={{ border: "1px solid var(--border)" }}>
           <table className="text-xs w-full border-collapse">
             {header && header.length > 0 && (
               <thead>
-                <tr className="bg-gray-100 dark:bg-gray-800 sticky top-0">
+                <tr style={{ background: "var(--secondary)" }} className="sticky top-0">
                   {header.map((h, i) => (
-                    <th key={i} className="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-200 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap">{String(h || "")}</th>
+                    <th key={i} className="px-3 py-2 text-left font-semibold whitespace-nowrap"
+                      style={{ color: "var(--text)", borderBottom: "1px solid var(--border)" }}>
+                      {String(h || "")}
+                    </th>
                   ))}
                 </tr>
               </thead>
             )}
             <tbody>
               {rows.map((row, ri) => (
-                <tr key={ri} className={ri % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50 dark:bg-gray-800/50"}>
+                <tr key={ri} style={{ background: ri % 2 === 0 ? "var(--card)" : "var(--secondary)" }}>
                   {(Array.isArray(row) ? row : []).map((cell, ci) => (
-                    <td key={ci} className="px-3 py-1.5 text-gray-700 dark:text-gray-300 border-b border-gray-100 dark:border-gray-800 whitespace-nowrap max-w-xs truncate">{String(cell ?? "")}</td>
+                    <td key={ci} className="px-3 py-1.5 whitespace-nowrap max-w-xs truncate"
+                      style={{ color: "var(--muted)", borderBottom: "1px solid var(--border)" }}>
+                      {String(cell ?? "")}
+                    </td>
                   ))}
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-        <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">Showing up to 10 rows</p>
+        <p className="text-xs mt-2" style={{ color: "var(--muted)", opacity: 0.6 }}>Showing up to 10 rows</p>
       </div>
     );
   }
@@ -304,15 +343,19 @@ function FilePreview({ file }) {
     <div className="flex items-center gap-4 py-4">
       <div className="text-5xl">📝</div>
       <div>
-        <p className="font-semibold text-gray-800 dark:text-gray-200">{preview.name}</p>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Word Document · {(preview.size / 1024).toFixed(1)} KB</p>
-        <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Click "Summarize Document" to extract and analyze content</p>
+        <p className="font-semibold" style={{ color: "var(--text)" }}>{preview.name}</p>
+        <p className="text-sm mt-1" style={{ color: "var(--muted)" }}>
+          Word Document · {(preview.size / 1024).toFixed(1)} KB
+        </p>
+        <p className="text-xs mt-1" style={{ color: "var(--muted)", opacity: 0.6 }}>
+          Click "Summarize Document" to extract and analyze content
+        </p>
       </div>
     </div>
   );
 
   if (preview.type === "error") return wrapper(
-    <p className="text-sm text-red-500 dark:text-red-400 py-4 text-center">{preview.message}</p>
+    <p className="text-sm py-4 text-center" style={{ color: "var(--danger)" }}>{preview.message}</p>
   );
 
   return null;
@@ -332,7 +375,6 @@ function Uploadcard() {
   const [copied,        setCopied]        = useState(false);
   const [documentId,    setDocumentId]    = useState(null);
   const [showPptModal,  setShowPptModal]  = useState(false);
-  // refresh trigger for UsageBadge after a successful summarize
   const [usageKey,      setUsageKey]      = useState(0);
 
   const { addNotification } = useNotifications();
@@ -357,13 +399,12 @@ function Uploadcard() {
       setStats(null);
       setDocumentId(null);
 
-      // Generate a unique job id and open the SSE stream before POSTing
       const jobId = crypto.randomUUID();
       startListening(jobId);
 
       const formData = new FormData();
       formData.append("document", selectedFile);
-      formData.append("jobId", jobId); // controller uses this to push progress
+      formData.append("jobId", jobId);
 
       const response = await api.post("/api/summarize", formData);
       const data = response.data;
@@ -372,7 +413,7 @@ function Uploadcard() {
       setFilename(data.filename || selectedFile.name);
       setStats(data.stats);
       setDocumentId(data._id);
-      setUsageKey(k => k + 1); // re-fetch usage badge
+      setUsageKey(k => k + 1);
       toast.success("Summary generated successfully!");
       addNotification({ title: "Summary ready", message: `${selectedFile.name} was summarized successfully.`, type: "success" });
     } catch (error) {
@@ -458,18 +499,15 @@ function Uploadcard() {
     try {
       setPptPdfLoading(true);
       toast("Generating presentation PDF...", { icon: "⏳" });
-      // First generate the PPTX (it gets saved server-side)
-      const response = await api.post(
+      await api.post(
         "/api/generate-ppt",
         { summary, filename: filename || selectedFile?.name || "Summary", documentId, options },
         { responseType: "blob" }
       );
-      // Now export PDF cover page using jsPDF
       const { jsPDF } = await import("jspdf");
       const pdfName = (options?.title || filename || "Summary").replace(/\.[^/.]+$/, "");
       const pdf = new jsPDF({ orientation: "landscape", unit: "pt", format: "letter" });
 
-      // Cover
       pdf.setFillColor(30, 39, 97);
       pdf.rect(0, 0, 792, 612, "F");
       pdf.setFontSize(30);
@@ -487,7 +525,6 @@ function Uploadcard() {
       pdf.setFillColor(201, 168, 76);
       pdf.rect(56, 330, 120, 4, "F");
 
-      // Summary page
       pdf.addPage();
       pdf.setFillColor(247, 249, 252);
       pdf.rect(0, 0, 792, 612, "F");
@@ -551,43 +588,47 @@ function Uploadcard() {
     ? (isImageFile(selectedFile) ? "Analyzing Image…" : isExcelFile(selectedFile) ? "Summarizing Spreadsheet…" : "Generating Summary…")
     : (isImageFile(selectedFile) ? "Analyze Image"    : isExcelFile(selectedFile) ? "Summarize Spreadsheet"    : "Summarize Document");
 
-  // Show progress bar while loading OR for 1.5 s after done (so user sees 100%)
   const showProgress = loading || progress.stage === "done" || progress.stage === "error";
 
   return (
-    <section className="bg-white dark:bg-gray-900 rounded-xl shadow-lg p-6 transition-colors duration-300">
+    <section className="rounded-xl shadow-lg p-6 transition-colors duration-300"
+      style={{ background: "var(--card)" }}>
 
       <div className="flex items-start justify-between gap-4 mb-6">
-        <h2 className="text-3xl font-bold text-gray-900 dark:text-white">Upload Document</h2>
-        {/* Usage badge — only summary type shown here */}
+        <h2 className="text-3xl font-bold" style={{ color: "var(--text)" }}>Upload Document</h2>
         <UsageBadge key={usageKey} type="summarize" className="w-64 shrink-0" />
       </div>
 
       {/* Drop Zone */}
       <div
-        className={`border-2 border-dashed rounded-xl p-12 flex flex-col items-center transition-all duration-300
-          ${dragging ? "border-blue-500 bg-blue-50 dark:bg-blue-950/30" : "border-gray-300 dark:border-gray-700"}`}
+        className={`border-2 border-dashed rounded-xl p-12 flex flex-col items-center transition-all duration-300`}
+        style={{
+          borderColor: dragging ? "var(--primary)" : "var(--border)",
+          background: dragging ? "rgba(var(--primary-rgb),.06)" : "transparent",
+        }}
         onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
         onDragLeave={() => setDragging(false)}
         onDrop={(e) => { e.preventDefault(); setDragging(false); handleFileSelect(e.dataTransfer.files[0]); }}
       >
         <div className="text-6xl">{selectedFile ? fileIcon : "📄"}</div>
-        <h3 className="text-2xl font-semibold mt-4 text-gray-900 dark:text-white">{dropLabel}</h3>
-        <p className="text-gray-500 dark:text-gray-400 mt-2">PDF, DOCX, TXT, XLSX, CSV, JPG, PNG, WEBP supported</p>
+        <h3 className="text-2xl font-semibold mt-4" style={{ color: "var(--text)" }}>{dropLabel}</h3>
+        <p className="mt-2" style={{ color: "var(--muted)" }}>PDF, DOCX, TXT, XLSX, CSV, JPG, PNG, WEBP supported</p>
 
-        <label className="mt-6 bg-blue-600 text-white px-6 py-3 rounded-lg cursor-pointer hover:bg-blue-700 transition">
+        <label className="mt-6 px-6 py-3 rounded-lg cursor-pointer text-white transition hover:opacity-90"
+          style={{ background: "var(--primary)" }}>
           Browse Files
           <input type="file" className="hidden" accept=".pdf,.txt,.docx,.xlsx,.xls,.csv,.jpg,.jpeg,.png,.webp,.gif"
             onChange={(e) => handleFileSelect(e.target.files[0])} />
         </label>
 
         {selectedFile && (
-          <div className="mt-6 bg-gray-100 dark:bg-gray-800 rounded-lg p-4 w-full flex justify-between items-center">
+          <div className="mt-6 rounded-lg p-4 w-full flex justify-between items-center"
+            style={{ background: "var(--secondary)" }}>
             <div className="flex items-center gap-2 flex-wrap">
-              <p className="font-semibold text-green-700 dark:text-green-400">{fileIcon} {selectedFile.name}</p>
+              <p className="font-semibold" style={{ color: "var(--success)" }}>{fileIcon} {selectedFile.name}</p>
               {typeLabel && <span className={`text-xs px-2 py-0.5 rounded-full ${typeBadgeColor}`}>{typeLabel}</span>}
             </div>
-            <div className="text-gray-700 dark:text-gray-300 text-sm shrink-0 ml-4">
+            <div className="text-sm shrink-0 ml-4" style={{ color: "var(--muted)" }}>
               {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
             </div>
           </div>
@@ -598,49 +639,60 @@ function Uploadcard() {
 
       {/* Action Buttons */}
       <div className="flex gap-4 mt-6">
-        <button onClick={clearFile} className="bg-red-600 text-white px-5 py-3 rounded-lg hover:bg-red-700 transition">❌</button>
+        <button onClick={clearFile}
+          className="px-5 py-3 rounded-lg text-white transition hover:opacity-90"
+          style={{ background: "var(--danger)" }}>
+          ✕
+        </button>
         <button onClick={handleSummarize} disabled={!selectedFile || loading}
-          className={`px-6 py-3 rounded-lg text-white transition
-            ${loading ? "bg-yellow-500 cursor-not-allowed"
-              : selectedFile ? "bg-green-600 hover:bg-green-700"
-              : "bg-gray-400 dark:bg-gray-700 cursor-not-allowed"}`}>
+          className="px-6 py-3 rounded-lg text-white transition"
+          style={{
+            background: loading
+              ? "var(--warning)"
+              : selectedFile
+              ? "var(--success)"
+              : "var(--muted)",
+            cursor: !selectedFile || loading ? "not-allowed" : "pointer",
+          }}>
           {summarizeLabel}
         </button>
       </div>
 
-      {/* ── Real Progress Bar ─────────────────────────────────────────────── */}
+      {/* Real Progress Bar */}
       {showProgress && (
         <ProgressBar progress={progress} isImage={isImageFile(selectedFile)} />
       )}
 
       {/* Summary Output */}
       {summary && (
-        <div className="mt-8 bg-white dark:bg-gray-900 shadow rounded-xl p-6 border border-transparent dark:border-gray-800">
-          <h2 className="text-3xl font-bold mb-6 text-gray-900 dark:text-white">AI Summary</h2>
+        <div className="mt-8 rounded-xl p-6 shadow"
+          style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
+          <h2 className="text-3xl font-bold mb-6" style={{ color: "var(--text)" }}>AI Summary</h2>
 
           <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
-            h1: ({ children }) => <h1 className="text-3xl font-bold text-blue-700 dark:text-blue-400 mb-4">{children}</h1>,
-            h2: ({ children }) => <h2 className="text-2xl font-semibold mt-5 mb-3 text-gray-900 dark:text-white">{children}</h2>,
-            p:  ({ children }) => <p className="leading-7 mb-3 text-gray-700 dark:text-gray-300">{children}</p>,
-            ul: ({ children }) => <ul className="list-disc ml-6 mb-3 text-gray-700 dark:text-gray-300">{children}</ul>,
+            h1: ({ children }) => <h1 className="text-3xl font-bold mb-4" style={{ color: "var(--primary)" }}>{children}</h1>,
+            h2: ({ children }) => <h2 className="text-2xl font-semibold mt-5 mb-3" style={{ color: "var(--text)" }}>{children}</h2>,
+            p:  ({ children }) => <p className="leading-7 mb-3" style={{ color: "var(--muted)" }}>{children}</p>,
+            ul: ({ children }) => <ul className="list-disc ml-6 mb-3" style={{ color: "var(--muted)" }}>{children}</ul>,
             li: ({ children }) => <li className="mb-2">{children}</li>,
-            strong: ({ children }) => <strong className="font-bold text-gray-900 dark:text-white">{children}</strong>,
+            strong: ({ children }) => <strong className="font-bold" style={{ color: "var(--text)" }}>{children}</strong>,
           }}>
             {summary}
           </ReactMarkdown>
 
           {stats && (
             <div className="mt-8">
-              <h2 className="text-2xl font-bold mb-4 text-gray-900 dark:text-white">Document Statistics</h2>
+              <h2 className="text-2xl font-bold mb-4" style={{ color: "var(--text)" }}>Document Statistics</h2>
               <div className="grid grid-cols-3 gap-5">
                 {[
                   { icon: "📝", label: "Words",        value: stats.words },
                   { icon: "🔤", label: "Characters",   value: stats.characters },
                   { icon: "⏱",  label: "Reading Time", value: `${stats.readingTime} min` },
                 ].map(({ icon, label, value }) => (
-                  <div key={label} className="bg-gray-100 dark:bg-gray-800 rounded-lg p-5 shadow">
-                    <h3 className="text-gray-700 dark:text-gray-300">{icon} {label}</h3>
-                    <p className="text-3xl font-bold text-gray-900 dark:text-white">{value}</p>
+                  <div key={label} className="rounded-lg p-5 shadow"
+                    style={{ background: "var(--secondary)" }}>
+                    <h3 style={{ color: "var(--muted)" }}>{icon} {label}</h3>
+                    <p className="text-3xl font-bold" style={{ color: "var(--text)" }}>{value}</p>
                   </div>
                 ))}
               </div>
@@ -648,38 +700,57 @@ function Uploadcard() {
           )}
 
           <div className="flex gap-4 mt-8 flex-wrap">
-            <button onClick={copySummary} className="bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 transition">
+            <button onClick={copySummary}
+              className="px-5 py-2 rounded-lg text-white transition hover:opacity-90"
+              style={{ background: "var(--primary)" }}>
               {copied ? "✅ Copied!" : "📋 Copy"}
             </button>
-            <button onClick={downloadTXT} className="bg-green-600 text-white px-5 py-2 rounded-lg hover:bg-green-700 transition">📄 Download TXT</button>
-            <button onClick={downloadPDF} className="bg-red-600 text-white px-5 py-2 rounded-lg hover:bg-red-700 transition">📑 Download PDF</button>
-            {/* PPT / PDF split button */}
+            <button onClick={downloadTXT}
+              className="px-5 py-2 rounded-lg text-white transition hover:opacity-90"
+              style={{ background: "var(--success)" }}>
+              📄 Download TXT
+            </button>
+            <button onClick={downloadPDF}
+              className="px-5 py-2 rounded-lg text-white transition hover:opacity-90"
+              style={{ background: "var(--danger)" }}>
+              📑 Download PDF
+            </button>
+
+            {/* PPT split button */}
             <div className="relative flex rounded-lg overflow-hidden shadow-sm">
               <button
                 onClick={() => setShowPptModal(true)}
                 disabled={pptLoading || pptPdfLoading}
-                className={`px-4 py-2 text-white transition font-medium text-sm flex items-center gap-1.5 ${pptLoading ? "bg-orange-400 cursor-not-allowed" : "bg-orange-500 hover:bg-orange-600"}`}
+                className="px-4 py-2 text-white transition font-medium text-sm flex items-center gap-1.5"
+                style={{
+                  background: pptLoading ? "var(--warning)" : "#f97316",
+                  cursor: pptLoading || pptPdfLoading ? "not-allowed" : "pointer",
+                }}
               >
                 {pptLoading ? "⏳ Generating..." : "📊 Download PPT"}
               </button>
-              <div className="w-px bg-orange-400" />
+              <div className="w-px" style={{ background: "#ea6b10" }} />
               <div className="relative">
-                
                 {showPptPdfMenu && (
                   <div
-                    className="absolute right-0 bottom-full mb-1 w-52 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl z-50"
+                    className="absolute right-0 bottom-full mb-1 w-52 rounded-xl shadow-xl z-50"
+                    style={{ background: "var(--card)", border: "1px solid var(--border)" }}
                     onMouseLeave={() => setShowPptPdfMenu(false)}
                   >
-                    <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-3 pt-2.5 pb-1">Export as PDF</p>
+                    <p className="text-[10px] font-bold uppercase tracking-wider px-3 pt-2.5 pb-1"
+                      style={{ color: "var(--muted)" }}>
+                      Export as PDF
+                    </p>
                     {[
-                      { key: "navyGold",      label: "Navy & Gold",      colors: ["#1E2761", "#C9A84C"] },
-                      { key: "tealSlate",     label: "Teal & Slate",     colors: ["#0F3D3E", "#3FBFAE"] },
-                      { key: "charcoalRuby",  label: "Charcoal & Ruby",  colors: ["#231F20", "#C0392B"] },
+                      { key: "navyGold",     label: "Navy & Gold",     colors: ["#1E2761", "#C9A84C"] },
+                      { key: "tealSlate",    label: "Teal & Slate",    colors: ["#0F3D3E", "#3FBFAE"] },
+                      { key: "charcoalRuby", label: "Charcoal & Ruby", colors: ["#231F20", "#C0392B"] },
                     ].map(t => (
                       <button
                         key={t.key}
                         onClick={() => downloadPPTAsPDF({ title: (filename || selectedFile?.name || "Summary").replace(/\.[^/.]+$/, ""), theme: t.key, detailLevel: "standard", includeAgenda: true, includeNotes: false })}
-                        className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+                        className="flex items-center gap-2 w-full px-3 py-2 text-sm transition hover:opacity-80"
+                        style={{ color: "var(--text)" }}
                       >
                         <span className="flex gap-1">
                           <span className="w-3 h-3 rounded-full" style={{ background: t.colors[0] }} />
@@ -688,10 +759,11 @@ function Uploadcard() {
                         {t.label}
                       </button>
                     ))}
-                    <div className="border-t border-gray-100 dark:border-gray-800 mt-1 mb-1" />
+                    <div className="border-t mt-1 mb-1" style={{ borderColor: "var(--border)" }} />
                     <button
                       onClick={() => { setShowPptPdfMenu(false); setShowPptModal(true); }}
-                      className="flex items-center gap-2 w-full px-3 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition"
+                      className="flex items-center gap-2 w-full px-3 py-2 text-sm transition hover:opacity-80"
+                      style={{ color: "var(--primary)" }}
                     >
                       ⚙️ Custom options…
                     </button>

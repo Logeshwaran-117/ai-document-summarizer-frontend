@@ -283,7 +283,7 @@ export default function UsageDashboard() {
   // Loading / error
   if (!data) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: "#060b14" }}>
+      <div className="flex items-center justify-center py-24">
         {error ? (
           <div className="text-center">
             <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
