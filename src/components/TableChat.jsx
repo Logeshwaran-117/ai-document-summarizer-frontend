@@ -4,6 +4,77 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import toast from "react-hot-toast";
 
+// ── Voice input hook ──────────────────────────────────────────────────────────
+function useVoiceInput(onResult) {
+  const [listening, setListening] = useState(false);
+  const recognitionRef = useRef(null);
+
+  const supported =
+    typeof window !== "undefined" &&
+    ("SpeechRecognition" in window || "webkitSpeechRecognition" in window);
+
+  function startListening() {
+    if (!supported) {
+      toast.error("Voice input is not supported in this browser.");
+      return;
+    }
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const rec = new SR();
+    rec.lang = "en-US";
+    rec.interimResults = false;
+    rec.maxAlternatives = 1;
+
+    rec.onstart = () => setListening(true);
+    rec.onend = () => setListening(false);
+    rec.onerror = (e) => {
+      setListening(false);
+      if (e.error !== "no-speech") toast.error("Mic error: " + e.error);
+    };
+    rec.onresult = (e) => {
+      const transcript = e.results[0][0].transcript;
+      onResult(transcript);
+    };
+
+    recognitionRef.current = rec;
+    rec.start();
+  }
+
+  function stopListening() {
+    recognitionRef.current?.stop();
+    setListening(false);
+  }
+
+  return { listening, supported, startListening, stopListening };
+}
+
+// ── Mic button ────────────────────────────────────────────────────────────────
+function MicButton({ listening, supported, onStart, onStop }) {
+  if (!supported) return null;
+  return (
+    <button
+      type="button"
+      onClick={listening ? onStop : onStart}
+      title={listening ? "Stop recording" : "Speak your question"}
+      className={`flex-shrink-0 p-2 rounded-lg transition ${
+        listening
+          ? "bg-red-500 text-white animate-pulse"
+          : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+      }`}
+    >
+      {listening ? (
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+          <rect x="6" y="6" width="12" height="12" rx="2" />
+        </svg>
+      ) : (
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 1a4 4 0 0 1 4 4v6a4 4 0 0 1-8 0V5a4 4 0 0 1 4-4zm0 2a2 2 0 0 0-2 2v6a2 2 0 0 0 4 0V5a2 2 0 0 0-2-2zm-7 8a7 7 0 0 0 14 0h-2a5 5 0 0 1-10 0H5zm7 10v-3h-2v3H8v2h8v-2h-2z" />
+        </svg>
+      )}
+    </button>
+  );
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
 function TableChat({ tableId, initialChatHistory = [] }) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState(initialChatHistory);
@@ -11,6 +82,10 @@ function TableChat({ tableId, initialChatHistory = [] }) {
   const [asking, setAsking] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const bottomRef = useRef(null);
+
+  const { listening, supported, startListening, stopListening } = useVoiceInput(
+    (transcript) => setQuestion((prev) => (prev ? prev + " " + transcript : transcript))
+  );
 
   useEffect(() => {
     setMessages(initialChatHistory);
@@ -162,10 +237,20 @@ function TableChat({ tableId, initialChatHistory = [] }) {
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ask a question about this table..."
+              placeholder={listening ? "🎙️ Listening..." : "Ask a question about this table..."}
               rows={1}
               disabled={asking}
-              className="flex-1 resize-none border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
+              className={`flex-1 resize-none border rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60 ${
+                listening
+                  ? "border-red-400 dark:border-red-500"
+                  : "border-gray-300 dark:border-gray-700"
+              }`}
+            />
+            <MicButton
+              listening={listening}
+              supported={supported}
+              onStart={startListening}
+              onStop={stopListening}
             />
             <button
               onClick={handleAsk}

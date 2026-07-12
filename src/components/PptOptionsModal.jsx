@@ -1,15 +1,23 @@
 import { useState } from "react";
 
 const THEMES = [
-  { key: "navyGold", label: "Navy & Gold", swatch: ["#1E2761", "#C9A84C"] },
-  { key: "tealSlate", label: "Teal & Slate", swatch: ["#0F3D3E", "#3FBFAE"] },
-  { key: "charcoalRuby", label: "Charcoal & Ruby", swatch: ["#231F20", "#C0392B"] },
+  { key: "navyGold",      label: "Navy & Gold",      swatch: ["#1E2761", "#C9A84C"] },
+  { key: "tealSlate",     label: "Teal & Slate",     swatch: ["#0F3D3E", "#3FBFAE"] },
+  { key: "charcoalRuby",  label: "Charcoal & Ruby",  swatch: ["#231F20", "#C0392B"] },
+  { key: "midnightBlue",  label: "Midnight Blue",    swatch: ["#0D1B2A", "#00B4D8"] },
+  { key: "forestGreen",   label: "Forest & Amber",   label: "Forest & Amber",   swatch: ["#1B4332", "#F4A261"] },
 ];
 
 const DETAIL_LEVELS = [
-  { key: "concise", label: "Concise", hint: "Fewer bullets, high-level only" },
+  { key: "concise",  label: "Concise",  hint: "Fewer bullets, high-level only" },
   { key: "standard", label: "Standard", hint: "Balanced detail (recommended)" },
   { key: "detailed", label: "Detailed", hint: "Maximum bullets & context" },
+];
+
+const CHART_DENSITIES = [
+  { key: "auto",  label: "Auto",  hint: "Smart chart injection based on data" },
+  { key: "rich",  label: "Rich",  hint: "Maximum charts — every section gets one" },
+  { key: "minimal", label: "Minimal", hint: "Text-focused, only key charts" },
 ];
 
 /**
@@ -17,7 +25,7 @@ const DETAIL_LEVELS = [
  *  - open: boolean
  *  - defaultTitle: string
  *  - onCancel: () => void
- *  - onConfirm: (options) => void   options = { title, theme, detailLevel, includeAgenda, includeNotes, exportAsPdf }
+ *  - onConfirm: (options) => void   options = { title, theme, detailLevel, chartDensity, includeAgenda, includeNotes, exportAsPdf }
  *  - onConfirmPdf?: (options) => void  — if provided, separate PDF export handler
  *  - loading: boolean
  */
@@ -25,6 +33,7 @@ function PptOptionsModal({ open, defaultTitle = "", onCancel, onConfirm, onConfi
   const [title, setTitle] = useState(defaultTitle);
   const [theme, setTheme] = useState("navyGold");
   const [detailLevel, setDetailLevel] = useState("standard");
+  const [chartDensity, setChartDensity] = useState("auto");
   const [includeAgenda, setIncludeAgenda] = useState(true);
   const [includeNotes, setIncludeNotes] = useState(true);
   const [exportFormat, setExportFormat] = useState("pptx"); // "pptx" | "pdf"
@@ -35,6 +44,7 @@ function PptOptionsModal({ open, defaultTitle = "", onCancel, onConfirm, onConfi
     title: title.trim() || defaultTitle,
     theme,
     detailLevel,
+    chartDensity,
     includeAgenda,
     includeNotes,
   };
@@ -56,7 +66,7 @@ function PptOptionsModal({ open, defaultTitle = "", onCancel, onConfirm, onConfi
         <div className="p-6 border-b border-gray-100 dark:border-gray-800">
           <h2 className="text-xl font-bold text-gray-900 dark:text-white">📊 Generate Presentation</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Choose how your slides should look before we build them.
+            Enterprise-grade slides with AI-powered charts and data visualizations.
           </p>
         </div>
 
@@ -94,6 +104,30 @@ function PptOptionsModal({ open, defaultTitle = "", onCancel, onConfirm, onConfi
                 >
                   <p className="font-semibold text-gray-800 dark:text-gray-100">{d.label}</p>
                   <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">{d.hint}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Chart Density */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+              📈 Chart Density
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              {CHART_DENSITIES.map((c) => (
+                <button
+                  key={c.key}
+                  type="button"
+                  onClick={() => setChartDensity(c.key)}
+                  className={`text-left px-3 py-2.5 rounded-lg border text-sm transition ${
+                    chartDensity === c.key
+                      ? "border-purple-500 bg-purple-50 dark:bg-purple-950/40 ring-1 ring-purple-500"
+                      : "border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
+                  }`}
+                >
+                  <p className="font-semibold text-gray-800 dark:text-gray-100">{c.label}</p>
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">{c.hint}</p>
                 </button>
               ))}
             </div>
@@ -179,6 +213,16 @@ function PptOptionsModal({ open, defaultTitle = "", onCancel, onConfirm, onConfi
                 className="w-5 h-5 accent-blue-600"
               />
             </label>
+          </div>
+
+          {/* What's included info box */}
+          <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/30 dark:to-purple-950/30 rounded-xl p-3 border border-blue-100 dark:border-blue-900">
+            <p className="text-xs font-semibold text-blue-700 dark:text-blue-300 mb-1">✨ Premium Slide Types Included</p>
+            <p className="text-[11px] text-blue-600 dark:text-blue-400 leading-relaxed">
+              Cover • Agenda • KPI Dashboard • Bar Charts • Doughnut Charts •
+              Line Trend Charts • Stacked Bar Charts • Radar Analysis •
+              Timeline • Section Dividers • Key Takeaway • Closing
+            </p>
           </div>
         </div>
 

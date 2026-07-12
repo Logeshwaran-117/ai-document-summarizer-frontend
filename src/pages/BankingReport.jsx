@@ -5,6 +5,76 @@ import api from "../api";
 import toast from "react-hot-toast";
 import BankingCharts from "./BankingCharts";
 
+// ── Voice input hook ──────────────────────────────────────────────────────────
+function useVoiceInput(onResult) {
+  const [listening, setListening] = useState(false);
+  const recognitionRef = useRef(null);
+
+  const supported =
+    typeof window !== "undefined" &&
+    ("SpeechRecognition" in window || "webkitSpeechRecognition" in window);
+
+  function startListening() {
+    if (!supported) {
+      toast.error("Voice input is not supported in this browser.");
+      return;
+    }
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const rec = new SR();
+    rec.lang = "en-US";
+    rec.interimResults = false;
+    rec.maxAlternatives = 1;
+
+    rec.onstart = () => setListening(true);
+    rec.onend = () => setListening(false);
+    rec.onerror = (e) => {
+      setListening(false);
+      if (e.error !== "no-speech") toast.error("Mic error: " + e.error);
+    };
+    rec.onresult = (e) => {
+      const transcript = e.results[0][0].transcript;
+      onResult(transcript);
+    };
+
+    recognitionRef.current = rec;
+    rec.start();
+  }
+
+  function stopListening() {
+    recognitionRef.current?.stop();
+    setListening(false);
+  }
+
+  return { listening, supported, startListening, stopListening };
+}
+
+// ── Mic button ────────────────────────────────────────────────────────────────
+function MicButton({ listening, supported, onStart, onStop }) {
+  if (!supported) return null;
+  return (
+    <button
+      type="button"
+      onClick={listening ? onStop : onStart}
+      title={listening ? "Stop recording" : "Speak your question"}
+      className={`flex-shrink-0 p-2.5 rounded-xl transition ${
+        listening
+          ? "bg-red-500 text-white animate-pulse"
+          : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
+      }`}
+    >
+      {listening ? (
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+          <rect x="6" y="6" width="12" height="12" rx="2" />
+        </svg>
+      ) : (
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 1a4 4 0 0 1 4 4v6a4 4 0 0 1-8 0V5a4 4 0 0 1 4-4zm0 2a2 2 0 0 0-2 2v6a2 2 0 0 0 4 0V5a2 2 0 0 0-2-2zm-7 8a7 7 0 0 0 14 0h-2a5 5 0 0 1-10 0H5zm7 10v-3h-2v3H8v2h8v-2h-2z" />
+        </svg>
+      )}
+    </button>
+  );
+}
+
 const TYPE_LABELS = {
   bank_statement: "🏦 Bank Statement",
   loan: "📋 Loan Document",
@@ -23,6 +93,10 @@ export default function BankingReport({ result, onBack }) {
   const [chatInput, setChatInput] = useState("");
   const [chatHistory, setChatHistory] = useState(result.chatHistory || []);
   const [chatLoading, setChatLoading] = useState(false);
+
+  const { listening, supported, startListening, stopListening } = useVoiceInput(
+    (transcript) => setChatInput((prev) => (prev ? prev + " " + transcript : transcript))
+  );
   const [txSearch, setTxSearch] = useState("");
   const [txCategory, setTxCategory] = useState("all");
   const [showAnomalyOnly, setShowAnomalyOnly] = useState(false);
@@ -124,7 +198,21 @@ export default function BankingReport({ result, onBack }) {
       URL.revokeObjectURL(url);
       toast.success(`${format.toUpperCase()} exported!`);
     } catch (err) {
-      toast.error(`Export failed: ${err.response?.data?.message || err.message}`);
+      // When responseType is "blob", error response bodies come back as Blob objects.
+      // We must read the Blob as text to extract the real server error message.
+      let errorMessage = err.message;
+      if (err.response?.data instanceof Blob) {
+        try {
+          const text = await err.response.data.text();
+          const json = JSON.parse(text);
+          errorMessage = json.message || errorMessage;
+        } catch {
+          // ignore parse errors — keep the default message
+        }
+      } else {
+        errorMessage = err.response?.data?.message || errorMessage;
+      }
+      toast.error(`Export failed: ${errorMessage}`);
     } finally {
       setExportLoading(null);
     }
@@ -468,8 +556,18 @@ export default function BankingReport({ result, onBack }) {
               value={chatInput}
               onChange={e => setChatInput(e.target.value)}
               onKeyDown={e => e.key === "Enter" && !e.shiftKey && sendChat()}
-              placeholder="Ask a question about this document…"
-              className="flex-1 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-2.5 text-sm bg-white dark:bg-gray-900 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder={listening ? "🎙️ Listening..." : "Ask a question about this document…"}
+              className={`flex-1 border rounded-xl px-4 py-2.5 text-sm bg-white dark:bg-gray-900 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                listening
+                  ? "border-red-400 dark:border-red-500"
+                  : "border-gray-200 dark:border-gray-700"
+              }`}
+            />
+            <MicButton
+              listening={listening}
+              supported={supported}
+              onStart={startListening}
+              onStop={stopListening}
             />
             <button
               onClick={sendChat}

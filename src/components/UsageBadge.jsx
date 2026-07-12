@@ -36,10 +36,11 @@ export default function UsageBadge({ type = "summarize", className = "" }) {
   // Pluck the relevant usage bucket
   const usage   = data.usage?.[type] || {};
   const used      = usage.used      ?? 0;
-  const limit     = usage.limit     ?? 0;
-  const remaining = usage.remaining ?? 0;
-  const resetDate = usage.resetDate ?? data.resetDate;
-  const unlimited = limit === -1;
+  const limit     = usage.limit     ?? null;
+  const remaining = usage.remaining ?? null;
+  // Prefer the per-bucket daily reset date; fall back to the top-level dailyResetAt
+  const resetDate = usage.resetDate ?? data.dailyResetAt ?? data.resetDate;
+  const unlimited = limit === -1 || limit === Infinity || remaining === Infinity;
   const pct       = unlimited ? 0 : Math.min(100, limit > 0 ? Math.round((used / limit) * 100) : 0);
 
   // Gemini token counts (global, from billing status if available)
@@ -92,8 +93,8 @@ export default function UsageBadge({ type = "summarize", className = "" }) {
           )}
           <div className="flex justify-between mt-1">
             {!unlimited && (
-              <span className={`text-[10px] font-medium ${remaining === 0 ? "text-red-500" : "text-gray-400 dark:text-gray-500"}`}>
-                {remaining === 0 ? "Limit reached" : `${remaining} remaining`}
+              <span className={`text-[10px] font-medium ${remaining === 0 && !unlimited ? "text-red-500" : "text-gray-400 dark:text-gray-500"}`}>
+                {remaining === 0 && !unlimited ? "Limit reached" : `${remaining ?? 0} remaining`}
               </span>
             )}
             {!unlimited && (
@@ -132,12 +133,13 @@ export default function UsageBadge({ type = "summarize", className = "" }) {
           </div>
         )}
 
-        {/* Reset info */}
-        {formattedReset && (
-          <p className="text-[10px] text-gray-400 dark:text-gray-500 pt-1 border-t border-gray-100 dark:border-gray-700">
-            🔄 Resets on <span className="font-medium text-gray-500 dark:text-gray-400">{formattedReset}</span>
-          </p>
-        )}
+        {/* Reset info — limits are daily, not monthly */}
+        <p className="text-[10px] text-gray-400 dark:text-gray-500 pt-1 border-t border-gray-100 dark:border-gray-700">
+          🔄 Resets daily at midnight
+          {formattedReset && (
+            <span className="font-medium text-gray-500 dark:text-gray-400"> · next {formattedReset}</span>
+          )}
+        </p>
       </div>
     </div>
   );

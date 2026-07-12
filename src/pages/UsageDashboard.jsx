@@ -1,386 +1,398 @@
 /**
- * UsageDashboard.jsx
- *
- * Admin-only page showing real-time Gemini API key usage.
- * Auto-refreshes via SSE (/api/usage/stream) so stats update the moment
- * a request completes — no manual polling needed.
- *
- * Route: /usage-dashboard  (add to Dashboard.jsx + Sidebar.jsx)
+ * UsageDashboard.jsx — Standalone API Key Usage page
+ * Kept as a standalone route (/usage-dashboard) AND embedded in AdminPanel.
+ * Connects to: /api/usage/today, /api/usage/history, /api/usage/stream
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import axios from "axios";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Zap, Activity, AlertTriangle, KeyRound, RefreshCw,
+  TrendingUp, Cpu, Server, Clock, ChevronUp, ChevronDown,
+} from "lucide-react";
+import {
+  AreaChart, Area, BarChart, Bar, LineChart, Line,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+} from "recharts";
+import api from "../api";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
-// ── Tiny helpers ───────────────────────────────────────────────────────────────
+// ── Colors ────────────────────────────────────────────────────────────────────
+const C = {
+  primary: "#6366f1",
+  success: "#10b981",
+  warning: "#f59e0b",
+  danger: "#ef4444",
+  purple: "#8b5cf6",
+  cyan: "#06b6d4",
+};
+
+const TOOLTIP_STYLE = {
+  background: "#0f172a",
+  border: "1px solid rgba(255,255,255,0.08)",
+  borderRadius: 12,
+  color: "#e2e8f0",
+  fontSize: 12,
+  boxShadow: "0 20px 40px rgba(0,0,0,0.5)",
+};
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 function fmt(n) {
   if (n == null) return "—";
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
   return String(n);
 }
-
-function pct(n, total) {
-  if (!total) return 0;
-  return Math.min(100, Math.round((n / total) * 100));
-}
-
+function pct(n, total) { return !total ? 0 : Math.min(100, Math.round((n / total) * 100)); }
 function timeAgo(iso) {
   if (!iso) return "Never";
-  const diff = Date.now() - new Date(iso).getTime();
-  const s = Math.floor(diff / 1000);
+  const s = Math.floor((Date.now() - new Date(iso)) / 1000);
   if (s < 60) return `${s}s ago`;
   if (s < 3600) return `${Math.floor(s / 60)}m ago`;
   if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
   return `${Math.floor(s / 86400)}d ago`;
 }
 
-// ── Progress bar ──────────────────────────────────────────────────────────────
-function ProgressBar({ value, color = "blue", label }) {
-  const colors = {
-    blue:   "bg-blue-500",
-    green:  "bg-green-500",
-    yellow: "bg-yellow-400",
-    red:    "bg-red-500",
-    purple: "bg-purple-500",
-    orange: "bg-orange-400",
-  };
+// ── Skeleton ──────────────────────────────────────────────────────────────────
+const Skel = ({ className = "" }) => (
+  <div className={`animate-pulse rounded-lg bg-white/5 ${className}`} />
+);
 
-  const barColor = value >= 90 ? colors.red : value >= 70 ? colors.yellow : colors[color] || colors.blue;
-
+// ── Progress Bar ──────────────────────────────────────────────────────────────
+function Bar2({ value = 0, color }) {
+  const c = value >= 90 ? C.danger : value >= 70 ? C.warning : color;
   return (
-    <div>
-      <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
-        <span>{label}</span>
-        <span>{value}%</span>
-      </div>
-      <div className="h-2 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
-        <div
-          className={`h-full rounded-full transition-all duration-500 ${barColor}`}
-          style={{ width: `${value}%` }}
-        />
-      </div>
+    <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.07)" }}>
+      <motion.div className="h-full rounded-full" style={{ background: c }}
+        initial={{ width: 0 }}
+        animate={{ width: `${value}%` }}
+        transition={{ duration: 0.8, ease: "easeOut" }}
+      />
     </div>
   );
 }
 
-// ── Feature pill ──────────────────────────────────────────────────────────────
-function FeaturePill({ label, requests, tokens }) {
+// ── KPI Card ──────────────────────────────────────────────────────────────────
+function KPICard({ icon: Icon, label, value, color, glow, sub }) {
   return (
-    <div className="flex items-center gap-2 text-xs">
-      <span className="font-medium text-gray-700 dark:text-gray-300 w-20">{label}</span>
-      <span className="bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full">
-        {fmt(requests)} req
-      </span>
-      <span className="bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded-full">
-        {fmt(tokens)} tok
-      </span>
-    </div>
+    <motion.div whileHover={{ y: -2 }}
+      className="rounded-2xl p-5 relative overflow-hidden"
+      style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", boxShadow: "0 4px 24px rgba(0,0,0,0.3)" }}>
+      <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full pointer-events-none"
+        style={{ background: `radial-gradient(circle, ${glow || color + "20"} 0%, transparent 70%)` }} />
+      <div className="w-9 h-9 rounded-xl flex items-center justify-center mb-3 relative z-10" style={{ background: color + "20" }}>
+        <Icon size={16} style={{ color }} />
+      </div>
+      <p className="text-2xl font-bold tabular-nums relative z-10" style={{ color: "#f1f5f9" }}>{value}</p>
+      <p className="text-xs mt-0.5 relative z-10" style={{ color: "#64748b" }}>{label}</p>
+      {sub && <p className="text-[11px] mt-0.5 relative z-10" style={{ color: "#475569" }}>{sub}</p>}
+    </motion.div>
   );
 }
 
-// ── Single key card ───────────────────────────────────────────────────────────
+// ── Key Card ──────────────────────────────────────────────────────────────────
 function KeyCard({ keyData }) {
   const {
-    keyLabel,
-    isActive,
-    requestCount,
-    rateLimitHits,
-    errorCount,
-    inputTokens,
-    outputTokens,
-    totalTokens,
-    byFeature,
-    dailyRequestLimit,
-    dailyTokenBudget,
-    remainingRequests,
-    remainingTokens,
-    requestUsagePct,
-    tokenUsagePct,
-    lastRequestAt,
+    keyLabel, isActive, requestCount, rateLimitHits, errorCount,
+    inputTokens, outputTokens, totalTokens, byFeature,
+    dailyRequestLimit, dailyTokenBudget, remainingRequests, remainingTokens,
+    requestUsagePct = 0, tokenUsagePct = 0, lastRequestAt, keyIndex,
   } = keyData;
 
-  const statusColor = isActive
-    ? "ring-2 ring-blue-500 dark:ring-blue-400"
-    : requestUsagePct >= 90
-    ? "ring-2 ring-red-400"
-    : "ring-1 ring-gray-200 dark:ring-gray-700";
-
   return (
-    <div className={`relative bg-white dark:bg-gray-900 rounded-2xl p-5 shadow-sm transition-all ${statusColor}`}>
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: keyIndex * 0.06 }}
+      className="rounded-2xl p-5 relative flex flex-col gap-4"
+      style={{
+        background: "rgba(255,255,255,0.04)",
+        border: isActive ? `1px solid ${C.primary}` : "1px solid rgba(255,255,255,0.07)",
+        boxShadow: isActive ? `0 0 24px ${C.primary}25` : "0 4px 24px rgba(0,0,0,0.3)",
+      }}
+    >
       {/* Active badge */}
       {isActive && (
-        <span className="absolute top-3 right-3 flex items-center gap-1 text-[10px] font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/40 px-2 py-0.5 rounded-full">
-          <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse inline-block" />
+        <div className="absolute top-3 right-3 flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full"
+          style={{ background: `${C.primary}20`, color: C.primary, border: `1px solid ${C.primary}40` }}>
+          <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: C.primary }} />
           ACTIVE
-        </span>
+        </div>
       )}
 
       {/* Header */}
-      <div className="flex items-center gap-3 mb-4">
-        <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg font-bold
-          ${isActive ? "bg-blue-600 text-white" : "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400"}`}>
-          {keyLabel.replace("Key ", "")}
+      <div className="flex items-center gap-3">
+        <div className="w-11 h-11 rounded-xl flex items-center justify-center text-lg font-bold shrink-0"
+          style={{ background: isActive ? `linear-gradient(135deg, ${C.primary}, #8b5cf6)` : "rgba(255,255,255,0.07)", color: "#fff" }}>
+          {keyIndex + 1}
         </div>
         <div>
-          <p className="font-semibold text-gray-800 dark:text-white text-sm">{keyLabel}</p>
-          <p className="text-xs text-gray-400 dark:text-gray-500">{timeAgo(lastRequestAt)}</p>
+          <p className="text-sm font-semibold" style={{ color: "#f1f5f9" }}>{keyLabel}</p>
+          <p className="text-xs" style={{ color: "#475569" }}>Last used {timeAgo(lastRequestAt)}</p>
         </div>
       </div>
 
-      {/* Request progress */}
-      <div className="mb-3">
-        <ProgressBar value={requestUsagePct} color="blue" label={`Requests: ${fmt(requestCount)} / ${fmt(dailyRequestLimit)}`} />
-      </div>
-
-      {/* Token progress */}
-      <div className="mb-4">
-        <ProgressBar value={tokenUsagePct} color="purple" label={`Tokens: ${fmt(totalTokens)} / ${fmt(dailyTokenBudget)}`} />
-      </div>
-
-      {/* Stats row */}
-      <div className="grid grid-cols-3 gap-2 mb-4">
-        <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-2 text-center">
-          <p className="text-xs text-gray-400 dark:text-gray-500">Remaining Req</p>
-          <p className="text-sm font-bold text-green-600 dark:text-green-400">{fmt(remainingRequests)}</p>
+      {/* Quotas */}
+      <div className="space-y-3">
+        <div>
+          <div className="flex justify-between text-xs mb-1.5" style={{ color: "#64748b" }}>
+            <span>Requests</span>
+            <span>{fmt(requestCount)} / {fmt(dailyRequestLimit)}</span>
+          </div>
+          <Bar2 value={requestUsagePct} color={C.primary} />
         </div>
-        <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-2 text-center">
-          <p className="text-xs text-gray-400 dark:text-gray-500">Rate Limits</p>
-          <p className={`text-sm font-bold ${rateLimitHits > 0 ? "text-yellow-500" : "text-gray-400 dark:text-gray-600"}`}>
-            {rateLimitHits}
-          </p>
-        </div>
-        <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-2 text-center">
-          <p className="text-xs text-gray-400 dark:text-gray-500">Errors</p>
-          <p className={`text-sm font-bold ${errorCount > 0 ? "text-red-500" : "text-gray-400 dark:text-gray-600"}`}>
-            {errorCount}
-          </p>
+        <div>
+          <div className="flex justify-between text-xs mb-1.5" style={{ color: "#64748b" }}>
+            <span>Tokens</span>
+            <span>{fmt(totalTokens)} / {fmt(dailyTokenBudget)}</span>
+          </div>
+          <Bar2 value={tokenUsagePct} color={C.purple} />
         </div>
       </div>
 
-      {/* Token breakdown */}
-      <div className="flex gap-3 text-xs text-gray-500 dark:text-gray-400 mb-4 border-t border-gray-100 dark:border-gray-800 pt-3">
-        <span>↑ {fmt(inputTokens)} in</span>
-        <span>↓ {fmt(outputTokens)} out</span>
-        <span className="ml-auto font-medium text-gray-700 dark:text-gray-300">{fmt(remainingTokens)} remaining</span>
+      {/* Mini stats */}
+      <div className="grid grid-cols-3 gap-2">
+        {[
+          { label: "Remaining", value: fmt(remainingRequests), color: C.success },
+          { label: "Rate Limits", value: rateLimitHits, color: rateLimitHits > 0 ? C.warning : "#475569" },
+          { label: "Errors", value: errorCount, color: errorCount > 0 ? C.danger : "#475569" },
+        ].map(({ label, value, color }) => (
+          <div key={label} className="text-center rounded-xl p-2.5"
+            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.05)" }}>
+            <p className="text-[11px] mb-0.5" style={{ color: "#475569" }}>{label}</p>
+            <p className="text-sm font-bold" style={{ color }}>{value}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Token I/O */}
+      <div className="flex gap-4 text-xs pt-2" style={{ borderTop: "1px solid rgba(255,255,255,0.06)", color: "#64748b" }}>
+        <span>↑ <b style={{ color: "#94a3b8" }}>{fmt(inputTokens)}</b> in</span>
+        <span>↓ <b style={{ color: "#94a3b8" }}>{fmt(outputTokens)}</b> out</span>
+        <span className="ml-auto font-medium" style={{ color: "#94a3b8" }}>{fmt(remainingTokens)} left</span>
       </div>
 
       {/* Feature breakdown */}
       {byFeature && (
-        <div className="space-y-1.5 border-t border-gray-100 dark:border-gray-800 pt-3">
-          <p className="text-[10px] uppercase tracking-widest text-gray-400 dark:text-gray-600 font-semibold mb-2">By Feature</p>
-          <FeaturePill label="Summarize"  requests={byFeature.summarize?.requests || 0} tokens={byFeature.summarize?.tokens || 0} />
-          <FeaturePill label="Banking"    requests={byFeature.banking?.requests   || 0} tokens={byFeature.banking?.tokens   || 0} />
-          <FeaturePill label="Table"      requests={byFeature.table?.requests     || 0} tokens={byFeature.table?.tokens     || 0} />
+        <div className="space-y-2 pt-2" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+          <p className="text-[10px] font-semibold uppercase tracking-widest mb-2" style={{ color: "#475569" }}>By Feature</p>
+          {Object.entries(byFeature).map(([feat, stats]) => (
+            <div key={feat} className="flex items-center justify-between text-xs">
+              <span className="capitalize" style={{ color: "#64748b" }}>{feat}</span>
+              <div className="flex gap-2">
+                <span className="px-1.5 py-0.5 rounded-md text-[11px]" style={{ background: `${C.primary}15`, color: C.primary }}>
+                  {fmt(stats.requests)} req
+                </span>
+                <span className="px-1.5 py-0.5 rounded-md text-[11px]" style={{ background: `${C.purple}15`, color: C.purple }}>
+                  {fmt(stats.tokens)} tok
+                </span>
+              </div>
+            </div>
+          ))}
         </div>
       )}
-    </div>
+    </motion.div>
   );
 }
 
-// ── History sparkline (7-day bar chart) ───────────────────────────────────────
-function HistoryChart({ history }) {
-  if (!history || history.length === 0) return null;
-
-  const maxReq = Math.max(...history.map(d => d.requestCount), 1);
-
+// ── History Charts ────────────────────────────────────────────────────────────
+function HistoryCharts({ history }) {
+  if (!history?.length) return null;
   return (
-    <div className="bg-white dark:bg-gray-900 rounded-2xl p-5 shadow-sm ring-1 ring-gray-200 dark:ring-gray-700">
-      <p className="text-sm font-semibold text-gray-700 dark:text-white mb-4">Requests — Last {history.length} days</p>
-      <div className="flex items-end gap-1.5 h-20">
-        {history.map((day) => {
-          const h = Math.max(4, Math.round((day.requestCount / maxReq) * 80));
-          return (
-            <div key={day.date} className="flex-1 flex flex-col items-center gap-1 group relative">
-              <div
-                className="w-full rounded-t bg-blue-500 dark:bg-blue-600 transition-all duration-300 group-hover:bg-blue-400"
-                style={{ height: `${h}px` }}
-              />
-              {/* Tooltip */}
-              <div className="absolute bottom-full mb-1 hidden group-hover:block bg-gray-800 text-white text-[10px] rounded px-2 py-1 whitespace-nowrap z-10">
-                {day.date}<br />{fmt(day.requestCount)} req · {fmt(day.totalTokens)} tok
-              </div>
-              <span className="text-[9px] text-gray-400">{day.date.slice(5)}</span>
-            </div>
-          );
-        })}
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {/* Request history */}
+      <div className="rounded-2xl p-5"
+        style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
+        <p className="text-sm font-semibold mb-1" style={{ color: "#f1f5f9" }}>Daily Requests</p>
+        <p className="text-xs mb-4" style={{ color: "#64748b" }}>Last {history.length} days</p>
+        <ResponsiveContainer width="100%" height={160}>
+          <BarChart data={history} barSize={14}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+            <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#475569" }} axisLine={false} tickLine={false}
+              tickFormatter={v => v?.slice(5) || v} />
+            <YAxis tick={{ fontSize: 10, fill: "#475569" }} axisLine={false} tickLine={false} />
+            <Tooltip contentStyle={TOOLTIP_STYLE} formatter={v => [fmt(v), "Requests"]} />
+            <Bar dataKey="requestCount" fill={C.primary} radius={[4, 4, 0, 0]} name="Requests" />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Token history */}
+      <div className="rounded-2xl p-5"
+        style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
+        <p className="text-sm font-semibold mb-1" style={{ color: "#f1f5f9" }}>Daily Tokens</p>
+        <p className="text-xs mb-4" style={{ color: "#64748b" }}>Last {history.length} days</p>
+        <ResponsiveContainer width="100%" height={160}>
+          <AreaChart data={history}>
+            <defs>
+              <linearGradient id="tokGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={C.purple} stopOpacity={0.3} />
+                <stop offset="100%" stopColor={C.purple} stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+            <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#475569" }} axisLine={false} tickLine={false}
+              tickFormatter={v => v?.slice(5) || v} />
+            <YAxis tick={{ fontSize: 10, fill: "#475569" }} axisLine={false} tickLine={false} />
+            <Tooltip contentStyle={TOOLTIP_STYLE} formatter={v => [fmt(v), "Tokens"]} />
+            <Area type="monotone" dataKey="totalTokens" stroke={C.purple} strokeWidth={2} fill="url(#tokGrad)" name="Tokens" />
+          </AreaChart>
+        </ResponsiveContainer>
       </div>
     </div>
   );
 }
 
-// ── Last request info banner ──────────────────────────────────────────────────
-function LastRequestBanner({ data }) {
-  if (!data?.lastUsageMetadata) return null;
-  const { promptTokenCount, candidatesTokenCount, totalTokenCount } = data.lastUsageMetadata;
-  const feature = data.lastRequestFeature || "—";
-  const keyIdx  = data.lastRequestKeyIndex ?? data.currentKeyIndex;
-
-  return (
-    <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4 flex flex-wrap gap-4 text-sm">
-      <div>
-        <span className="text-gray-500 dark:text-gray-400">Last request via </span>
-        <span className="font-semibold text-blue-700 dark:text-blue-300">Key {keyIdx + 1}</span>
-        <span className="ml-2 text-gray-500 dark:text-gray-400">({feature})</span>
-      </div>
-      <div className="flex gap-4 ml-auto flex-wrap">
-        <span>📥 <b>{fmt(promptTokenCount)}</b> input</span>
-        <span>📤 <b>{fmt(candidatesTokenCount)}</b> output</span>
-        <span>🔢 <b>{fmt(totalTokenCount)}</b> total</span>
-        <span className="text-gray-400">· {timeAgo(data.lastRequestAt)}</span>
-      </div>
-    </div>
-  );
-}
-
-// ── Main component ─────────────────────────────────────────────────────────────
+// ── Main ──────────────────────────────────────────────────────────────────────
 export default function UsageDashboard() {
-  const [data, setData]       = useState(null);
+  const [data, setData] = useState(null);
   const [history, setHistory] = useState([]);
-  const [error, setError]     = useState(null);
-  const [tick, setTick]       = useState(0);     // forces re-render for "X ago" labels
+  const [error, setError] = useState(null);
+  const [tick, setTick] = useState(0);
+  const [historyDays, setHistoryDays] = useState(7);
   const sseRef = useRef(null);
 
-  // Fetch history separately (changes less often)
-  const loadHistory = useCallback(async () => {
+  const loadHistory = useCallback(async (days = historyDays) => {
     try {
-      const res = await axios.get(`${API_BASE}/api/usage/history?days=7`, { withCredentials: true });
-      if (res.data.success) setHistory(res.data.data);
+      const { data: r } = await api.get(`/api/usage/history?days=${days}`);
+      if (r.success) setHistory(r.data);
     } catch {}
-  }, []);
+  }, [historyDays]);
 
-  // SSE for real-time today stats
   useEffect(() => {
     let es;
     const connect = () => {
       es = new EventSource(`${API_BASE}/api/usage/stream`, { withCredentials: true });
-
-      es.onmessage = (e) => {
+      es.onmessage = e => {
         try {
-          const payload = JSON.parse(e.data);
-          if (payload.error) {
-            setError(payload.error);
-          } else {
-            setData(payload);
-            setError(null);
-          }
+          const p = JSON.parse(e.data);
+          p.error ? setError(p.error) : (setData(p), setError(null));
         } catch {}
       };
-
-      es.onerror = () => {
-        es.close();
-        // Retry after 5 s
-        setTimeout(connect, 5000);
-      };
-
+      es.onerror = () => { es.close(); setTimeout(connect, 5000); };
       sseRef.current = es;
     };
-
     connect();
     loadHistory();
-
-    // Refresh history every 5 minutes
-    const historyInterval = setInterval(loadHistory, 5 * 60 * 1000);
-
-    // Tick every 30 s to update "X ago" labels
-    const tickInterval = setInterval(() => setTick(t => t + 1), 30_000);
-
-    return () => {
-      sseRef.current?.close();
-      clearInterval(historyInterval);
-      clearInterval(tickInterval);
-    };
+    const hi = setInterval(() => loadHistory(), 5 * 60 * 1000);
+    const ti = setInterval(() => setTick(t => t + 1), 30_000);
+    return () => { sseRef.current?.close(); clearInterval(hi); clearInterval(ti); };
   }, [loadHistory]);
 
-  // ── Loading state ─────────────────────────────────────────────────────────
+  // Loading / error
   if (!data) {
     return (
-      <div className="flex items-center justify-center h-64">
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "#060b14" }}>
         {error ? (
           <div className="text-center">
-            <p className="text-4xl mb-3">🔑</p>
-            <p className="text-red-500 font-medium">{error}</p>
-            <p className="text-gray-400 text-sm mt-1">Admin access required</p>
+            <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
+              style={{ background: "rgba(239,68,68,0.1)" }}>
+              <AlertTriangle size={28} style={{ color: C.danger }} />
+            </div>
+            <p className="text-sm font-semibold" style={{ color: C.danger }}>{error}</p>
+            <p className="text-xs mt-1" style={{ color: "#475569" }}>Admin access required</p>
           </div>
         ) : (
-          <div className="flex flex-col items-center gap-3">
-            <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
-            <p className="text-gray-400 text-sm">Loading API key stats…</p>
+          <div className="flex flex-col items-center gap-4">
+            <div className="w-12 h-12 rounded-full flex items-center justify-center"
+              style={{ background: `${C.primary}20` }}>
+              <RefreshCw size={20} className="animate-spin" style={{ color: C.primary }} />
+            </div>
+            <p className="text-sm" style={{ color: "#64748b" }}>Connecting to live stream…</p>
           </div>
         )}
       </div>
     );
   }
 
-  const { keys, totals, limits, currentKeyIndex, lastRotatedAt, date } = data;
+  const { keys = [], totals = {}, currentKeyIndex = 0, lastRotatedAt, date } = data;
 
   return (
-    <div className="space-y-6 pb-10">
-
-      {/* Page header */}
+    <div className="space-y-6 pb-10" style={{ color: "#e2e8f0" }}>
+      {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-xl font-bold text-gray-800 dark:text-white">API Key Usage Dashboard</h1>
-          <p className="text-sm text-gray-400 dark:text-gray-500 mt-0.5">
-            Gemini 2.5 Flash · {date} (UTC) ·{" "}
-            <span className="text-blue-500 font-medium">Key {currentKeyIndex + 1}</span> active
-            {lastRotatedAt && <span className="ml-2 text-gray-400">· last rotated {timeAgo(lastRotatedAt)}</span>}
+          <h1 className="text-xl font-bold" style={{ color: "#f1f5f9" }}>API Key Usage</h1>
+          <p className="text-sm mt-0.5" style={{ color: "#64748b" }}>
+            Gemini · {date} (UTC) ·{" "}
+            <span style={{ color: C.primary }}>Key {currentKeyIndex + 1}</span> active
+            {lastRotatedAt && <span style={{ color: "#475569" }}> · rotated {timeAgo(lastRotatedAt)}</span>}
           </p>
         </div>
-        <div className="flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30 px-3 py-1.5 rounded-full">
-          <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse inline-block" />
-          Live · updates every 10 s
+        <div className="flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-full"
+          style={{ background: `${C.success}15`, color: C.success, border: `1px solid ${C.success}30` }}>
+          <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: C.success }} />
+          Live · updates every 10s
         </div>
       </div>
 
-      {/* Last request info */}
-      <LastRequestBanner data={data} />
+      {/* Last request banner */}
+      {data.lastUsageMetadata && (
+        <div className="flex flex-wrap gap-4 items-center px-4 py-3 rounded-2xl text-xs"
+          style={{ background: `${C.primary}12`, border: `1px solid ${C.primary}30`, color: "#94a3b8" }}>
+          <span>
+            Last via <span style={{ color: C.primary }}>Key {(data.lastRequestKeyIndex ?? currentKeyIndex) + 1}</span>
+            <span style={{ color: "#64748b" }}> · {data.lastRequestFeature || "—"}</span>
+          </span>
+          <div className="ml-auto flex gap-4">
+            <span>↑ <b style={{ color: "#e2e8f0" }}>{fmt(data.lastUsageMetadata.promptTokenCount)}</b> in</span>
+            <span>↓ <b style={{ color: "#e2e8f0" }}>{fmt(data.lastUsageMetadata.candidatesTokenCount)}</b> out</span>
+            <span>Total: <b style={{ color: "#e2e8f0" }}>{fmt(data.lastUsageMetadata.totalTokenCount)}</b></span>
+            <span style={{ color: "#475569" }}>· {timeAgo(data.lastRequestAt)}</span>
+          </div>
+        </div>
+      )}
 
-      {/* Totals row */}
+      {/* KPI row */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        {[
-          { label: "Total Requests Today", value: fmt(totals.requestCount), icon: "📨", color: "blue" },
-          { label: "Total Tokens Today",   value: fmt(totals.totalTokens),  icon: "🔢", color: "purple" },
-          { label: "Rate Limit Hits",      value: fmt(totals.rateLimitHits), icon: "⚠️", color: totals.rateLimitHits > 0 ? "yellow" : "gray" },
-          { label: "Active Key",           value: `Key ${currentKeyIndex + 1}`, icon: "🔑", color: "green" },
-        ].map(({ label, value, icon, color }) => {
-          const textColors = {
-            blue: "text-blue-600 dark:text-blue-400",
-            purple: "text-purple-600 dark:text-purple-400",
-            yellow: "text-yellow-600 dark:text-yellow-400",
-            green: "text-green-600 dark:text-green-400",
-            gray: "text-gray-400 dark:text-gray-500",
-          };
-          return (
-            <div key={label} className="bg-white dark:bg-gray-900 rounded-2xl p-4 shadow-sm ring-1 ring-gray-200 dark:ring-gray-700">
-              <p className="text-2xl mb-1">{icon}</p>
-              <p className={`text-2xl font-bold ${textColors[color]}`}>{value}</p>
-              <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{label}</p>
-            </div>
-          );
-        })}
+        <KPICard icon={Activity} label="Requests Today" value={fmt(totals.requestCount)} color={C.primary} />
+        <KPICard icon={Cpu} label="Tokens Used" value={fmt(totals.totalTokens)} color={C.purple} />
+        <KPICard icon={AlertTriangle} label="Rate Limit Hits" value={totals.rateLimitHits ?? 0} color={totals.rateLimitHits > 0 ? C.warning : "#475569"} />
+        <KPICard icon={KeyRound} label="Active Key" value={`Key ${currentKeyIndex + 1}`} color={C.success} />
       </div>
 
       {/* Key cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        {keys.map((k) => (
-          <KeyCard key={k.keyIndex} keyData={k} />
-        ))}
+        {keys.map(k => <KeyCard key={k.keyIndex} keyData={k} />)}
       </div>
 
-      {/* History chart */}
-      <HistoryChart history={history} />
+      {/* History */}
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <p className="text-sm font-semibold" style={{ color: "#f1f5f9" }}>Usage History</p>
+          <div className="flex gap-2">
+            {[7, 14, 30].map(d => (
+              <button key={d}
+                onClick={() => { setHistoryDays(d); loadHistory(d); }}
+                className="text-xs px-3 py-1.5 rounded-lg transition-all"
+                style={{
+                  background: historyDays === d ? `${C.primary}20` : "rgba(255,255,255,0.04)",
+                  color: historyDays === d ? C.primary : "#64748b",
+                  border: historyDays === d ? `1px solid ${C.primary}40` : "1px solid rgba(255,255,255,0.06)",
+                }}>
+                {d}d
+              </button>
+            ))}
+          </div>
+        </div>
+        <HistoryCharts history={history} />
+      </div>
 
-      {/* Quota config note */}
-      <div className="text-xs text-gray-400 dark:text-gray-600 bg-gray-50 dark:bg-gray-900 rounded-xl p-4 ring-1 ring-gray-200 dark:ring-gray-800">
-        <p className="font-semibold mb-1 text-gray-500 dark:text-gray-400">ℹ️  Quota configuration</p>
+      {/* Config note */}
+      <div className="px-4 py-3 rounded-2xl text-xs"
+        style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", color: "#475569" }}>
+        <p className="font-semibold mb-1" style={{ color: "#64748b" }}>Quota configuration</p>
         <p>
-          Daily limits are configurable via environment variables:{" "}
-          <code className="font-mono bg-gray-100 dark:bg-gray-800 px-1 rounded">GEMINI_DAILY_REQUEST_LIMIT</code> (default: 1 500) and{" "}
-          <code className="font-mono bg-gray-100 dark:bg-gray-800 px-1 rounded">GEMINI_DAILY_TOKEN_BUDGET</code> (default: 1 000 000).
-          Remaining quota is estimated — the Gemini free tier does not expose remaining-quota headers.
-          Limits reset at midnight UTC. Stats are stored in MongoDB and survive server restarts.
+          Configure via env:{" "}
+          <code className="px-1.5 py-0.5 rounded-md mx-1" style={{ background: "rgba(255,255,255,0.07)", color: "#94a3b8" }}>
+            GEMINI_DAILY_REQUEST_LIMIT
+          </code>
+          (default: 1,500) and{" "}
+          <code className="px-1.5 py-0.5 rounded-md mx-1" style={{ background: "rgba(255,255,255,0.07)", color: "#94a3b8" }}>
+            GEMINI_DAILY_TOKEN_BUDGET
+          </code>
+          (default: 1,000,000). Resets at midnight UTC. Stats stored in MongoDB.
         </p>
       </div>
     </div>

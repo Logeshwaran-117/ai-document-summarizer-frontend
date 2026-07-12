@@ -594,7 +594,7 @@ export default function Pricing({ user }) {
             </div>
           </div>
 
-          {/* FAQ */}
+          {/* ── FAQ ── */}
           <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6">
             <h3 className="font-bold text-gray-900 dark:text-white mb-5">Frequently Asked Questions</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -605,7 +605,7 @@ export default function Pricing({ user }) {
                 ["What payment methods are accepted?","UPI, debit/credit cards (Visa, Mastercard, RuPay), net banking, and wallets via Razorpay."],
                 ["Is billing in INR?","Yes, all prices are in Indian Rupees (₹) including 18% GST."],
                 ["Can I get a refund?","Refunds are handled on a case-by-case basis. Contact support within 7 days of payment."],
-              ].map(([q,a]) => (
+              ].map(([q, a]) => (
                 <div key={q} className="space-y-1">
                   <p className="font-semibold text-gray-800 dark:text-gray-200 text-sm">{q}</p>
                   <p className="text-gray-500 dark:text-gray-400 text-sm">{a}</p>
@@ -668,6 +668,8 @@ export default function Pricing({ user }) {
               </tbody>
             </table>
           )}
+          {/* ── Billing AI Chatbot ── */}
+          <PlansBillingChatbot context="billing" billingInfo={billing} />
         </div>
       )}
 
