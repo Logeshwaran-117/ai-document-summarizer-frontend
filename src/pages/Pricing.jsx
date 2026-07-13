@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
 import api from "../api";
 
-// ── Razorpay loader ───────────────────────────────────────────────────────────
-function loadRazorpay() {
+// ── Cashfree loader ───────────────────────────────────────────────────────────
+function loadCashfree() {
   return new Promise((resolve) => {
-    if (window.Razorpay) return resolve(true);
+    if (window.Cashfree) return resolve(true);
     const script = document.createElement("script");
-    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.src = "https://sdk.cashfree.com/js/v3/cashfree.js";
     script.onload  = () => resolve(true);
     script.onerror = () => resolve(false);
     document.body.appendChild(script);
@@ -111,10 +111,11 @@ function InvoiceModal({ invoiceId, onClose }) {
           </div>
 
           {/* Payment info */}
+          {/* Payment info */}
           <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-sm">
             <p className="font-semibold text-green-700 mb-1">✅ Payment Successful</p>
-            <p className="text-green-600">Payment ID: <span className="font-mono text-xs">{inv.razorpayPaymentId}</span></p>
-            <p className="text-green-600">Order ID:   <span className="font-mono text-xs">{inv.razorpayOrderId}</span></p>
+            <p className="text-green-600">Payment ID: <span className="font-mono text-xs">{inv.cashfreePaymentId}</span></p>
+            <p className="text-green-600">Order ID:   <span className="font-mono text-xs">{inv.cashfreeOrderId}</span></p>
           </div>
 
           <p className="text-xs text-gray-400 text-center">Thank you for your subscription.</p>
@@ -133,61 +134,55 @@ function CheckoutModal({ plan, cycle, price, onClose, onSuccess }) {
   const planMeta = META[plan?.id || "pro"];
 
   const startPayment = async () => {
-    setStep("processing");
-    try {
-      const loaded = await loadRazorpay();
-      if (!loaded) throw new Error("Razorpay SDK failed to load. Check your internet connection.");
+  setStep("processing");
+  try {
+    const loaded = await loadCashfree();
+    if (!loaded) throw new Error("Cashfree SDK failed to load. Check your internet connection.");
 
-      // Create order on backend
-      const { data: order } = await api.post("/api/billing/create-order", {
-        plan: plan.id,
-        billingCycle: cycle,
-      });
+    // Create order on backend
+    const { data: order } = await api.post("/api/billing/create-order", {
+      plan: plan.id,
+      billingCycle: cycle,
+    });
 
-      const options = {
-        key:         order.keyId,
-        amount:      order.amount,
-        currency:    order.currency,
-        name:        "AI Document Summarizer",
-        description: `${plan.name} Plan — ${cycle === "monthly" ? "Monthly" : "Yearly"}`,
-        order_id:    order.orderId,
-        prefill: {
-          name:  order.userName,
-          email: order.userEmail,
-        },
-        theme: { color: plan.id === "pro" ? "#2563eb" : "#7c3aed" },
-        modal: {
-          ondismiss: () => {
-            setStep("confirm");
-          },
-        },
-        handler: async (response) => {
-          try {
-            const { data } = await api.post("/api/billing/verify-payment", {
-              razorpay_order_id:   response.razorpay_order_id,
-              razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_signature:  response.razorpay_signature,
-            });
-            setResultMsg(data.message);
-            setStep("done");
-            onSuccess(data);
-          } catch(e) {
-            setErrMsg(e.response?.data?.message || "Payment verification failed.");
-            setStep("error");
-          }
-        },
-      };
+    // Initialize Cashfree drop-in checkout
+    const cashfree = window.Cashfree({ mode: import.meta.env.VITE_CASHFREE_ENV || "sandbox" });
 
-      const rzp = new window.Razorpay(options);
-      rzp.on("payment.failed", (resp) => {
-        setErrMsg(`Payment failed: ${resp.error.description}`);
+    const checkoutOptions = {
+      paymentSessionId: order.paymentSessionId,
+      redirectTarget:   "_modal",  // opens as popup, not redirect
+    };
+
+    const result = await cashfree.checkout(checkoutOptions);
+
+    if (result.error) {
+      // Payment dismissed or failed
+      if (result.error.type === "user_dropped") {
+        setStep("confirm");  // User closed the modal
+      } else {
+        setErrMsg(result.error.message || "Payment failed.");
         setStep("error");
+      }
+      return;
+    }
+
+    // result.paymentDetails contains basic info — verify on backend for security
+    try {
+      const { data } = await api.post("/api/billing/verify-payment", {
+        orderId: order.orderId,
       });
-      rzp.open();
+      setResultMsg(data.message);
+      setStep("done");
+      onSuccess(data);
     } catch(e) {
-      setErrMsg(e.message || "Failed to start payment.");
+      setErrMsg(e.response?.data?.message || "Payment verification failed.");
       setStep("error");
     }
+
+  } catch(e) {
+    setErrMsg(e.message || "Failed to start payment.");
+    setStep("error");
+  }
   };
 
   return (
@@ -241,7 +236,7 @@ function CheckoutModal({ plan, cycle, price, onClose, onSuccess }) {
               </div>
 
               <div className="text-xs text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-700/40 rounded-xl p-3">
-                <p>💳 Secure payment via Razorpay. Supports UPI, Cards, Net Banking, Wallets.</p>
+                <p>💳 Secure payment via Cashfree. Supports UPI, Cards, Net Banking, Wallets.</p>
                 <p className="mt-1">You can cancel anytime. Refunds as per our policy.</p>
               </div>
 
@@ -257,7 +252,7 @@ function CheckoutModal({ plan, cycle, price, onClose, onSuccess }) {
             <div className="flex flex-col items-center gap-4 py-8">
               <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"/>
               <p className="text-gray-600 dark:text-gray-400 font-medium">Opening payment window…</p>
-              <p className="text-xs text-gray-400">Complete the payment in the Razorpay window</p>
+              <p className="text-xs text-gray-400">Complete the payment in the Cashfree window</p>
             </div>
           )}
 
@@ -602,7 +597,7 @@ export default function Pricing({ user }) {
                 ["What counts as one summary?","Each file you upload and summarize counts as one use, regardless of file size or document length."],
                 ["Do unused limits roll over?","No — your summary and table limits reset daily at midnight. Billing (monthly or yearly) is separate and only affects your subscription price."],
                 ["Can I switch plans anytime?","Yes. Upgrading takes effect immediately. Downgrading or cancelling takes effect at the end of the current period."],
-                ["What payment methods are accepted?","UPI, debit/credit cards (Visa, Mastercard, RuPay), net banking, and wallets via Razorpay."],
+                ["What payment methods are accepted?","UPI, debit/credit cards (Visa, Mastercard, RuPay), net banking, and wallets via Cashfree."],
                 ["Is billing in INR?","Yes, all prices are in Indian Rupees (₹) including 18% GST."],
                 ["Can I get a refund?","Refunds are handled on a case-by-case basis. Contact support within 7 days of payment."],
               ].map(([q, a]) => (
