@@ -8,6 +8,7 @@ import { ToastProvider } from "./components/toastProvider";
 import { NotificationProvider } from "./context/NotificationContext";
 import LandingPage from "./pages/LandingPage";
 import SharedSummaryPage from "./pages/SharedSummaryPage";
+import MaintenanceGate from "./components/MaintenanceGate";
 
 function App() {
   const [summary, setSummary] = useState("");
@@ -52,15 +53,17 @@ function App() {
               path="/*"
               element={
                 isAuthenticated ? (
-                  <Dashboard
-                    summary={summary}
-                    setSummary={setSummary}
-                    stats={stats}
-                    setStats={setStats}
-                    setIsAuthenticated={setIsAuthenticated}
-                    user={user}
-                    setUser={setUser}
-                  />
+                  <MaintenanceGate user={user}>
+                    <Dashboard
+                      summary={summary}
+                      setSummary={setSummary}
+                      stats={stats}
+                      setStats={setStats}
+                      setIsAuthenticated={setIsAuthenticated}
+                      user={user}
+                      setUser={setUser}
+                    />
+                  </MaintenanceGate>
                 ) : (
                   <Navigate to="/home" />
                 )
