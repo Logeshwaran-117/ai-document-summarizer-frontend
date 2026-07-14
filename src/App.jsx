@@ -8,7 +8,6 @@ import { ToastProvider } from "./components/toastProvider";
 import { NotificationProvider } from "./context/NotificationContext";
 import LandingPage from "./pages/LandingPage";
 import SharedSummaryPage from "./pages/SharedSummaryPage";
-import MaintenanceGate from "./components/MaintenanceGate";
 
 function App() {
   const [summary, setSummary] = useState("");
@@ -45,25 +44,38 @@ function App() {
         <ToastProvider />
         <div className="h-screen w-full">
           <Routes>
+            {/* Root path → always go to home/landing page */}
+            <Route path="/" element={<Navigate to="/home" replace />} />
+
             {/* Public landing page — always accessible */}
             <Route path="/home" element={<LandingPage />} />
-            <Route path="/login" element={<Auth setIsAuthenticated={setIsAuthenticated} setUser={setUser} />} />
+
+            {/* Login: if already authenticated, go to dashboard */}
+            <Route
+              path="/login"
+              element={
+                isAuthenticated ? (
+                  <Navigate to="/dashboard" replace />
+                ) : (
+                  <Auth setIsAuthenticated={setIsAuthenticated} setUser={setUser} />
+                )
+              }
+            />
+
             <Route path="/shared/:token" element={<SharedSummaryPage />} />
             <Route
               path="/*"
               element={
                 isAuthenticated ? (
-                  <MaintenanceGate user={user}>
-                    <Dashboard
-                      summary={summary}
-                      setSummary={setSummary}
-                      stats={stats}
-                      setStats={setStats}
-                      setIsAuthenticated={setIsAuthenticated}
-                      user={user}
-                      setUser={setUser}
-                    />
-                  </MaintenanceGate>
+                  <Dashboard
+                    summary={summary}
+                    setSummary={setSummary}
+                    stats={stats}
+                    setStats={setStats}
+                    setIsAuthenticated={setIsAuthenticated}
+                    user={user}
+                    setUser={setUser}
+                  />
                 ) : (
                   <Navigate to="/home" />
                 )
