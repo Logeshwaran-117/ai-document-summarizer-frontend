@@ -1,14 +1,15 @@
 // src/context/AdminContext.jsx
-// Bridges admin panel controls (maintenance, announcements, feature flags, etc.)
-// to the rest of the app so regular users are actually affected.
+// Syncs maintenance mode, feature flags and announcements from the BACKEND
+// so every user's browser is affected when an admin makes a change.
 //
-// CROSS-TAB + SAME-TAB SYNC:
-//   - 'storage' event fires in OTHER tabs when localStorage changes (cross-tab)
-//   - A 2-second poll re-reads localStorage and syncs state in the SAME tab
-//     (e.g. admin panel open in one tab, user dashboard in another same-origin tab,
-//      or testing by opening both routes in the same browser session)
+// Strategy:
+//   - Admin writes  → POST /api/admin/app-settings   (persisted server-side)
+//   - All users read → GET  /api/admin/app-settings  (polled every 4 seconds)
+//   - localStorage is kept as a fast local cache / fallback for instant UI updates
+//     in the admin's own tab, but the backend is always the source of truth.
 
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import api from '../api';
 
 // ─── Default feature flags ────────────────────────────────────────────────────
 const DEFAULT_FLAGS = {
@@ -17,17 +18,15 @@ const DEFAULT_FLAGS = {
   newDashboard: false, experimental: false, betaFeatures: false, maintenanceBanner: false,
 };
 
-// ─── localStorage readers ────────────────────────────────────────────────────
-function readMaintenance() {
-  try { return JSON.parse(localStorage.getItem('admin_maintenance') || 'null'); } catch { return null; }
-}
-function readFlags() {
-  try { return { ...DEFAULT_FLAGS, ...JSON.parse(localStorage.getItem('admin_flags') || '{}') }; }
-  catch { return { ...DEFAULT_FLAGS }; }
-}
-function readAnnouncements() {
-  try { return JSON.parse(localStorage.getItem('admin_announcements') || '[]'); } catch { return []; }
-}
+// ─── localStorage helpers (fast local cache) ─────────────────────────────────
+const LS = {
+  getMaintenance: () => { try { return JSON.parse(localStorage.getItem('admin_maintenance') || 'null'); } catch { return null; } },
+  getFlags:       () => { try { return { ...DEFAULT_FLAGS, ...JSON.parse(localStorage.getItem('admin_flags') || '{}') }; } catch { return { ...DEFAULT_FLAGS }; } },
+  getAnnouncements: () => { try { return JSON.parse(localStorage.getItem('admin_announcements') || '[]'); } catch { return []; } },
+  setMaintenance: (v) => v ? localStorage.setItem('admin_maintenance', JSON.stringify(v)) : localStorage.removeItem('admin_maintenance'),
+  setFlags:       (v) => localStorage.setItem('admin_flags', JSON.stringify(v)),
+  setAnnouncements: (v) => localStorage.setItem('admin_announcements', JSON.stringify(v)),
+};
 
 // ─── Context ──────────────────────────────────────────────────────────────────
 const AdminContext = createContext(null);
@@ -38,24 +37,50 @@ export function useAdmin() {
   return ctx;
 }
 
+// ─── Push settings to backend ─────────────────────────────────────────────────
+async function pushToBackend(patch) {
+  try {
+    await api.post('/admin/app-settings', patch);
+  } catch (err) {
+    // Non-fatal: local state is already updated; backend will catch up on next poll
+    console.warn('[AdminContext] Failed to push settings to backend:', err?.response?.status);
+  }
+}
+
 // ─── Provider ─────────────────────────────────────────────────────────────────
 export function AdminProvider({ children }) {
-  // ── Maintenance ─────────────────────────────────────────────────────────────
-  const [maintenance, _setMaintenance] = useState(readMaintenance);
+  // Initialise from localStorage cache for instant render, backend poll will correct it
+  const [maintenance,   _setMaintenance]   = useState(LS.getMaintenance);
+  const [featureFlags,  _setFeatureFlags]  = useState(LS.getFlags);
+  const [announcements, _setAnnouncements] = useState(LS.getAnnouncements);
 
+  // ── Emergency alert ──────────────────────────────────────────────────────────
+  const [emergencyAlert, setEmergencyAlert] = useState(null);
+
+  // ── Broadcasts ───────────────────────────────────────────────────────────────
+  const [broadcasts, setBroadcasts] = useState([]);
+  const pushBroadcast = useCallback((msg) => {
+    setBroadcasts(prev => [{ ...msg, id: Date.now(), receivedAt: new Date(), dismissed: false }, ...prev]);
+  }, []);
+  const dismissBroadcast = useCallback((id) => {
+    setBroadcasts(prev => prev.map(x => x.id === id ? { ...x, dismissed: true } : x));
+  }, []);
+
+  // ── Maintenance ─────────────────────────────────────────────────────────────
   const setMaintenance = useCallback((data) => {
+    // 1. Update local state immediately (instant UI feedback for admin)
     _setMaintenance(data);
-    if (data) localStorage.setItem('admin_maintenance', JSON.stringify(data));
-    else localStorage.removeItem('admin_maintenance');
+    LS.setMaintenance(data);
+    // 2. Push to backend so ALL users are affected
+    pushToBackend({ maintenance: data });
   }, []);
 
   // ── Feature flags ────────────────────────────────────────────────────────────
-  const [featureFlags, _setFeatureFlags] = useState(readFlags);
-
   const toggleFlag = useCallback((key) => {
     _setFeatureFlags(prev => {
       const next = { ...prev, [key]: !prev[key] };
-      localStorage.setItem('admin_flags', JSON.stringify(next));
+      LS.setFlags(next);
+      pushToBackend({ featureFlags: next });
       return next;
     });
   }, []);
@@ -63,76 +88,81 @@ export function AdminProvider({ children }) {
   const setFlag = useCallback((key, value) => {
     _setFeatureFlags(prev => {
       const next = { ...prev, [key]: value };
-      localStorage.setItem('admin_flags', JSON.stringify(next));
+      LS.setFlags(next);
+      pushToBackend({ featureFlags: next });
       return next;
     });
   }, []);
 
   // ── Announcements ────────────────────────────────────────────────────────────
-  const [announcements, setAnnouncements] = useState(readAnnouncements);
-
   const publishAnnouncement = useCallback((item) => {
-    setAnnouncements(prev => {
+    _setAnnouncements(prev => {
       const next = [item, ...prev.filter(x => x.id !== item.id)];
-      localStorage.setItem('admin_announcements', JSON.stringify(next));
+      LS.setAnnouncements(next);
+      pushToBackend({ announcements: next });
       return next;
     });
   }, []);
 
   const removeAnnouncement = useCallback((id) => {
-    setAnnouncements(prev => {
+    _setAnnouncements(prev => {
       const next = prev.filter(x => x.id !== id);
-      localStorage.setItem('admin_announcements', JSON.stringify(next));
+      LS.setAnnouncements(next);
+      pushToBackend({ announcements: next });
       return next;
     });
   }, []);
 
-  // ── Emergency alert ──────────────────────────────────────────────────────────
-  const [emergencyAlert, setEmergencyAlert] = useState(null);
+  // ── Backend polling (source of truth for ALL users) ──────────────────────────
+  // Polls every 4 seconds. Compares JSON to avoid needless re-renders.
+  const prevRef = useRef({ maintenance: null, featureFlags: {}, announcements: [] });
 
-  // ── Broadcasts ───────────────────────────────────────────────────────────────
-  const [broadcasts, setBroadcasts] = useState([]);
-
-  const pushBroadcast = useCallback((msg) => {
-    setBroadcasts(prev => [{ ...msg, id: Date.now(), receivedAt: new Date(), dismissed: false }, ...prev]);
-  }, []);
-
-  const dismissBroadcast = useCallback((id) => {
-    setBroadcasts(prev => prev.map(x => x.id === id ? { ...x, dismissed: true } : x));
-  }, []);
-
-  // ── Sync: storage event (cross-tab) + polling (same-tab fallback) ────────────
   useEffect(() => {
-    // Cross-tab: browser fires 'storage' on all OTHER tabs when localStorage changes
+    const fetchSettings = async () => {
+      try {
+        const { data } = await api.get('/admin/app-settings');
+
+        // Maintenance
+        if (JSON.stringify(data.maintenance) !== JSON.stringify(prevRef.current.maintenance)) {
+          prevRef.current.maintenance = data.maintenance;
+          _setMaintenance(data.maintenance);
+          LS.setMaintenance(data.maintenance);
+        }
+
+        // Feature flags (merge with defaults)
+        const mergedFlags = { ...DEFAULT_FLAGS, ...data.featureFlags };
+        if (JSON.stringify(mergedFlags) !== JSON.stringify(prevRef.current.featureFlags)) {
+          prevRef.current.featureFlags = mergedFlags;
+          _setFeatureFlags(mergedFlags);
+          LS.setFlags(mergedFlags);
+        }
+
+        // Announcements
+        if (JSON.stringify(data.announcements) !== JSON.stringify(prevRef.current.announcements)) {
+          prevRef.current.announcements = data.announcements || [];
+          _setAnnouncements(data.announcements || []);
+          LS.setAnnouncements(data.announcements || []);
+        }
+      } catch {
+        // Backend unreachable — fall back to localStorage cache silently
+      }
+    };
+
+    // Fetch immediately on mount, then every 4 seconds
+    fetchSettings();
+    const poll = setInterval(fetchSettings, 4000);
+
+    // Also handle cross-tab localStorage changes (same browser, different tab)
     const onStorage = (e) => {
-      if (e.key === 'admin_maintenance')   _setMaintenance(readMaintenance());
-      else if (e.key === 'admin_flags')    _setFeatureFlags(readFlags());
-      else if (e.key === 'admin_announcements') setAnnouncements(readAnnouncements());
+      if (e.key === 'admin_maintenance')    _setMaintenance(LS.getMaintenance());
+      else if (e.key === 'admin_flags')     _setFeatureFlags(LS.getFlags());
+      else if (e.key === 'admin_announcements') _setAnnouncements(LS.getAnnouncements());
     };
     window.addEventListener('storage', onStorage);
 
-    // Same-tab fallback: poll every 2 seconds and update state if localStorage changed.
-    // This handles the case where admin and user are in the same tab/session context,
-    // and the 'storage' event doesn't fire (it only fires in OTHER tabs).
-    const poll = setInterval(() => {
-      _setMaintenance(prev => {
-        const next = readMaintenance();
-        // Only trigger re-render if value actually changed
-        return JSON.stringify(prev) !== JSON.stringify(next) ? next : prev;
-      });
-      _setFeatureFlags(prev => {
-        const next = readFlags();
-        return JSON.stringify(prev) !== JSON.stringify(next) ? next : prev;
-      });
-      setAnnouncements(prev => {
-        const next = readAnnouncements();
-        return JSON.stringify(prev) !== JSON.stringify(next) ? next : prev;
-      });
-    }, 2000);
-
     return () => {
-      window.removeEventListener('storage', onStorage);
       clearInterval(poll);
+      window.removeEventListener('storage', onStorage);
     };
   }, []);
 

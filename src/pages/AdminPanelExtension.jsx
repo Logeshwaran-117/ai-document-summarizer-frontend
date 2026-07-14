@@ -249,6 +249,28 @@ function MaintenanceTab({ showToast }) {
     autoDisable: maintenance?.autoDisable ?? false,
     banner: maintenance?.banner ?? true,
   }));
+
+  // Sync form when backend polling updates the maintenance context
+  // (e.g. another admin changed settings in a different browser)
+  const prevMaintenanceRef = useRef(maintenance);
+  useEffect(() => {
+    if (JSON.stringify(maintenance) !== JSON.stringify(prevMaintenanceRef.current)) {
+      prevMaintenanceRef.current = maintenance;
+      if (maintenance) {
+        setForm(f => ({
+          ...f,
+          reason:        maintenance.reason        ?? f.reason,
+          startTime:     maintenance.startTime     ?? f.startTime,
+          endTime:       maintenance.endTime       ?? f.endTime,
+          estimatedDone: maintenance.estimatedDone ?? f.estimatedDone,
+          allowAdmins:   maintenance.allowAdmins   ?? f.allowAdmins,
+          showCountdown: maintenance.showCountdown ?? f.showCountdown,
+          autoDisable:   maintenance.autoDisable   ?? f.autoDisable,
+          banner:        maintenance.banner        ?? f.banner,
+        }));
+      }
+    }
+  }, [maintenance]);
   const [preview, setPreview]   = useState(false);
   const [history]               = useState([
     { id: 1, reason: 'Database migration', start: '2026-06-10T02:00', end: '2026-06-10T04:30', duration: '2h 30m', createdBy: 'Admin', status: 'completed' },
@@ -275,21 +297,20 @@ function MaintenanceTab({ showToast }) {
 
   const toggle = () => {
     if (enabled) {
-      // Disable: clear maintenance from context
-      setMaintenance(null);
+      // Disable: keep form settings but mark as disabled so they survive for next time
+      setMaintenance({ ...form, enabled: false });
       showToast('Maintenance mode disabled', 'success');
     } else {
-      // Enable: persist current form to context
+      // Enable: push current form settings with enabled:true to backend & all users
       setMaintenance({ ...form, enabled: true });
-      showToast('Maintenance mode enabled', 'info');
+      showToast('Maintenance mode enabled — all users notified', 'info');
     }
   };
 
   const saveSettings = () => {
-    // If maintenance is active, update the context with latest form values
-    if (enabled) {
-      setMaintenance({ ...form, enabled: true });
-    }
+    // Always persist the form — if maintenance is active keep it active with new settings;
+    // if inactive, still save so the settings are ready when it's enabled next time.
+    setMaintenance(enabled ? { ...form, enabled: true } : { ...form, enabled: false });
     showToast('Maintenance settings saved', 'success');
   };
 
