@@ -17,13 +17,15 @@ function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Uses VITE_API_URL in production; falls back to localhost only in dev
     api.get("/auth/status")
       .then((res) => {
         setIsAuthenticated(true);
         setUser(res.data.user);
       })
-      .catch(() => setIsAuthenticated(false))
+      .catch(() => {
+        setIsAuthenticated(false);
+        setUser(null);
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -50,6 +52,12 @@ function App() {
             {/* Public landing page — always accessible */}
             <Route path="/home" element={<LandingPage />} />
 
+            {/* Signup — always accessible */}
+            <Route path="/signup" element={<Signup setIsAuthenticated={setIsAuthenticated} setUser={setUser} />} />
+
+            {/* Shared summary — always accessible */}
+            <Route path="/shared/:token" element={<SharedSummaryPage />} />
+
             {/* Login: if already authenticated, go to dashboard */}
             <Route
               path="/login"
@@ -62,7 +70,7 @@ function App() {
               }
             />
 
-            <Route path="/shared/:token" element={<SharedSummaryPage />} />
+            {/* Protected routes */}
             <Route
               path="/*"
               element={
@@ -77,11 +85,10 @@ function App() {
                     setUser={setUser}
                   />
                 ) : (
-                  <Navigate to="/home" />
+                  <Navigate to="/login" replace />
                 )
               }
             />
-            <Route path="/signup" element={<Signup setIsAuthenticated={setIsAuthenticated} setUser={setUser} />} />
           </Routes>
         </div>
       </NotificationProvider>
