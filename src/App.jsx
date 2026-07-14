@@ -55,7 +55,7 @@ function App() {
               path="/login"
               element={
                 isAuthenticated ? (
-                  <Navigate to="/" replace />
+                  <Navigate to="/dashboard" replace />
                 ) : (
                   <Auth setIsAuthenticated={setIsAuthenticated} setUser={setUser} />
                 )
