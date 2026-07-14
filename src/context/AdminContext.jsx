@@ -3,10 +3,9 @@
 // so every user's browser is affected when an admin makes a change.
 //
 // Strategy:
-//   - Admin writes  → POST /api/admin/app-settings   (persisted server-side)
-//   - All users read → GET  /api/admin/app-settings  (polled every 4 seconds)
-//   - localStorage is kept as a fast local cache / fallback for instant UI updates
-//     in the admin's own tab, but the backend is always the source of truth.
+//   - Admin writes  → POST /api/admin/app-settings  (admin-authenticated via api axios)
+//   - All users read → GET  /api/admin/app-settings  (plain fetch, no auth needed, public)
+//   - localStorage is a fast local cache for instant UI updates in the admin's own tab
 
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import api from '../api';
@@ -18,13 +17,16 @@ const DEFAULT_FLAGS = {
   newDashboard: false, experimental: false, betaFeatures: false, maintenanceBanner: false,
 };
 
+// ─── Backend base URL (same source as the api axios instance) ─────────────────
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
 // ─── localStorage helpers (fast local cache) ─────────────────────────────────
 const LS = {
-  getMaintenance: () => { try { return JSON.parse(localStorage.getItem('admin_maintenance') || 'null'); } catch { return null; } },
-  getFlags:       () => { try { return { ...DEFAULT_FLAGS, ...JSON.parse(localStorage.getItem('admin_flags') || '{}') }; } catch { return { ...DEFAULT_FLAGS }; } },
+  getMaintenance:   () => { try { return JSON.parse(localStorage.getItem('admin_maintenance') || 'null'); } catch { return null; } },
+  getFlags:         () => { try { return { ...DEFAULT_FLAGS, ...JSON.parse(localStorage.getItem('admin_flags') || '{}') }; } catch { return { ...DEFAULT_FLAGS }; } },
   getAnnouncements: () => { try { return JSON.parse(localStorage.getItem('admin_announcements') || '[]'); } catch { return []; } },
-  setMaintenance: (v) => v ? localStorage.setItem('admin_maintenance', JSON.stringify(v)) : localStorage.removeItem('admin_maintenance'),
-  setFlags:       (v) => localStorage.setItem('admin_flags', JSON.stringify(v)),
+  setMaintenance:   (v) => v != null ? localStorage.setItem('admin_maintenance', JSON.stringify(v)) : localStorage.removeItem('admin_maintenance'),
+  setFlags:         (v) => localStorage.setItem('admin_flags', JSON.stringify(v)),
   setAnnouncements: (v) => localStorage.setItem('admin_announcements', JSON.stringify(v)),
 };
 
@@ -37,19 +39,22 @@ export function useAdmin() {
   return ctx;
 }
 
-// ─── Push settings to backend ─────────────────────────────────────────────────
+// ─── Push settings to backend (admin-only, uses authenticated api instance) ──
 async function pushToBackend(patch) {
   try {
     await api.post('/admin/app-settings', patch);
   } catch (err) {
-    // Non-fatal: local state is already updated; backend will catch up on next poll
-    console.warn('[AdminContext] Failed to push settings to backend:', err?.response?.status);
+    // Non-fatal: local state is already updated.
+    // A 403 here just means current user isn't admin — that's expected for regular users.
+    if (err?.response?.status !== 403) {
+      console.warn('[AdminContext] Failed to push settings to backend:', err?.response?.status);
+    }
   }
 }
 
 // ─── Provider ─────────────────────────────────────────────────────────────────
 export function AdminProvider({ children }) {
-  // Initialise from localStorage cache for instant render, backend poll will correct it
+  // Initialise from localStorage cache for instant render; backend poll corrects it
   const [maintenance,   _setMaintenance]   = useState(LS.getMaintenance);
   const [featureFlags,  _setFeatureFlags]  = useState(LS.getFlags);
   const [announcements, _setAnnouncements] = useState(LS.getAnnouncements);
@@ -59,19 +64,13 @@ export function AdminProvider({ children }) {
 
   // ── Broadcasts ───────────────────────────────────────────────────────────────
   const [broadcasts, setBroadcasts] = useState([]);
-  const pushBroadcast = useCallback((msg) => {
-    setBroadcasts(prev => [{ ...msg, id: Date.now(), receivedAt: new Date(), dismissed: false }, ...prev]);
-  }, []);
-  const dismissBroadcast = useCallback((id) => {
-    setBroadcasts(prev => prev.map(x => x.id === id ? { ...x, dismissed: true } : x));
-  }, []);
+  const pushBroadcast   = useCallback((msg) => setBroadcasts(prev => [{ ...msg, id: Date.now(), receivedAt: new Date(), dismissed: false }, ...prev]), []);
+  const dismissBroadcast = useCallback((id) => setBroadcasts(prev => prev.map(x => x.id === id ? { ...x, dismissed: true } : x)), []);
 
   // ── Maintenance ─────────────────────────────────────────────────────────────
   const setMaintenance = useCallback((data) => {
-    // 1. Update local state immediately (instant UI feedback for admin)
     _setMaintenance(data);
     LS.setMaintenance(data);
-    // 2. Push to backend so ALL users are affected
     pushToBackend({ maintenance: data });
   }, []);
 
@@ -113,49 +112,54 @@ export function AdminProvider({ children }) {
     });
   }, []);
 
-  // ── Backend polling (source of truth for ALL users) ──────────────────────────
-  // Polls every 4 seconds. Compares JSON to avoid needless re-renders.
+  // ── Backend polling — uses plain fetch (NOT the api axios instance) ───────────
+  // Reason: the api axios interceptor redirects to /login on any 401/403.
+  // This public endpoint needs no auth, so we use fetch directly to avoid
+  // accidentally triggering that interceptor for regular users.
   const prevRef = useRef({ maintenance: null, featureFlags: {}, announcements: [] });
 
   useEffect(() => {
     const fetchSettings = async () => {
       try {
-        const { data } = await api.get('/admin/app-settings');
+        const res = await fetch(`${API_BASE}/api/admin/app-settings`, {
+          method: 'GET',
+          // No credentials needed — this endpoint is public
+        });
+        if (!res.ok) return; // silently skip on any error
+        const data = await res.json();
 
-        // Maintenance
+        // Only update state if something actually changed
         if (JSON.stringify(data.maintenance) !== JSON.stringify(prevRef.current.maintenance)) {
           prevRef.current.maintenance = data.maintenance;
           _setMaintenance(data.maintenance);
           LS.setMaintenance(data.maintenance);
         }
 
-        // Feature flags (merge with defaults)
-        const mergedFlags = { ...DEFAULT_FLAGS, ...data.featureFlags };
+        const mergedFlags = { ...DEFAULT_FLAGS, ...(data.featureFlags || {}) };
         if (JSON.stringify(mergedFlags) !== JSON.stringify(prevRef.current.featureFlags)) {
           prevRef.current.featureFlags = mergedFlags;
           _setFeatureFlags(mergedFlags);
           LS.setFlags(mergedFlags);
         }
 
-        // Announcements
-        if (JSON.stringify(data.announcements) !== JSON.stringify(prevRef.current.announcements)) {
-          prevRef.current.announcements = data.announcements || [];
-          _setAnnouncements(data.announcements || []);
-          LS.setAnnouncements(data.announcements || []);
+        const anns = data.announcements || [];
+        if (JSON.stringify(anns) !== JSON.stringify(prevRef.current.announcements)) {
+          prevRef.current.announcements = anns;
+          _setAnnouncements(anns);
+          LS.setAnnouncements(anns);
         }
       } catch {
-        // Backend unreachable — fall back to localStorage cache silently
+        // Network error or backend down — silently use localStorage cache
       }
     };
 
-    // Fetch immediately on mount, then every 4 seconds
-    fetchSettings();
-    const poll = setInterval(fetchSettings, 4000);
+    fetchSettings(); // immediately on mount
+    const poll = setInterval(fetchSettings, 4000); // then every 4 s
 
-    // Also handle cross-tab localStorage changes (same browser, different tab)
+    // Cross-tab sync (same browser, different tab)
     const onStorage = (e) => {
-      if (e.key === 'admin_maintenance')    _setMaintenance(LS.getMaintenance());
-      else if (e.key === 'admin_flags')     _setFeatureFlags(LS.getFlags());
+      if (e.key === 'admin_maintenance')        _setMaintenance(LS.getMaintenance());
+      else if (e.key === 'admin_flags')         _setFeatureFlags(LS.getFlags());
       else if (e.key === 'admin_announcements') _setAnnouncements(LS.getAnnouncements());
     };
     window.addEventListener('storage', onStorage);
