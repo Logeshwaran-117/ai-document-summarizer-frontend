@@ -17,15 +17,13 @@ function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Uses VITE_API_URL in production; falls back to localhost only in dev
     api.get("/auth/status")
       .then((res) => {
         setIsAuthenticated(true);
         setUser(res.data.user);
       })
-      .catch(() => {
-        setIsAuthenticated(false);
-        setUser(null);
-      })
+      .catch(() => setIsAuthenticated(false))
       .finally(() => setLoading(false));
   }, []);
 
@@ -46,31 +44,10 @@ function App() {
         <ToastProvider />
         <div className="h-screen w-full">
           <Routes>
-            {/* Root path → always go to home/landing page */}
-            <Route path="/" element={<Navigate to="/home" replace />} />
-
             {/* Public landing page — always accessible */}
             <Route path="/home" element={<LandingPage />} />
-
-            {/* Signup — always accessible */}
-            <Route path="/signup" element={<Signup setIsAuthenticated={setIsAuthenticated} setUser={setUser} />} />
-
-            {/* Shared summary — always accessible */}
+            <Route path="/login" element={<Auth setIsAuthenticated={setIsAuthenticated} setUser={setUser} />} />
             <Route path="/shared/:token" element={<SharedSummaryPage />} />
-
-            {/* Login: if already authenticated, go to dashboard */}
-            <Route
-              path="/login"
-              element={
-                isAuthenticated ? (
-                  <Navigate to="/dashboard" replace />
-                ) : (
-                  <Auth setIsAuthenticated={setIsAuthenticated} setUser={setUser} />
-                )
-              }
-            />
-
-            {/* Protected routes */}
             <Route
               path="/*"
               element={
@@ -85,10 +62,11 @@ function App() {
                     setUser={setUser}
                   />
                 ) : (
-                  <Navigate to="/login" replace />
+                  <Navigate to="/home" />
                 )
               }
             />
+            <Route path="/signup" element={<Signup setIsAuthenticated={setIsAuthenticated} setUser={setUser} />} />
           </Routes>
         </div>
       </NotificationProvider>

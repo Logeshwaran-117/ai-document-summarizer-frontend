@@ -12,24 +12,18 @@ api.interceptors.response.use(
   (error) => {
     const status = error.response?.status;
 
-    /* ── 401: only redirect if NOT on an auth-check call ── */
+    /* ── 401: redirect to login ── */
     if (status === 401) {
       const path = window.location.pathname;
-      const url = error.config?.url || "";
-
-      // Don't redirect if this is the /auth/status polling call itself
-      // — let App.jsx handle it via the catch block
-      const isAuthStatusCall = url.includes("/auth/status");
-
-      if (!isAuthStatusCall && path !== "/login" && path !== "/signup" && path !== "/home") {
+      if (path !== "/login" && path !== "/signup") {
         window.location.href = "/login";
       }
-
       return Promise.reject(error);
     }
 
     /* ── 429: plan limit hit — show rich upgrade prompt ── */
     if (status === 429) {
+      // Pull the human-readable reason from the server if available
       const serverMsg = error.response?.data?.message || "";
       const isDaily   = /daily|quota/i.test(serverMsg);
       const label     = isDaily ? "Daily quota reached" : "Plan limit reached";
