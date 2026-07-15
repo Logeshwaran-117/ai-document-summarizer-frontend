@@ -38,15 +38,24 @@ function DashboardSkeleton() {
   );
 }
 
+// ── Module-level cache (survives page-to-page navigation, cleared after 60 s) ──
+let _dashCache = null;
+let _dashCacheAt = 0;
+const DASH_CACHE_TTL = 60_000; // 60 seconds
+
 /* ── Main ── */
 function DashboardCards({ user }) {
-  const [stats,      setStats]      = useState(null);
-  const [recentDocs, setRecentDocs] = useState([]);
-  const [chartData,  setChartData]  = useState([]);
-  const [billing,    setBilling]    = useState(null);
-  const [loading,    setLoading]    = useState(true);
+  const [stats,      setStats]      = useState(() => _dashCache?.stats      ?? null);
+  const [recentDocs, setRecentDocs] = useState(() => _dashCache?.recentDocs ?? []);
+  const [chartData,  setChartData]  = useState(() => _dashCache?.chartData  ?? []);
+  const [billing,    setBilling]    = useState(() => _dashCache?.billing     ?? null);
+  const [loading,    setLoading]    = useState(() => !_dashCache || Date.now() - _dashCacheAt > DASH_CACHE_TTL);
 
-  useEffect(() => { loadAll(); }, []);
+  useEffect(() => {
+    // If cache is still fresh, skip the fetch
+    if (_dashCache && Date.now() - _dashCacheAt < DASH_CACHE_TTL) return;
+    loadAll();
+  }, []);
 
   async function loadAll() {
     try {
@@ -56,10 +65,19 @@ function DashboardCards({ user }) {
         api.get("/api/dashboard/weekly-uploads"),
         api.get("/api/billing/status").catch(() => ({ data: null })),
       ]);
-      setStats(statsRes.data);
-      setRecentDocs(historyRes.data.documents || []);
-      setChartData(weeklyRes.data || []);
-      setBilling(billingRes.data);
+      const data = {
+        stats:      statsRes.data,
+        recentDocs: historyRes.data.documents || [],
+        chartData:  weeklyRes.data || [],
+        billing:    billingRes.data,
+      };
+      // Save to module-level cache
+      _dashCache   = data;
+      _dashCacheAt = Date.now();
+      setStats(data.stats);
+      setRecentDocs(data.recentDocs);
+      setChartData(data.chartData);
+      setBilling(data.billing);
     } catch (err) {
       console.error(err);
     } finally {

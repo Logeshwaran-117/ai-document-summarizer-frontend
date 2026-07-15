@@ -154,7 +154,7 @@ export function AdminProvider({ children }) {
     };
 
     fetchSettings(); // immediately on mount
-    const poll = setInterval(fetchSettings, 4000); // then every 4 s
+    const poll = setInterval(fetchSettings, 30000); // then every 30 s (was 4 s — reduced to avoid hammering on page transitions)
 
     // Cross-tab sync (same browser, different tab)
     const onStorage = (e) => {

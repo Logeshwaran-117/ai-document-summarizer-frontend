@@ -2,26 +2,41 @@
 // Adds FeatureGate to every route so feature flags actually block access.
 // All other code unchanged.
 
+import { lazy, Suspense } from "react";
 import Navbar            from "../components/Navbar";
 import Sidebar           from "../components/Sidebar";
-import Uploadcard        from "../components/Uploadcard";
-import History           from "./History";
-import DashboardCards    from "../components/DashboardCards";
 import { Routes, Route, Navigate } from "react-router-dom";
-import Settings          from "./Settings";
-import SummaryDetailPage from "./SummaryDetailPage";
-import ExcelSummary      from "./ExcelSummary";
-import TableDetailPage   from "./TableDetailPage";
-import AdminPanel        from "./AdminPanel";
-import Pricing           from "./Pricing";
-import Banking           from "./Banking";
-import UsageDashboard    from "./UsageDashboard";
+
+// ── Lazy-loaded pages (each loads only when the user navigates to it) ─────────
+const Uploadcard        = lazy(() => import("../components/Uploadcard"));
+const History           = lazy(() => import("./History"));
+const DashboardCards    = lazy(() => import("../components/DashboardCards"));
+const Settings          = lazy(() => import("./Settings"));
+const SummaryDetailPage = lazy(() => import("./SummaryDetailPage"));
+const ExcelSummary      = lazy(() => import("./ExcelSummary"));
+const TableDetailPage   = lazy(() => import("./TableDetailPage"));
+const AdminPanel        = lazy(() => import("./AdminPanel"));
+const Pricing           = lazy(() => import("./Pricing"));
+const Banking           = lazy(() => import("./Banking"));
+const UsageDashboard    = lazy(() => import("./UsageDashboard"));
 
 // ── Enterprise wiring ─────────────────────────────────────────────────────────
 import MaintenanceGate    from "../components/MaintenanceGate";
 import AnnouncementBanner from "../components/AnnouncementBanner";
 import FeatureGate        from "../components/FeatureGate";
 import { BroadcastToast } from "../components/AdminPanelExtension_v2";
+
+// ── Page loading fallback ─────────────────────────────────────────────────────
+function PageLoader() {
+  return (
+    <div className="flex items-center justify-center h-full w-full">
+      <div className="flex flex-col items-center gap-3">
+        <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+        <p className="text-sm" style={{ color: "var(--muted)" }}>Loading…</p>
+      </div>
+    </div>
+  );
+}
 
 function AdminGuard({ user, children }) {
   if (!user || user.role !== "admin") {
@@ -58,6 +73,7 @@ function Dashboard({ setIsAuthenticated, user }) {
             {/* Active announcements render as banners/toasts/popups */}
             <AnnouncementBanner user={user} />
 
+            <Suspense fallback={<PageLoader />}>
             <Routes>
               {/* Dashboard — always available */}
               <Route path="/" element={<DashboardCards user={user} />} />
@@ -133,6 +149,7 @@ function Dashboard({ setIsAuthenticated, user }) {
 
               <Route path="*" element={<Navigate to="/" />} />
             </Routes>
+            </Suspense>
           </main>
         </div>
 
