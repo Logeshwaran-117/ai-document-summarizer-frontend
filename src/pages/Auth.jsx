@@ -139,7 +139,7 @@ function Auth({ setIsAuthenticated, setUser }) {
               ✦
             </div>
             <div>
-              <p style={{ color: "#fff", fontWeight: 700, fontSize: "18px", lineHeight: 1 }}>DocAI</p>
+              <p style={{ color: "#fff", fontWeight: 700, fontSize: "18px", lineHeight: 1 }}>PerciQo</p>
               <p style={{ color: "rgba(255,255,255,.55)", fontSize: "12px", marginTop: "2px" }}>
                 Powered by Gemini
               </p>

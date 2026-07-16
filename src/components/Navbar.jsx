@@ -420,7 +420,7 @@ function Navbar({ setIsAuthenticated, user }) {
       >
         {/* Left: breadcrumb */}
         <div className="flex items-center gap-2 min-w-0">
-          <span className="text-xs font-medium" style={{ color: "var(--muted)" }}>DocAI</span>
+          <span className="text-xs font-medium" style={{ color: "var(--muted)" }}>preciQo</span>
           <span style={{ color: "var(--border)" }}>/</span>
           <span className="text-sm font-semibold truncate" style={{ color: "var(--text)" }}>
             {breadcrumb}

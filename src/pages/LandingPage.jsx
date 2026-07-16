@@ -38,7 +38,7 @@ const PLANS = [
   },
   {
     name: "Pro",
-    price: "₹299",
+    price: "₹499",
     period: "/ month",
     cta: "Start free trial",
     highlight: true,
@@ -51,8 +51,8 @@ const PLANS = [
     ],
   },
   {
-    name: "Team",
-    price: "₹799",
+    name: "Enterprise",
+    price: "₹1999",
     period: "/ month",
     cta: "Contact sales",
     highlight: false,
@@ -78,7 +78,7 @@ export default function LandingPage() {
         padding: "0 2rem", height: "60px",
       }}>
         <span style={{ fontWeight: 700, fontSize: "1.1rem", letterSpacing: "-0.02em" }}>
-          📑 DocSummarizer
+          📑 PreciQo
         </span>
         <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
           <a href="#features" style={{ color: "#6b7280", textDecoration: "none", fontSize: "0.9rem" }}>Features</a>
