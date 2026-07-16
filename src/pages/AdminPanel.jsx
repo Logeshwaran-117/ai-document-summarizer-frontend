@@ -1624,6 +1624,18 @@ export default function AdminPanel() {
   const [loadingStats, setLoadingStats] = useState(true);
   const [toasts, setToasts] = useState([]);
 
+  // Sync with the global dark/light mode set by Navbar
+  const [darkMode, setDarkMode] = useState(() =>
+    document.documentElement.classList.contains('dark')
+  );
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setDarkMode(document.documentElement.classList.contains('dark'));
+    });
+    observer.observe(document.documentElement, { attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, []);
+
   const showToast = useCallback((msg, type = 'success') => {
     setToasts(t => [...t, { msg, type, id: Date.now() + Math.random() }]);
   }, []);
@@ -1647,11 +1659,11 @@ export default function AdminPanel() {
   const dateStr = now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
   return (
-    <div className="min-h-screen" style={{ background: '#060b14', color: '#e2e8f0' }}>
+    <div className="min-h-screen" style={{ background: darkMode ? '#060b14' : '#f1f5f9', color: darkMode ? '#e2e8f0' : '#1e293b' }}>
 
       {/* Header */}
       <div className="sticky top-0 z-30 px-6 py-4 flex items-center justify-between"
-        style={{ background: 'rgba(6,11,20,0.9)', borderBottom: '1px solid rgba(255,255,255,0.07)', backdropFilter: 'blur(20px)' }}>
+        style={{ background: darkMode ? 'rgba(6,11,20,0.9)' : 'rgba(241,245,249,0.9)', borderBottom: darkMode ? '1px solid rgba(255,255,255,0.07)' : '1px solid rgba(0,0,0,0.08)', backdropFilter: 'blur(20px)' }}>
         <div>
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-xl flex items-center justify-center"
@@ -1681,7 +1693,7 @@ export default function AdminPanel() {
       </div>
 
       {/* Tab bar */}
-      <div className="sticky top-[68px] z-20 px-6" style={{ background: 'rgba(6,11,20,0.95)', borderBottom: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(20px)' }}>
+      <div className="sticky top-[68px] z-20 px-6" style={{ background: darkMode ? 'rgba(6,11,20,0.95)' : 'rgba(241,245,249,0.95)', borderBottom: darkMode ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(0,0,0,0.07)', backdropFilter: 'blur(20px)' }}>
         <div className="flex gap-0 overflow-x-auto">
           {TABS.map(t => {
             const Icon = t.icon;
