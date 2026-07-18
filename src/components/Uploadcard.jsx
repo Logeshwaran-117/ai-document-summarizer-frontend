@@ -7,6 +7,7 @@ import toast from "react-hot-toast";
 import { useNotifications } from "../context/NotificationContext";
 import DocumentChat from "./DocumentChat";
 import PptOptionsModal from "./PptOptionsModal";
+import PresentationWizard from "./PresentationWizard";
 import UsageBadge from "./UsageBadge";
 
 // ── SSE progress hook (inline — no extra file needed) ────────────────────────
@@ -246,7 +247,21 @@ function FilePreview({ file }) {
       return;
     }
     if (isDocxFile(file)) {
-      setPreview({ type: "docx", name: file.name, size: file.size });
+      setLoading(true);
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const mammoth = await import("https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js");
+          const result = await mammoth.convertToHtml({ arrayBuffer: e.target.result });
+          setPreview({ type: "docx-html", html: result.value, name: file.name, size: file.size });
+        } catch {
+          // Fallback if mammoth fails
+          setPreview({ type: "docx", name: file.name, size: file.size });
+        }
+        setLoading(false);
+      };
+      reader.onerror = () => { setPreview({ type: "docx", name: file.name, size: file.size }); setLoading(false); };
+      reader.readAsArrayBuffer(file);
       return;
     }
   }, [file]);
@@ -256,13 +271,15 @@ function FilePreview({ file }) {
   if (!file) return null;
 
   const wrapper = (children) => (
-    <div className="mt-4 w-full rounded-xl overflow-hidden" style={{ border: "1px solid var(--border)" }}>
-      <div className="px-4 py-2 flex items-center gap-2"
+    <div className="w-full h-full flex flex-col rounded-xl overflow-hidden" style={{ border: "1px solid var(--border)", minHeight: "360px" }}>
+      {/* Panel header */}
+      <div className="px-4 py-3 flex items-center gap-2 shrink-0"
         style={{ background: "var(--secondary)", borderBottom: "1px solid var(--border)" }}>
-        <span className="text-sm font-medium" style={{ color: "var(--muted)" }}>👁️ Preview</span>
-        <span className="text-xs" style={{ color: "var(--muted)", opacity: 0.6 }}>— {file.name}</span>
+        <div className="w-2 h-2 rounded-full" style={{ background: "var(--primary)" }} />
+        <span className="text-sm font-semibold" style={{ color: "var(--text)" }}>Preview</span>
+        <span className="text-xs ml-auto truncate max-w-[60%]" style={{ color: "var(--muted)" }}>{file.name}</span>
       </div>
-      <div style={{ background: "var(--card)" }} className="p-4">{children}</div>
+      <div style={{ background: "var(--card)" }} className="flex-1 p-4 overflow-auto">{children}</div>
     </div>
   );
 
@@ -339,6 +356,26 @@ function FilePreview({ file }) {
     );
   }
 
+  if (preview.type === "docx-html") return wrapper(
+    <div>
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-lg">📝</span>
+        <span className="text-xs font-medium" style={{ color: "var(--muted)" }}>{preview.name} · {(preview.size / 1024).toFixed(1)} KB</span>
+      </div>
+      <div
+        className="overflow-y-auto max-h-72 rounded p-3 text-sm leading-relaxed prose prose-sm max-w-none"
+        style={{
+          background: "#fff",
+          color: "#1a1a1a",
+          border: "1px solid var(--border)",
+          fontFamily: "'Calibri', 'Georgia', serif",
+        }}
+        dangerouslySetInnerHTML={{ __html: preview.html || "<p><em>No content found in document.</em></p>" }}
+      />
+      <p className="text-xs mt-1.5" style={{ color: "var(--muted)", opacity: 0.6 }}>Showing document content preview</p>
+    </div>
+  );
+
   if (preview.type === "docx") return wrapper(
     <div className="flex items-center gap-4 py-4">
       <div className="text-5xl">📝</div>
@@ -375,6 +412,8 @@ function Uploadcard() {
   const [copied,        setCopied]        = useState(false);
   const [documentId,    setDocumentId]    = useState(null);
   const [showPptModal,  setShowPptModal]  = useState(false);
+  const [showWizard,    setShowWizard]    = useState(false);
+  const [wizardLoading, setWizardLoading] = useState(false);
   const [usageKey,      setUsageKey]      = useState(0);
 
   const { addNotification } = useNotifications();
@@ -494,6 +533,43 @@ function Uploadcard() {
     }
   }
 
+  // ── NEW: AI Wizard Presentation ───────────────────────────────────────────
+  async function downloadAIPPT(wizardOptions) {
+    if (!summary) return;
+    try {
+      setWizardLoading(true);
+      toast("🧠 AI is building your presentation strategy…", { icon: "⏳", duration: 8000 });
+      const response = await api.post(
+        "/api/generate-ppt-ai",
+        {
+          documentText: summary,
+          filename: filename || selectedFile?.name || "Document",
+          documentId,
+          wizardOptions,
+        },
+        { responseType: "blob" }
+      );
+      const blob = new Blob([response.data], {
+        type: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const safeName = (wizardOptions?.title || filename || "Presentation").replace(/\.[^/.]+$/, "");
+      a.download = `${safeName}.pptx`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("🎉 AI Presentation downloaded!");
+      addNotification({ title: "AI Presentation ready", message: `${safeName}.pptx downloaded.`, type: "info" });
+      setShowWizard(false);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to generate AI presentation. Please try again.");
+    } finally {
+      setWizardLoading(false);
+    }
+  }
+
   async function downloadPPTAsPDF(options) {
     if (!summary) return;
     try {
@@ -591,191 +667,260 @@ function Uploadcard() {
   const showProgress = loading || progress.stage === "done" || progress.stage === "error";
 
   return (
-    <section className="rounded-xl shadow-lg p-6 transition-colors duration-300"
+    <section className="rounded-xl shadow-lg transition-colors duration-300 overflow-hidden"
       style={{ background: "var(--card)" }}>
 
-      <div className="flex items-start justify-between gap-4 mb-6">
-        <h2 className="text-3xl font-bold" style={{ color: "var(--text)" }}>Upload Document</h2>
-        <UsageBadge key={usageKey} type="summarize" className="w-64 shrink-0" />
+      {/* ── Header ── */}
+      <div className="flex items-center justify-between gap-4 px-6 py-4"
+        style={{ borderBottom: "1px solid var(--border)" }}>
+        <h2 className="text-2xl font-bold" style={{ color: "var(--text)" }}>Upload Document</h2>
+        <UsageBadge key={usageKey} type="summarize" className="w-56 shrink-0" />
       </div>
 
-      {/* Drop Zone */}
-      <div
-        className={`border-2 border-dashed rounded-xl p-12 flex flex-col items-center transition-all duration-300`}
-        style={{
-          borderColor: dragging ? "var(--primary)" : "var(--border)",
-          background: dragging ? "rgba(var(--primary-rgb),.06)" : "transparent",
-        }}
-        onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={(e) => { e.preventDefault(); setDragging(false); handleFileSelect(e.dataTransfer.files[0]); }}
-      >
-        <div className="text-6xl">{selectedFile ? fileIcon : "📄"}</div>
-        <h3 className="text-2xl font-semibold mt-4" style={{ color: "var(--text)" }}>{dropLabel}</h3>
-        <p className="mt-2" style={{ color: "var(--muted)" }}>PDF, DOCX, TXT, XLSX, CSV, JPG, PNG, WEBP supported</p>
+      {/* ── Two-panel body ── */}
+      <div className={`flex gap-0 ${selectedFile ? "flex-col lg:flex-row" : ""}`}>
 
-        <label className="mt-6 px-6 py-3 rounded-lg cursor-pointer text-white transition hover:opacity-90"
-          style={{ background: "var(--primary)" }}>
-          Browse Files
-          <input type="file" className="hidden" accept=".pdf,.txt,.docx,.xlsx,.xls,.csv,.jpg,.jpeg,.png,.webp,.gif"
-            onChange={(e) => handleFileSelect(e.target.files[0])} />
-        </label>
-
-        {selectedFile && (
-          <div className="mt-6 rounded-lg p-4 w-full flex justify-between items-center"
-            style={{ background: "var(--secondary)" }}>
-            <div className="flex items-center gap-2 flex-wrap">
-              <p className="font-semibold" style={{ color: "var(--success)" }}>{fileIcon} {selectedFile.name}</p>
-              {typeLabel && <span className={`text-xs px-2 py-0.5 rounded-full ${typeBadgeColor}`}>{typeLabel}</span>}
+        {/* LEFT PANEL — Drop zone / Preview */}
+        <div
+          className={`flex flex-col ${selectedFile ? "lg:w-[55%] lg:min-h-[520px]" : "w-full"}`}
+          style={selectedFile ? { borderRight: "1px solid var(--border)" } : {}}
+        >
+          {!selectedFile ? (
+            /* ── Empty drop zone ── */
+            <div
+              className="m-6 border-2 border-dashed rounded-xl p-14 flex flex-col items-center transition-all duration-300"
+              style={{
+                borderColor: dragging ? "var(--primary)" : "var(--border)",
+                background: dragging ? "rgba(var(--primary-rgb),.06)" : "transparent",
+              }}
+              onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={(e) => { e.preventDefault(); setDragging(false); handleFileSelect(e.dataTransfer.files[0]); }}
+            >
+              <div className="text-6xl mb-4">📄</div>
+              <h3 className="text-xl font-semibold mb-2" style={{ color: "var(--text)" }}>Drag & Drop your file here</h3>
+              <p className="text-sm mb-6 text-center" style={{ color: "var(--muted)" }}>
+                PDF, DOCX, TXT, XLSX, CSV, JPG, PNG, WEBP supported
+              </p>
+              <label className="px-7 py-3 rounded-lg cursor-pointer text-white font-medium transition hover:opacity-90 shadow"
+                style={{ background: "var(--primary)" }}>
+                Select File
+                <input type="file" className="hidden" accept=".pdf,.txt,.docx,.xlsx,.xls,.csv,.jpg,.jpeg,.png,.webp,.gif"
+                  onChange={(e) => handleFileSelect(e.target.files[0])} />
+              </label>
+              <p className="text-xs mt-4" style={{ color: "var(--muted)", opacity: 0.5 }}>Max file size: 10 MB</p>
             </div>
-            <div className="text-sm shrink-0 ml-4" style={{ color: "var(--muted)" }}>
-              {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
-            </div>
-          </div>
-        )}
-      </div>
-
-      {selectedFile && <FilePreview file={selectedFile} />}
-
-      {/* Action Buttons */}
-      <div className="flex gap-4 mt-6">
-        <button onClick={clearFile}
-          className="px-5 py-3 rounded-lg text-white transition hover:opacity-90"
-          style={{ background: "var(--danger)" }}>
-          ✕
-        </button>
-        <button onClick={handleSummarize} disabled={!selectedFile || loading}
-          className="px-6 py-3 rounded-lg text-white transition"
-          style={{
-            background: loading
-              ? "var(--warning)"
-              : selectedFile
-              ? "var(--success)"
-              : "var(--muted)",
-            cursor: !selectedFile || loading ? "not-allowed" : "pointer",
-          }}>
-          {summarizeLabel}
-        </button>
-      </div>
-
-      {/* Real Progress Bar */}
-      {showProgress && (
-        <ProgressBar progress={progress} isImage={isImageFile(selectedFile)} />
-      )}
-
-      {/* Summary Output */}
-      {summary && (
-        <div className="mt-8 rounded-xl p-6 shadow"
-          style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
-          <h2 className="text-3xl font-bold mb-6" style={{ color: "var(--text)" }}>AI Summary</h2>
-
-          <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
-            h1: ({ children }) => <h1 className="text-3xl font-bold mb-4" style={{ color: "var(--primary)" }}>{children}</h1>,
-            h2: ({ children }) => <h2 className="text-2xl font-semibold mt-5 mb-3" style={{ color: "var(--text)" }}>{children}</h2>,
-            p:  ({ children }) => <p className="leading-7 mb-3" style={{ color: "var(--muted)" }}>{children}</p>,
-            ul: ({ children }) => <ul className="list-disc ml-6 mb-3" style={{ color: "var(--muted)" }}>{children}</ul>,
-            li: ({ children }) => <li className="mb-2">{children}</li>,
-            strong: ({ children }) => <strong className="font-bold" style={{ color: "var(--text)" }}>{children}</strong>,
-          }}>
-            {summary}
-          </ReactMarkdown>
-
-          {stats && (
-            <div className="mt-8">
-              <h2 className="text-2xl font-bold mb-4" style={{ color: "var(--text)" }}>Document Statistics</h2>
-              <div className="grid grid-cols-3 gap-5">
-                {[
-                  { icon: "📝", label: "Words",        value: stats.words },
-                  { icon: "🔤", label: "Characters",   value: stats.characters },
-                  { icon: "⏱",  label: "Reading Time", value: `${stats.readingTime} min` },
-                ].map(({ icon, label, value }) => (
-                  <div key={label} className="rounded-lg p-5 shadow"
-                    style={{ background: "var(--secondary)" }}>
-                    <h3 style={{ color: "var(--muted)" }}>{icon} {label}</h3>
-                    <p className="text-3xl font-bold" style={{ color: "var(--text)" }}>{value}</p>
+          ) : (
+            /* ── File selected: show full-height preview ── */
+            <div className="flex flex-col h-full">
+              {/* File name bar */}
+              <div className="px-5 py-3 flex items-center gap-3 shrink-0"
+                style={{ background: "var(--secondary)", borderBottom: "1px solid var(--border)" }}>
+                <span className="text-xl">{fileIcon}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm truncate" style={{ color: "var(--text)" }}>{selectedFile.name}</p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    {typeLabel && <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${typeBadgeColor}`}>{typeLabel}</span>}
+                    <span className="text-[11px]" style={{ color: "var(--muted)" }}>{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</span>
                   </div>
-                ))}
+                </div>
+                {/* Replace file */}
+                <label className="shrink-0 text-xs px-3 py-1.5 rounded-lg cursor-pointer font-medium transition hover:opacity-80"
+                  style={{ background: "var(--secondary)", border: "1px solid var(--border)", color: "var(--muted)" }}>
+                  Replace
+                  <input type="file" className="hidden" accept=".pdf,.txt,.docx,.xlsx,.xls,.csv,.jpg,.jpeg,.png,.webp,.gif"
+                    onChange={(e) => handleFileSelect(e.target.files[0])} />
+                </label>
+              </div>
+
+              {/* Preview fills remaining height */}
+              <div className="flex-1 p-4"
+                onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+                onDragLeave={() => setDragging(false)}
+                onDrop={(e) => { e.preventDefault(); setDragging(false); handleFileSelect(e.dataTransfer.files[0]); }}>
+                <FilePreview file={selectedFile} />
               </div>
             </div>
           )}
+        </div>
 
-          <div className="flex gap-4 mt-8 flex-wrap">
-            <button onClick={copySummary}
-              className="px-5 py-2 rounded-lg text-white transition hover:opacity-90"
-              style={{ background: "var(--primary)" }}>
-              {copied ? "✅ Copied!" : "📋 Copy"}
-            </button>
-            <button onClick={downloadTXT}
-              className="px-5 py-2 rounded-lg text-white transition hover:opacity-90"
-              style={{ background: "var(--success)" }}>
-              📄 Download TXT
-            </button>
-            <button onClick={downloadPDF}
-              className="px-5 py-2 rounded-lg text-white transition hover:opacity-90"
-              style={{ background: "var(--danger)" }}>
-              📑 Download PDF
-            </button>
+        {/* RIGHT PANEL — AI controls + summary (only when file selected) */}
+        {selectedFile && (
+          <div className="flex flex-col lg:w-[45%] px-6 py-5 gap-4">
 
-            {/* PPT split button */}
-            <div className="relative flex rounded-lg overflow-hidden shadow-sm">
-              <button
-                onClick={() => setShowPptModal(true)}
-                disabled={pptLoading || pptPdfLoading}
-                className="px-4 py-2 text-white transition font-medium text-sm flex items-center gap-1.5"
+            {/* AI badge */}
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs"
+                style={{ background: "rgba(var(--primary-rgb),.12)", color: "var(--primary)" }}>✦</div>
+              <span className="text-sm font-semibold" style={{ color: "var(--primary)" }}>AI Analysis</span>
+            </div>
+
+            <div>
+              <h3 className="text-lg font-bold mb-1" style={{ color: "var(--text)" }}>
+                {isImageFile(selectedFile) ? "Analyze Image" : "Summarize Document"}
+              </h3>
+              <p className="text-sm" style={{ color: "var(--muted)" }}>
+                {isImageFile(selectedFile)
+                  ? "AI will describe and analyze the image content."
+                  : "AI will extract key insights and summarize the document."}
+              </p>
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex gap-3">
+              <button onClick={handleSummarize} disabled={loading}
+                className="flex-1 py-3 rounded-lg text-white font-semibold transition"
                 style={{
-                  background: pptLoading ? "var(--warning)" : "#f97316",
-                  cursor: pptLoading || pptPdfLoading ? "not-allowed" : "pointer",
-                }}
-              >
-                {pptLoading ? "⏳ Generating..." : "📊 Download PPT"}
+                  background: loading ? "var(--warning)" : "var(--primary)",
+                  cursor: loading ? "not-allowed" : "pointer",
+                  boxShadow: loading ? "none" : "0 2px 12px rgba(var(--primary-rgb),.3)",
+                }}>
+                {summarizeLabel}
               </button>
-              <div className="w-px" style={{ background: "#ea6b10" }} />
-              <div className="relative">
-                {showPptPdfMenu && (
-                  <div
-                    className="absolute right-0 bottom-full mb-1 w-52 rounded-xl shadow-xl z-50"
-                    style={{ background: "var(--card)", border: "1px solid var(--border)" }}
-                    onMouseLeave={() => setShowPptPdfMenu(false)}
-                  >
-                    <p className="text-[10px] font-bold uppercase tracking-wider px-3 pt-2.5 pb-1"
-                      style={{ color: "var(--muted)" }}>
-                      Export as PDF
-                    </p>
-                    {[
-                      { key: "navyGold",     label: "Navy & Gold",     colors: ["#1E2761", "#C9A84C"] },
-                      { key: "tealSlate",    label: "Teal & Slate",    colors: ["#0F3D3E", "#3FBFAE"] },
-                      { key: "charcoalRuby", label: "Charcoal & Ruby", colors: ["#231F20", "#C0392B"] },
-                    ].map(t => (
-                      <button
-                        key={t.key}
-                        onClick={() => downloadPPTAsPDF({ title: (filename || selectedFile?.name || "Summary").replace(/\.[^/.]+$/, ""), theme: t.key, detailLevel: "standard", includeAgenda: true, includeNotes: false })}
-                        className="flex items-center gap-2 w-full px-3 py-2 text-sm transition hover:opacity-80"
-                        style={{ color: "var(--text)" }}
-                      >
-                        <span className="flex gap-1">
-                          <span className="w-3 h-3 rounded-full" style={{ background: t.colors[0] }} />
-                          <span className="w-3 h-3 rounded-full" style={{ background: t.colors[1] }} />
-                        </span>
-                        {t.label}
-                      </button>
-                    ))}
-                    <div className="border-t mt-1 mb-1" style={{ borderColor: "var(--border)" }} />
-                    <button
-                      onClick={() => { setShowPptPdfMenu(false); setShowPptModal(true); }}
-                      className="flex items-center gap-2 w-full px-3 py-2 text-sm transition hover:opacity-80"
-                      style={{ color: "var(--primary)" }}
-                    >
-                      ⚙️ Custom options…
-                    </button>
+              <button onClick={clearFile}
+                className="px-4 py-3 rounded-lg font-semibold transition hover:opacity-80"
+                style={{ background: "var(--secondary)", color: "var(--muted)", border: "1px solid var(--border)" }}>
+                ✕
+              </button>
+            </div>
+
+            {/* Progress */}
+            {showProgress && (
+              <ProgressBar progress={progress} isImage={isImageFile(selectedFile)} />
+            )}
+
+            {/* Summary Output */}
+            {summary && (
+              <div className="rounded-xl p-5 flex-1 overflow-y-auto"
+                style={{ background: "rgba(var(--primary-rgb),.04)", border: "1px solid rgba(var(--primary-rgb),.12)" }}>
+                <h2 className="text-lg font-bold mb-4" style={{ color: "var(--text)" }}>AI Summary</h2>
+
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
+                  h1: ({ children }) => <h1 className="text-2xl font-bold mb-3" style={{ color: "var(--primary)" }}>{children}</h1>,
+                  h2: ({ children }) => <h2 className="text-lg font-semibold mt-4 mb-2" style={{ color: "var(--text)" }}>{children}</h2>,
+                  p:  ({ children }) => <p className="leading-6 mb-2 text-sm" style={{ color: "var(--muted)" }}>{children}</p>,
+                  ul: ({ children }) => <ul className="list-disc ml-5 mb-2 text-sm" style={{ color: "var(--muted)" }}>{children}</ul>,
+                  li: ({ children }) => <li className="mb-1">{children}</li>,
+                  strong: ({ children }) => <strong className="font-bold" style={{ color: "var(--text)" }}>{children}</strong>,
+                }}>
+                  {summary}
+                </ReactMarkdown>
+
+                {stats && (
+                  <div className="mt-5">
+                    <h2 className="text-base font-bold mb-3" style={{ color: "var(--text)" }}>Document Statistics</h2>
+                    <div className="grid grid-cols-3 gap-3">
+                      {[
+                        { icon: "📝", label: "Words",        value: stats.words },
+                        { icon: "🔤", label: "Characters",   value: stats.characters },
+                        { icon: "⏱",  label: "Reading Time", value: `${stats.readingTime} min` },
+                      ].map(({ icon, label, value }) => (
+                        <div key={label} className="rounded-lg p-3 shadow"
+                          style={{ background: "var(--secondary)" }}>
+                          <h3 className="text-xs" style={{ color: "var(--muted)" }}>{icon} {label}</h3>
+                          <p className="text-xl font-bold mt-0.5" style={{ color: "var(--text)" }}>{value}</p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
-              </div>
-            </div>
-          </div>
 
-          <DocumentChat documentId={documentId} />
-        </div>
-      )}
+                <div className="flex gap-2 mt-5 flex-wrap">
+                  <button onClick={copySummary}
+                    className="px-4 py-2 rounded-lg text-white text-sm transition hover:opacity-90"
+                    style={{ background: "var(--primary)" }}>
+                    {copied ? "✅ Copied!" : "📋 Copy"}
+                  </button>
+                  <button onClick={downloadTXT}
+                    className="px-4 py-2 rounded-lg text-white text-sm transition hover:opacity-90"
+                    style={{ background: "var(--success)" }}>
+                    📄 TXT
+                  </button>
+                  <button onClick={downloadPDF}
+                    className="px-4 py-2 rounded-lg text-white text-sm transition hover:opacity-90"
+                    style={{ background: "var(--danger)" }}>
+                    📑 PDF
+                  </button>
+
+                  {/* PPT split button */}
+                  <div className="relative flex rounded-lg overflow-hidden shadow-sm">
+                    <button
+                      onClick={() => setShowPptModal(true)}
+                      disabled={pptLoading || pptPdfLoading}
+                      className="px-4 py-2 text-white transition font-medium text-sm flex items-center gap-1.5"
+                      style={{
+                        background: pptLoading ? "var(--warning)" : "#f97316",
+                        cursor: pptLoading || pptPdfLoading ? "not-allowed" : "pointer",
+                      }}
+                    >
+                      {pptLoading ? "⏳ Generating..." : "📊 Quick PPT"}
+                    </button>
+                    <div className="w-px" style={{ background: "#ea6b10" }} />
+                    <div className="relative">
+                      {showPptPdfMenu && (
+                        <div
+                          className="absolute right-0 bottom-full mb-1 w-52 rounded-xl shadow-xl z-50"
+                          style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+                          onMouseLeave={() => setShowPptPdfMenu(false)}
+                        >
+                          <p className="text-[10px] font-bold uppercase tracking-wider px-3 pt-2.5 pb-1"
+                            style={{ color: "var(--muted)" }}>
+                            Export as PDF
+                          </p>
+                          {[
+                            { key: "navyGold",     label: "Navy & Gold",     colors: ["#1E2761", "#C9A84C"] },
+                            { key: "tealSlate",    label: "Teal & Slate",    colors: ["#0F3D3E", "#3FBFAE"] },
+                            { key: "charcoalRuby", label: "Charcoal & Ruby", colors: ["#231F20", "#C0392B"] },
+                          ].map(t => (
+                            <button
+                              key={t.key}
+                              onClick={() => downloadPPTAsPDF({ title: (filename || selectedFile?.name || "Summary").replace(/\.[^/.]+$/, ""), theme: t.key, detailLevel: "standard", includeAgenda: true, includeNotes: false })}
+                              className="flex items-center gap-2 w-full px-3 py-2 text-sm transition hover:opacity-80"
+                              style={{ color: "var(--text)" }}
+                            >
+                              <span className="flex gap-1">
+                                <span className="w-3 h-3 rounded-full" style={{ background: t.colors[0] }} />
+                                <span className="w-3 h-3 rounded-full" style={{ background: t.colors[1] }} />
+                              </span>
+                              {t.label}
+                            </button>
+                          ))}
+                          <div className="border-t mt-1 mb-1" style={{ borderColor: "var(--border)" }} />
+                          <button
+                            onClick={() => { setShowPptPdfMenu(false); setShowPptModal(true); }}
+                            className="flex items-center gap-2 w-full px-3 py-2 text-sm transition hover:opacity-80"
+                            style={{ color: "var(--primary)" }}
+                          >
+                            ⚙️ Custom options…
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* AI Wizard button */}
+                  <button
+                    onClick={() => setShowWizard(true)}
+                    disabled={wizardLoading || !summary}
+                    className="px-4 py-2 rounded-lg text-white text-sm font-semibold transition hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                    style={{
+                      background: wizardLoading
+                        ? "var(--muted)"
+                        : "linear-gradient(135deg, #7c3aed, #2563eb)",
+                      boxShadow: "0 2px 12px rgba(124,58,237,0.35)",
+                    }}
+                  >
+                    {wizardLoading ? "⏳ AI Generating…" : "🚀 AI Presentation"}
+                  </button>
+                </div>
+
+                <DocumentChat documentId={documentId} />
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+      
 
       <PptOptionsModal
         open={showPptModal}
@@ -784,6 +929,15 @@ function Uploadcard() {
         onConfirm={downloadPPT}
         onConfirmPdf={downloadPPTAsPDF}
         loading={pptLoading || pptPdfLoading}
+      />
+
+      {/* NEW: AI Presentation Wizard */}
+      <PresentationWizard
+        open={showWizard}
+        defaultTitle={(filename || selectedFile?.name || "Presentation").replace(/\.[^/.]+$/, "")}
+        onCancel={() => setShowWizard(false)}
+        onGenerate={downloadAIPPT}
+        loading={wizardLoading}
       />
     </section>
   );

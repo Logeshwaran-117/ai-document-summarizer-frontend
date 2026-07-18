@@ -19,6 +19,7 @@ const AdminPanel        = lazy(() => import("./AdminPanel"));
 const Pricing           = lazy(() => import("./Pricing"));
 const Banking           = lazy(() => import("./Banking"));
 const UsageDashboard    = lazy(() => import("./UsageDashboard"));
+const PptGeneratorPage  = lazy(() => import("./PptGeneratorPage"));
 
 // ── Enterprise wiring ─────────────────────────────────────────────────────────
 import MaintenanceGate    from "../components/MaintenanceGate";
@@ -125,6 +126,16 @@ function Dashboard({ setIsAuthenticated, user }) {
                 element={
                   <FeatureGate flag="summarizer">
                     <Banking user={user} />
+                  </FeatureGate>
+                }
+              />
+
+              {/* PPT Generator */}
+              <Route
+                path="/ppt"
+                element={
+                  <FeatureGate flag="pptGenerator">
+                    <PptGeneratorPage />
                   </FeatureGate>
                 }
               />

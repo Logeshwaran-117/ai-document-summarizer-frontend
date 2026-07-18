@@ -59,26 +59,33 @@ const STAGE_ORDER = STAGE_STEPS.map(s => s.key);
 function ProgressBar({ progress, isImage }) {
   const { stage, percent, message, error } = progress;
   const currentIdx = error ? -1 : STAGE_ORDER.indexOf(stage);
-  const barColor = error ? "bg-red-500" : percent === 100 ? "bg-green-500" : "bg-blue-500";
-  const titleColor = error ? "text-red-600 dark:text-red-400" : "text-blue-700 dark:text-blue-400";
+
+  const barBg    = error ? "var(--danger)"  : percent === 100 ? "var(--success)" : "var(--primary)";
+  const titleCol = error ? "var(--danger)"  : "var(--primary)";
 
   return (
-    <div className="mt-6 bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900 p-5 rounded-xl">
+    <div
+      className="mt-5 p-5 rounded-xl"
+      style={{
+        background: "rgba(var(--primary-rgb), .06)",
+        border: "1px solid rgba(var(--primary-rgb), .15)",
+      }}
+    >
       <div className="flex items-center justify-between mb-1">
-        <h2 className={`font-bold text-sm ${titleColor}`}>
-          {error ? "❌ Error" : stage === "done" ? "✅ Table Extracted!" : isImage ? "🖼️ Reading image with Gemini Vision…" : "📊 Building your table…"}
+        <h2 className="font-bold text-sm" style={{ color: titleCol }}>
+          {error ? "Error" : stage === "done" ? "Table Extracted!" : isImage ? "🖼️ Reading image with AI…" : "📊 Building your table…"}
         </h2>
-        <span className={`text-sm font-bold tabular-nums ${error ? "text-red-500" : "text-blue-600 dark:text-blue-400"}`}>
+        <span className="text-sm font-bold tabular-nums" style={{ color: error ? "var(--danger)" : "var(--primary)" }}>
           {error ? "Failed" : `${percent}%`}
         </span>
       </div>
 
-      <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">{message}</p>
+      <p className="text-xs mb-3" style={{ color: "var(--muted)" }}>{message}</p>
 
-      <div className="w-full h-3 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+      <div className="w-full h-3 rounded-full overflow-hidden" style={{ background: "var(--secondary)" }}>
         <div
-          className={`h-3 rounded-full transition-all duration-500 ${barColor} ${stage !== "done" && !error ? "relative overflow-hidden" : ""}`}
-          style={{ width: `${error ? 100 : percent}%` }}
+          className={`h-3 rounded-full transition-all duration-500 ${stage !== "done" && !error ? "relative overflow-hidden" : ""}`}
+          style={{ width: `${error ? 100 : percent}%`, background: barBg }}
         >
           {stage !== "done" && !error && (
             <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-[shimmer_1.4s_infinite]" />
@@ -92,16 +99,23 @@ function ProgressBar({ progress, isImage }) {
           const active = !error && currentIdx === idx;
           return (
             <div key={step.key} className="flex flex-col items-center gap-0.5" style={{ flex: 1 }}>
-              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs transition-all duration-300
-                ${done   ? "bg-blue-600 text-white shadow-sm shadow-blue-300"
-                : error  ? "bg-red-200 dark:bg-red-900 text-red-500"
-                :          "bg-gray-200 dark:bg-gray-700 text-gray-400"}`}>
+              <div
+                className="w-6 h-6 rounded-full flex items-center justify-center text-xs transition-all duration-300"
+                style={{
+                  background: done ? "var(--primary)" : error ? "rgba(239,68,68,.2)" : "var(--secondary)",
+                  color: done ? "#fff" : error ? "var(--danger)" : "var(--muted)",
+                  boxShadow: done ? "0 1px 4px rgba(var(--primary-rgb),.3)" : "none",
+                }}
+              >
                 {done ? (active && stage !== "done" ? "⋯" : step.icon) : step.icon}
               </div>
-              <span className={`text-[10px] font-medium leading-none
-                ${done   ? "text-blue-600 dark:text-blue-400"
-                : error  ? "text-red-400"
-                :          "text-gray-400 dark:text-gray-500"}`}>
+              <span
+                className="text-[10px] font-medium leading-none"
+                style={{
+                  color: done ? "var(--primary)" : error ? "var(--danger)" : "var(--muted)",
+                  opacity: done ? 1 : 0.6,
+                }}
+              >
                 {step.label}
               </span>
             </div>
@@ -241,85 +255,129 @@ function ExcelSummary() {
   const showProgress = extracting || progress.stage === "done" || progress.stage === "error";
 
   return (
-    <section className="bg-white dark:bg-gray-900 rounded-xl shadow-lg p-6 transition-colors duration-300">
+    <section className="rounded-xl shadow-lg transition-colors duration-300 overflow-hidden"
+      style={{ background: "var(--card)" }}>
 
-      <div className="flex items-start justify-between gap-4 mb-2">
+      {/* ── Page header ── */}
+      <div className="flex items-center justify-between gap-4 px-6 py-4"
+        style={{ borderBottom: "1px solid var(--border)" }}>
         <div>
-          <h2 className="text-3xl font-bold text-gray-900 dark:text-white">Table Generator</h2>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">
-            Upload any document or image — even handwritten notes — and turn it into a structured table you define.
+          <h2 className="text-2xl font-bold" style={{ color: "var(--text)" }}>Table Generator</h2>
+          <p className="text-sm mt-0.5" style={{ color: "var(--muted)" }}>
+            Upload any document or image and extract structured data into a table.
           </p>
         </div>
-        {/* Usage badge — only table type shown here */}
-        <UsageBadge key={usageKey} type="tables" className="w-64 shrink-0" />
+        <UsageBadge key={usageKey} type="tables" className="w-56 shrink-0" />
       </div>
 
-      <div className="mb-6" />
+      <div className="p-6">
 
-      {/* Drop Zone */}
-      <div
-        className={`border-2 border-dashed rounded-xl transition-all duration-300
-          ${dragging ? "border-blue-500 bg-blue-50 dark:bg-blue-950/30" : "border-gray-300 dark:border-gray-700"}
-          ${selectedFile ? "p-4" : "p-12 flex flex-col items-center"}`}
-        onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={(e) => { e.preventDefault(); setDragging(false); handleFileSelect(e.dataTransfer.files[0]); }}
-      >
-        {!selectedFile ? (
-          <>
-            <div className="text-6xl">📊</div>
-            <h3 className="text-2xl font-semibold mt-4 text-gray-900 dark:text-white text-center">
+        {/* ── EMPTY STATE: full drop zone ── */}
+        {!selectedFile && (
+          <div
+            className="border-2 border-dashed rounded-xl p-14 flex flex-col items-center transition-all duration-300"
+            style={{
+              borderColor: dragging ? "var(--primary)" : "var(--border)",
+              background: dragging ? "rgba(var(--primary-rgb),.06)" : "transparent",
+            }}
+            onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={(e) => { e.preventDefault(); setDragging(false); handleFileSelect(e.dataTransfer.files[0]); }}
+          >
+            <div className="text-6xl mb-4">📊</div>
+            <h3 className="text-xl font-semibold mb-2" style={{ color: "var(--text)" }}>
               Drag & Drop your document here
             </h3>
-            <p className="text-gray-500 dark:text-gray-400 mt-2 text-center">
+            <p className="text-sm mb-6" style={{ color: "var(--muted)" }}>
               PDF, DOCX, TXT, JPG, PNG, WEBP supported
             </p>
-            <label className="mt-6 bg-blue-600 text-white px-6 py-3 rounded-lg cursor-pointer hover:bg-blue-700 transition">
-              Browse Files
+            <label className="px-7 py-3 rounded-lg cursor-pointer text-white font-medium transition hover:opacity-90 shadow"
+              style={{ background: "var(--primary)" }}>
+              Select File
               <input type="file" className="hidden" accept=".pdf,.txt,.docx,.jpg,.jpeg,.png,.webp,.gif"
                 onChange={(e) => handleFileSelect(e.target.files[0])} />
             </label>
-          </>
-        ) : (
-          <div className="w-full space-y-4">
-            {/* File info */}
-            <div className="flex items-center justify-between bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
-              <div className="flex items-center gap-3">
-                <span className="text-2xl">{isImageFile(selectedFile) ? "🖼️" : isPDFFile(selectedFile) ? "📑" : "📄"}</span>
-                <div>
-                  <p className="font-semibold text-gray-800 dark:text-gray-200 text-sm">{selectedFile.name}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">{(selectedFile.size / 1024).toFixed(1)} KB</p>
-                </div>
+            <p className="text-xs mt-4" style={{ color: "var(--muted)", opacity: 0.5 }}>Max file size: 10 MB</p>
+          </div>
+        )}
+
+        {/* ── FILE SELECTED: compact source card ── */}
+        {selectedFile && (
+          <div className="rounded-xl overflow-hidden mb-5"
+            style={{ border: "1px solid var(--border)" }}>
+
+            {/* Source bar — always visible */}
+            <div className="flex items-center gap-3 px-4 py-3"
+              style={{ background: "var(--secondary)", borderBottom: previewUrl || !isImageFile(selectedFile) && !isPDFFile(selectedFile) ? "1px solid var(--border)" : undefined }}>
+
+              {/* File icon + info */}
+              <div className="text-2xl shrink-0">
+                {isImageFile(selectedFile) ? "🖼️" : isPDFFile(selectedFile) ? "📑" : "📄"}
               </div>
-              <label className="text-xs text-blue-600 dark:text-blue-400 hover:underline cursor-pointer">
-                Change file
-                <input type="file" className="hidden" accept=".pdf,.txt,.docx,.jpg,.jpeg,.png,.webp,.gif"
-                  onChange={(e) => handleFileSelect(e.target.files[0])} />
-              </label>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-sm truncate" style={{ color: "var(--text)" }}>{selectedFile.name}</p>
+                <p className="text-xs" style={{ color: "var(--muted)" }}>
+                  {isImageFile(selectedFile) ? "Image" : isPDFFile(selectedFile) ? "PDF" : "Document"} · {(selectedFile.size / 1024).toFixed(1)} KB
+                </p>
+              </div>
+
+              {/* Actions: replace + clear + generate */}
+              <div className="flex items-center gap-2 shrink-0">
+                <label className="text-xs px-3 py-1.5 rounded-lg cursor-pointer font-medium transition hover:opacity-80"
+                  style={{ background: "var(--card)", border: "1px solid var(--border)", color: "var(--muted)" }}>
+                  Replace
+                  <input type="file" className="hidden" accept=".pdf,.txt,.docx,.jpg,.jpeg,.png,.webp,.gif"
+                    onChange={(e) => handleFileSelect(e.target.files[0])} />
+                </label>
+                <button onClick={clearFile}
+                  className="text-xs px-3 py-1.5 rounded-lg font-medium transition hover:opacity-80"
+                  style={{ background: "var(--card)", border: "1px solid var(--border)", color: "var(--muted)" }}>
+                  ✕ Clear
+                </button>
+                <button onClick={handleGenerateClick} disabled={extracting}
+                  className="text-sm px-5 py-1.5 rounded-lg text-white font-semibold transition"
+                  style={{
+                    background: extracting ? "var(--warning)" : "var(--primary)",
+                    cursor: extracting ? "not-allowed" : "pointer",
+                    boxShadow: extracting ? "none" : "0 2px 10px rgba(var(--primary-rgb),.3)",
+                  }}>
+                  {extracting ? "Extracting…" : "⚡ Generate Table"}
+                </button>
+              </div>
             </div>
 
-            {/* Image preview */}
+            {/* Collapsible preview — image */}
             {isImageFile(selectedFile) && previewUrl && (
-              <div className="flex justify-center bg-gray-50 dark:bg-gray-800 rounded-xl p-4">
-                <img src={previewUrl} alt="preview" className="max-h-96 max-w-full rounded-lg object-contain shadow" />
+              <div className="flex justify-center py-4 px-4"
+                style={{ background: "var(--card)" }}
+                onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+                onDragLeave={() => setDragging(false)}
+                onDrop={(e) => { e.preventDefault(); setDragging(false); handleFileSelect(e.dataTransfer.files[0]); }}>
+                <img src={previewUrl} alt="preview"
+                  className="max-h-56 max-w-full rounded-lg object-contain shadow-md" />
               </div>
             )}
 
-            {/* PDF preview with page navigation */}
+            {/* Collapsible preview — PDF */}
             {isPDFFile(selectedFile) && previewUrl && (
-              <div className="flex flex-col items-center gap-3 bg-gray-50 dark:bg-gray-800 rounded-xl p-4">
-                <Document file={previewUrl} onLoadSuccess={onDocumentLoadSuccess} className="shadow-lg rounded overflow-hidden">
-                  <Page pageNumber={currentPage} width={Math.min(560, window.innerWidth - 80)} renderTextLayer={true} renderAnnotationLayer={false} />
+              <div className="flex flex-col items-center gap-3 py-4 px-4"
+                style={{ background: "var(--card)" }}>
+                <Document file={previewUrl} onLoadSuccess={onDocumentLoadSuccess}
+                  className="shadow-lg rounded overflow-hidden">
+                  <Page pageNumber={currentPage} width={Math.min(480, window.innerWidth - 80)}
+                    renderTextLayer={true} renderAnnotationLayer={false} />
                 </Document>
                 {numPages && numPages > 1 && (
-                  <div className="flex items-center gap-3 text-sm text-gray-600 dark:text-gray-300">
+                  <div className="flex items-center gap-2 text-sm" style={{ color: "var(--muted)" }}>
                     <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}
-                      className="px-3 py-1 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-40 transition">
+                      className="px-3 py-1 rounded-lg transition disabled:opacity-40"
+                      style={{ background: "var(--secondary)" }}>
                       ← Prev
                     </button>
                     <span>Page {currentPage} of {numPages}</span>
                     <button onClick={() => setCurrentPage(p => Math.min(numPages, p + 1))} disabled={currentPage === numPages}
-                      className="px-3 py-1 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-40 transition">
+                      className="px-3 py-1 rounded-lg transition disabled:opacity-40"
+                      style={{ background: "var(--secondary)" }}>
                       Next →
                     </button>
                   </div>
@@ -327,107 +385,133 @@ function ExcelSummary() {
               </div>
             )}
 
-            {/* Non-previewable types */}
+            {/* Non-previewable */}
             {!isImageFile(selectedFile) && !isPDFFile(selectedFile) && (
-              <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-4 text-center text-gray-400 dark:text-gray-500 text-sm">
-                📝 Text document — preview not available. Click Generate Table to proceed.
+              <div className="py-4 px-4 text-center text-sm"
+                style={{ background: "var(--card)", color: "var(--muted)" }}>
+                📝 Text document ready — click <strong>Generate Table</strong> to extract data.
               </div>
             )}
           </div>
         )}
-      </div>
 
-      {/* Action Buttons */}
-      <div className="flex gap-4 mt-6">
-        <button onClick={clearFile} className="bg-red-600 text-white px-5 py-3 rounded-lg hover:bg-red-700 transition">❌</button>
-        <button onClick={handleGenerateClick} disabled={!selectedFile || extracting}
-          className={`px-6 py-3 rounded-lg text-white transition
-            ${extracting ? "bg-yellow-500 cursor-not-allowed"
-              : selectedFile ? "bg-blue-600 hover:bg-blue-700"
-              : "bg-gray-400 dark:bg-gray-700 cursor-not-allowed"}`}>
-          {extracting ? "Extracting Table..." : "Generate Table"}
-        </button>
-      </div>
+        {/* ── Progress Bar ── */}
+        {showProgress && (
+          <ProgressBar progress={progress} isImage={isImageFile(selectedFile)} />
+        )}
 
-      {/* ── Real Progress Bar ─────────────────────────────────────────────── */}
-      {showProgress && (
-        <ProgressBar progress={progress} isImage={isImageFile(selectedFile)} />
-      )}
+        {/* ── Result Table ── */}
+        {result && (() => {
+          const totalPages = Math.ceil(result.rows.length / TABLE_PAGE_SIZE);
+          const pageRows = result.rows.slice((tablePage - 1) * TABLE_PAGE_SIZE, tablePage * TABLE_PAGE_SIZE);
+          return (
+            <div className="mt-6">
 
-      {/* Result Table */}
-      {result && (() => {
-        const totalPages = Math.ceil(result.rows.length / TABLE_PAGE_SIZE);
-        const pageRows = result.rows.slice((tablePage - 1) * TABLE_PAGE_SIZE, tablePage * TABLE_PAGE_SIZE);
-        return (
-          <div className="mt-8">
-            <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Extracted Table</h2>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-                  {result.rows.length} row{result.rows.length !== 1 ? "s" : ""} · {result.fields.length} field{result.fields.length !== 1 ? "s" : ""}
-                </p>
+              {/* Table header row */}
+              <div className="flex items-center justify-between mb-3 flex-wrap gap-3">
+                <div>
+                  <h2 className="text-xl font-bold" style={{ color: "var(--text)" }}>Extracted Table</h2>
+                  <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>
+                    {result.rows.length} row{result.rows.length !== 1 ? "s" : ""} · {result.fields.length} field{result.fields.length !== 1 ? "s" : ""}
+                  </p>
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                  <button onClick={() => exportTableToExcel(result.fields, result.rows, baseName)}
+                    className="px-4 py-2 rounded-lg text-sm text-white font-medium transition hover:opacity-90"
+                    style={{ background: "#16a34a" }}>📗 Excel</button>
+                  <button onClick={() => exportTableToPDF(result.fields, result.rows, baseName)}
+                    className="px-4 py-2 rounded-lg text-sm text-white font-medium transition hover:opacity-90"
+                    style={{ background: "var(--danger)" }}>📕 PDF</button>
+                  <button onClick={() => exportTableToDocx(result.fields, result.rows, baseName)}
+                    className="px-4 py-2 rounded-lg text-sm text-white font-medium transition hover:opacity-90"
+                    style={{ background: "var(--primary)" }}>📘 Word</button>
+                  <button onClick={() => navigate("/history")}
+                    className="px-4 py-2 rounded-lg text-sm font-medium transition hover:opacity-80"
+                    style={{ background: "var(--secondary)", color: "var(--muted)", border: "1px solid var(--border)" }}>
+                    📚 History
+                  </button>
+                </div>
               </div>
-              <div className="flex gap-3 flex-wrap">
-                <button onClick={() => exportTableToExcel(result.fields, result.rows, baseName)} className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-green-700 transition font-medium">📗 Excel</button>
-                <button onClick={() => exportTableToPDF(result.fields, result.rows, baseName)}   className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-red-700 transition font-medium">📕 PDF</button>
-                <button onClick={() => exportTableToDocx(result.fields, result.rows, baseName)}  className="bg-blue-700 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-800 transition font-medium">📘 Word</button>
-                <button onClick={() => navigate("/history")} className="bg-gray-600 dark:bg-gray-700 text-white px-4 py-2 rounded-lg text-sm hover:bg-gray-700 dark:hover:bg-gray-600 transition font-medium">📚 View in History</button>
-              </div>
-            </div>
 
-            <div className="border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-sm">
-                  <thead className="bg-gray-100 dark:bg-gray-800">
-                    <tr>
-                      <th className="text-left px-4 py-3 font-semibold text-gray-500 dark:text-gray-400 whitespace-nowrap w-10">#</th>
-                      {result.fields.map((f) => (
-                        <th key={f} className="text-left px-4 py-3 font-semibold text-gray-700 dark:text-gray-200 whitespace-nowrap">{f}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                    {pageRows.map((row, i) => (
-                      <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
-                        <td className="px-4 py-3 text-gray-400 dark:text-gray-500 text-xs tabular-nums">{(tablePage - 1) * TABLE_PAGE_SIZE + i + 1}</td>
+              {/* Table */}
+              <div className="rounded-xl overflow-hidden"
+                style={{ border: "1px solid var(--border)" }}>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr style={{ background: "var(--secondary)" }}>
+                        <th className="text-left px-4 py-3 font-semibold whitespace-nowrap w-10 text-xs"
+                          style={{ color: "var(--muted)", borderBottom: "1px solid var(--border)" }}>#</th>
                         {result.fields.map((f) => (
-                          <td key={f} className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{row[f]}</td>
+                          <th key={f} className="text-left px-4 py-3 font-semibold whitespace-nowrap text-xs"
+                            style={{ color: "var(--text)", borderBottom: "1px solid var(--border)" }}>{f}</th>
                         ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {pageRows.map((row, i) => (
+                        <tr key={i} className="transition"
+                          style={{ background: i % 2 === 0 ? "var(--card)" : "var(--secondary)" }}
+                          onMouseEnter={e => e.currentTarget.style.background = "rgba(var(--primary-rgb),.06)"}
+                          onMouseLeave={e => e.currentTarget.style.background = i % 2 === 0 ? "var(--card)" : "var(--secondary)"}>
+                          <td className="px-4 py-3 text-xs tabular-nums"
+                            style={{ color: "var(--muted)", borderBottom: "1px solid var(--border)" }}>
+                            {(tablePage - 1) * TABLE_PAGE_SIZE + i + 1}
+                          </td>
+                          {result.fields.map((f) => (
+                            <td key={f} className="px-4 py-3 whitespace-nowrap"
+                              style={{ color: "var(--text)", borderBottom: "1px solid var(--border)" }}>{row[f]}</td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Pagination */}
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-between px-4 py-3"
+                    style={{ borderTop: "1px solid var(--border)", background: "var(--secondary)" }}>
+                    <p className="text-xs" style={{ color: "var(--muted)" }}>
+                      Showing {(tablePage - 1) * TABLE_PAGE_SIZE + 1}–{Math.min(tablePage * TABLE_PAGE_SIZE, result.rows.length)} of {result.rows.length}
+                    </p>
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => setTablePage(1)} disabled={tablePage === 1}
+                        className="px-2 py-1 rounded text-xs transition disabled:opacity-30"
+                        style={{ color: "var(--muted)" }}>«</button>
+                      <button onClick={() => setTablePage(p => Math.max(1, p - 1))} disabled={tablePage === 1}
+                        className="px-2 py-1 rounded text-xs transition disabled:opacity-30"
+                        style={{ color: "var(--muted)" }}>‹ Prev</button>
+                      {Array.from({ length: totalPages }, (_, i) => i + 1)
+                        .filter(p => p === 1 || p === totalPages || Math.abs(p - tablePage) <= 1)
+                        .reduce((acc, p, idx, arr) => { if (idx > 0 && p - arr[idx - 1] > 1) acc.push("..."); acc.push(p); return acc; }, [])
+                        .map((item, idx) =>
+                          item === "..." ? <span key={`e-${idx}`} className="px-1 text-xs" style={{ color: "var(--muted)" }}>…</span>
+                          : <button key={item} onClick={() => setTablePage(item)}
+                              className="min-w-[28px] px-2 py-1 rounded text-xs font-medium transition"
+                              style={{
+                                background: tablePage === item ? "var(--primary)" : "transparent",
+                                color: tablePage === item ? "#fff" : "var(--muted)",
+                              }}>{item}</button>
+                        )
+                      }
+                      <button onClick={() => setTablePage(p => Math.min(totalPages, p + 1))} disabled={tablePage === totalPages}
+                        className="px-2 py-1 rounded text-xs transition disabled:opacity-30"
+                        style={{ color: "var(--muted)" }}>Next ›</button>
+                      <button onClick={() => setTablePage(totalPages)} disabled={tablePage === totalPages}
+                        className="px-2 py-1 rounded text-xs transition disabled:opacity-30"
+                        style={{ color: "var(--muted)" }}>»</button>
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {totalPages > 1 && (
-                <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Showing {(tablePage - 1) * TABLE_PAGE_SIZE + 1}–{Math.min(tablePage * TABLE_PAGE_SIZE, result.rows.length)} of {result.rows.length}
-                  </p>
-                  <div className="flex items-center gap-1">
-                    <button onClick={() => setTablePage(1)} disabled={tablePage === 1} className="px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition">«</button>
-                    <button onClick={() => setTablePage(p => Math.max(1, p - 1))} disabled={tablePage === 1} className="px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition">‹ Prev</button>
-                    {Array.from({ length: totalPages }, (_, i) => i + 1)
-                      .filter(p => p === 1 || p === totalPages || Math.abs(p - tablePage) <= 1)
-                      .reduce((acc, p, idx, arr) => { if (idx > 0 && p - arr[idx - 1] > 1) acc.push("..."); acc.push(p); return acc; }, [])
-                      .map((item, idx) =>
-                        item === "..." ? <span key={`e-${idx}`} className="px-1 text-xs text-gray-400">…</span>
-                        : <button key={item} onClick={() => setTablePage(item)}
-                            className={`min-w-[28px] px-2 py-1 rounded text-xs font-medium transition ${tablePage === item ? "bg-blue-600 text-white" : "text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"}`}
-                          >{item}</button>
-                      )
-                    }
-                    <button onClick={() => setTablePage(p => Math.min(totalPages, p + 1))} disabled={tablePage === totalPages} className="px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition">Next ›</button>
-                    <button onClick={() => setTablePage(totalPages)} disabled={tablePage === totalPages} className="px-2 py-1 rounded text-xs text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition">»</button>
-                  </div>
-                </div>
-              )}
+              <TableChat tableId={result._id} />
             </div>
+          );
+        })()}
 
-            <TableChat tableId={result._id} />
-          </div>
-        );
-      })()}
+      </div>
 
       <TableFieldsModal
         open={showFieldsModal}

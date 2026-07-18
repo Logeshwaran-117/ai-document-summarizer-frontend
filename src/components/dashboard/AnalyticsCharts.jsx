@@ -46,11 +46,9 @@ const FILE_TYPES = [
   { name: "DOCX",  value: 21, color: "var(--success)" },
   { name: "Images",value: 11, color: "var(--warning)" },
   { name: "TXT",   value:  7, color: "#ec4899" },
-  { name: "Other", value:  3, color: "var(--muted)"  },
 ];
 
 const FEATURES = [
-  { name: "Summary",   value: 46, color: "var(--primary)" },
   { name: "OCR",       value: 20, color: "var(--success)" },
   { name: "Banking",   value: 14, color: "var(--warning)" },
   { name: "Tables",    value: 12, color: "#ec4899" },
