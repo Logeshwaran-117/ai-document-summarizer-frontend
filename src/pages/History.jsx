@@ -456,16 +456,7 @@ function History() {
                 >
                     📄 Documents
                 </button>
-                <button
-                    onClick={() => setActiveTab("presentations")}
-                    className={`px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px transition ${
-                        activeTab === "presentations"
-                            ? "border-blue-600 text-blue-600 dark:text-blue-400"
-                            : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
-                    }`}
-                >
-                    📊 Presentations
-                </button>
+        
                 <button
                     onClick={() => setActiveTab("tables")}
                     className={`px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px transition ${

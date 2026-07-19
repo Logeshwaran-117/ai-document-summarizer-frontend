@@ -2,10 +2,11 @@
 // Adds FeatureGate to every route so feature flags actually block access.
 // All other code unchanged.
 
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import Navbar            from "../components/Navbar";
 import Sidebar           from "../components/Sidebar";
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
+import Footer from "../components/Footer";
 
 // ── Lazy-loaded pages (each loads only when the user navigates to it) ─────────
 const Uploadcard        = lazy(() => import("../components/Uploadcard"));
@@ -20,6 +21,8 @@ const Pricing           = lazy(() => import("./Pricing"));
 const Banking           = lazy(() => import("./Banking"));
 const UsageDashboard    = lazy(() => import("./UsageDashboard"));
 const PptGeneratorPage  = lazy(() => import("./PptGeneratorPage"));
+const TermsPage   = lazy(() => import("./TermsPage"));
+const PrivacyPage = lazy(() => import("./PrivacyPage"));
 
 // ── Enterprise wiring ─────────────────────────────────────────────────────────
 import MaintenanceGate    from "../components/MaintenanceGate";
@@ -40,21 +43,14 @@ function PageLoader() {
 }
 
 function AdminGuard({ user, children }) {
-  if (!user || user.role !== "admin") {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-center">
-          <p className="text-5xl mb-4">🚫</p>
-          <h2 className="text-xl font-bold mb-2" style={{ color: "var(--text)" }}>
-            Access Denied
-          </h2>
-          <p className="text-sm" style={{ color: "var(--muted)" }}>
-            You don't have admin privileges.
-          </p>
-        </div>
-      </div>
-    );
-  }
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (!user || user.role !== "admin") {
+      navigate("/", { replace: true });
+    }
+  }, [user, navigate]);
+
+  if (!user || user.role !== "admin") return null;
   return children;
 }
 
@@ -158,10 +154,14 @@ function Dashboard({ setIsAuthenticated, user }) {
                 }
               />
 
+              <Route path="/terms"   element={<TermsPage />} />
+              <Route path="/privacy" element={<PrivacyPage />} />
+
               <Route path="*" element={<Navigate to="/" />} />
             </Routes>
             </Suspense>
           </main>
+          <Footer />
         </div>
 
         {/* Broadcast toasts — floats above all content */}

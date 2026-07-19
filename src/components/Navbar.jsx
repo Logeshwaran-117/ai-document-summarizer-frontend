@@ -420,7 +420,7 @@ function Navbar({ setIsAuthenticated, user }) {
       >
         {/* Left: breadcrumb */}
         <div className="flex items-center gap-2 min-w-0">
-          <span className="text-xs font-medium" style={{ color: "var(--muted)" }}>preciQo</span>
+          <span className="text-xs font-medium" style={{ color: "var(--muted)" }}>SharyX OCR</span>
           <span style={{ color: "var(--border)" }}>/</span>
           <span className="text-sm font-semibold truncate" style={{ color: "var(--text)" }}>
             {breadcrumb}
@@ -430,16 +430,21 @@ function Navbar({ setIsAuthenticated, user }) {
         {/* Right: actions */}
         <div className="flex items-center gap-2 shrink-0">
 
-          {/* Command palette trigger */}
+          {/* Command palette trigger — ⌘K hint is always visible so users discover the shortcut */}
           <button
             onClick={() => setShowPalette(true)}
             className="hidden sm:flex items-center gap-2 px-3 h-8 rounded-lg text-xs transition-all hover:opacity-80"
             style={{ background: "var(--secondary)", color: "var(--muted)", border: "1px solid var(--border)" }}
           >
             <Search size={13} />
-            <span>Search…</span>
-            <span className="flex items-center gap-0.5 opacity-60">
-              <Command size={11} /><span>K</span>
+            <span className="hidden md:block">Search commands…</span>
+            <span className="sm:block md:hidden">Search…</span>
+            {/* Keyboard shortcut badge — visible by default, not buried */}
+            <span
+              className="flex items-center gap-0.5 px-1.5 py-0.5 rounded font-mono text-[10px] font-semibold"
+              style={{ background: "var(--card)", border: "1px solid var(--border)", color: "var(--text)", lineHeight: 1 }}
+            >
+              <Command size={9} /><span>K</span>
             </span>
           </button>
 
@@ -483,6 +488,21 @@ function Navbar({ setIsAuthenticated, user }) {
               <span className="text-xs font-medium hidden sm:block" style={{ color: "var(--text)" }}>
                 {displayName}
               </span>
+              {/* Plan badge — shows current plan tier at a glance */}
+              {user?.plan && (
+                <span
+                  className="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide leading-none"
+                  style={
+                    user.plan === "pro"
+                      ? { background: "linear-gradient(135deg,#7c3aed,#6366f1)", color: "#fff" }
+                      : user.plan === "enterprise"
+                      ? { background: "linear-gradient(135deg,#92400e,#b45309)", color: "#fef3c7" }
+                      : { background: "var(--border)", color: "var(--muted)" }
+                  }
+                >
+                  {user.plan === "enterprise" ? "ENT" : user.plan.toUpperCase()}
+                </span>
+              )}
               <ChevronDown size={12} style={{ color: "var(--muted)" }} />
             </button>
 
@@ -503,11 +523,27 @@ function Navbar({ setIsAuthenticated, user }) {
                   <div className="px-4 py-3.5" style={{ borderBottom: "1px solid var(--border)" }}>
                     <p className="text-sm font-semibold" style={{ color: "var(--text)" }}>{displayName}</p>
                     <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>{user?.email}</p>
-                    {user?.role === "admin" && (
-                      <span className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400">
-                        <Sparkles size={9} /> Admin
-                      </span>
-                    )}
+                    <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                      {user?.role === "admin" && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400">
+                          <Sparkles size={9} /> Admin
+                        </span>
+                      )}
+                      {user?.plan && (
+                        <span
+                          className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide"
+                          style={
+                            user.plan === "pro"
+                              ? { background: "#ede9fe", color: "#7c3aed" }
+                              : user.plan === "enterprise"
+                              ? { background: "#fef3c7", color: "#b45309" }
+                              : { background: "var(--secondary)", color: "var(--muted)" }
+                          }
+                        >
+                          {user.plan} plan
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div className="py-1">
                     <ProfileAction icon={Command} label="Command Palette" onClick={() => { setShowProfile(false); setShowPalette(true); }} />

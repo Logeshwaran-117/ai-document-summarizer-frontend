@@ -59,7 +59,7 @@ function InvoiceModal({ invoiceId, onClose }) {
           {/* Header */}
           <div className="flex justify-between items-start">
             <div>
-              <h1 className="text-2xl font-black text-gray-900">AI Document Summarizer</h1>
+              <h1 className="text-2xl font-black text-gray-900">{import.meta.env.VITE_APP_NAME || "PreciQo"}</h1>
               <p className="text-sm text-gray-500 mt-1">Tax Invoice</p>
             </div>
             <div className="text-right">

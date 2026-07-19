@@ -81,7 +81,6 @@ function Auth({ setIsAuthenticated, setUser }) {
       {/* ── LEFT PANEL ── */}
       <div
         style={{
-          display: "none",
           flex: "0 0 480px",
           position: "relative",
           overflow: "hidden",
@@ -139,7 +138,7 @@ function Auth({ setIsAuthenticated, setUser }) {
               ✦
             </div>
             <div>
-              <p style={{ color: "#fff", fontWeight: 700, fontSize: "18px", lineHeight: 1 }}>PerciQo</p>
+              <p style={{ color: "#fff", fontWeight: 700, fontSize: "18px", lineHeight: 1 }}>SharyX OCR</p>
               <p style={{ color: "rgba(255,255,255,.55)", fontSize: "12px", marginTop: "2px" }}>
                 Powered by Gemini
               </p>
@@ -519,6 +518,7 @@ function Auth({ setIsAuthenticated, setUser }) {
       {/* Responsive styles injected inline */}
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
+        .auth-left-panel { display: none; }
         @media (min-width: 900px) {
           .auth-left-panel { display: flex !important; }
           .auth-mobile-logo { display: none !important; }
