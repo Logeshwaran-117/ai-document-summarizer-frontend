@@ -21,6 +21,19 @@ function Signup({ setIsAuthenticated, setUser }) {
   const [loading, setLoading]     = useState(false);
   const navigate = useNavigate();
 
+  // Password strength: 0 = empty, 1 = weak, 2 = medium, 3 = strong
+  function passwordStrength(pw) {
+    if (!pw) return 0;
+    let score = 0;
+    if (pw.length >= 8) score++;
+    if (/[A-Z]/.test(pw) && /[a-z]/.test(pw)) score++;
+    if (/[0-9]/.test(pw) || /[^A-Za-z0-9]/.test(pw)) score++;
+    return score;
+  }
+  const strength = passwordStrength(password);
+  const strengthLabel = ["", "Weak", "Medium", "Strong"][strength];
+  const strengthColor = ["", "#ef4444", "#f59e0b", "#22c55e"][strength];
+
   const handleSignup = async () => {
     if (!email || !password) {
       setError("Email and password are required.");
@@ -40,7 +53,8 @@ function Signup({ setIsAuthenticated, setUser }) {
       const r = await api.post("/auth/signup", { name, email, password });
       setUser?.(r.data.user);
       setIsAuthenticated(true);
-      navigate("/");
+      // Fresh signups go to onboarding — DashboardCards reads this flag
+      navigate("/?onboarding=1");
     } catch (err) {
       setError(err.response?.data?.message || "Could not create account. Try again.");
     } finally {
@@ -91,7 +105,6 @@ function Signup({ setIsAuthenticated, setUser }) {
       {/* ── LEFT PANEL ── */}
       <div
         style={{
-          display: "none",
           flex: "0 0 440px",
           position: "relative",
           overflow: "hidden",
@@ -418,6 +431,30 @@ function Signup({ setIsAuthenticated, setUser }) {
               onFocus={handleFocus}
               onBlur={handleBlur}
             />
+            {/* Password strength bar */}
+            {password.length > 0 && (
+              <div style={{ marginTop: "8px" }}>
+                <div style={{ display: "flex", gap: "4px", marginBottom: "4px" }}>
+                  {[1, 2, 3].map((level) => (
+                    <div
+                      key={level}
+                      style={{
+                        flex: 1,
+                        height: "3px",
+                        borderRadius: "99px",
+                        background: strength >= level ? strengthColor : "var(--border)",
+                        transition: "background 0.25s",
+                      }}
+                    />
+                  ))}
+                </div>
+                <p style={{ fontSize: "11px", color: strengthColor, fontWeight: 600 }}>
+                  {strengthLabel}
+                  {strength === 1 && " — add uppercase, numbers or symbols"}
+                  {strength === 2 && " — add more variety to strengthen"}
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Confirm password */}
@@ -514,6 +551,7 @@ function Signup({ setIsAuthenticated, setUser }) {
 
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
+        .signup-left-panel { display: none; }
         @media (min-width: 900px) {
           .signup-left-panel { display: flex !important; }
           .signup-mobile-logo { display: none !important; }

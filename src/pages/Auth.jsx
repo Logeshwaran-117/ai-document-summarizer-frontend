@@ -2,26 +2,27 @@ import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import api from "../api";
 import googleLogo from "../assets/google.png";
+import { FileText, Landmark, Presentation, MessageSquare } from "lucide-react";
 
 /* ── Feature bullets shown on the left panel ── */
 const FEATURES = [
   {
-    icon: "📄",
+    Icon: FileText,
     title: "Instant AI Summaries",
     desc: "Summarize 100-page PDFs in under 30 seconds",
   },
   {
-    icon: "🏦",
+    Icon: Landmark,
     title: "Banking Intelligence",
     desc: "Auto-detect and analyse financial documents",
   },
   {
-    icon: "📊",
+    Icon: Presentation,
     title: "One-click PPT Export",
     desc: "Turn any summary into a presentation instantly",
   },
   {
-    icon: "💬",
+    Icon: MessageSquare,
     title: "Chat with your Docs",
     desc: "Ask questions, get answers from your documents",
   },
@@ -166,7 +167,9 @@ function Auth({ setIsAuthenticated, setUser }) {
 
           {/* Feature list */}
           <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-            {FEATURES.map((f) => (
+            {FEATURES.map((f) => {
+              const Icon = f.Icon;
+              return (
               <div key={f.title} style={{ display: "flex", gap: "14px", alignItems: "flex-start" }}>
                 <div
                   style={{
@@ -178,18 +181,17 @@ function Auth({ setIsAuthenticated, setUser }) {
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    fontSize: "17px",
                     flexShrink: 0,
                   }}
                 >
-                  {f.icon}
+                  <Icon size={16} color="rgba(255,255,255,0.9)" />
                 </div>
                 <div>
                   <p style={{ color: "#fff", fontWeight: 600, fontSize: "14px", marginBottom: "2px" }}>{f.title}</p>
                   <p style={{ color: "rgba(255,255,255,.55)", fontSize: "13px" }}>{f.desc}</p>
                 </div>
               </div>
-            ))}
+            );})}
           </div>
         </div>
 

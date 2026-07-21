@@ -9,6 +9,11 @@ import DocumentChat from "./DocumentChat";
 import PptOptionsModal from "./PptOptionsModal";
 import PresentationWizard from "./PresentationWizard";
 import UsageBadge from "./UsageBadge";
+import {
+  Upload as UploadIcon, BookOpen, Sparkles, Save, CheckCircle2,
+  FileText, FileSpreadsheet, FileImage, File, Presentation, MessageSquare,
+  Copy, Download, ArrowRight,
+} from "lucide-react";
 
 // ── SSE progress hook (inline — no extra file needed) ────────────────────────
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
@@ -46,11 +51,11 @@ function useProgress() {
 
 // ── Stage label map ───────────────────────────────────────────────────────────
 const STAGE_STEPS = [
-  { key: "uploading",  label: "Upload",  icon: "⬆️" },
-  { key: "extracting", label: "Extract", icon: "📖" },
-  { key: "ai",         label: "AI",      icon: "🤖" },
-  { key: "saving",     label: "Save",    icon: "💾" },
-  { key: "done",       label: "Done",    icon: "✅" },
+  { key: "uploading",  label: "Upload",  Icon: UploadIcon   },
+  { key: "extracting", label: "Extract", Icon: BookOpen     },
+  { key: "ai",         label: "AI",      Icon: Sparkles     },
+  { key: "saving",     label: "Save",    Icon: Save         },
+  { key: "done",       label: "Done",    Icon: CheckCircle2 },
 ];
 
 const STAGE_ORDER = STAGE_STEPS.map(s => s.key);
@@ -112,25 +117,25 @@ function ProgressBar({ progress, isImage }) {
         {STAGE_STEPS.map((step, idx) => {
           const done   = !error && currentIdx >= idx;
           const active = !error && currentIdx === idx;
+          const StepIcon = step.Icon;
           return (
             <div key={step.key} className="flex flex-col items-center gap-0.5" style={{ flex: 1 }}>
               <div
-                className="w-6 h-6 rounded-full flex items-center justify-center text-xs transition-all duration-300"
+                className="w-6 h-6 rounded-full flex items-center justify-center transition-all duration-300"
                 style={{
                   background: done
                     ? "var(--primary)"
                     : error
                     ? "rgba(239,68,68,.2)"
                     : "var(--secondary)",
-                  color: done
-                    ? "#fff"
-                    : error
-                    ? "var(--danger)"
-                    : "var(--muted)",
                   boxShadow: done ? "0 1px 4px rgba(var(--primary-rgb),.3)" : "none",
                 }}
               >
-                {done ? (active && stage !== "done" ? "⋯" : step.icon) : step.icon}
+                <StepIcon
+                  size={11}
+                  color={done ? "#fff" : error ? "var(--danger)" : "var(--muted)"}
+                  className={active && stage !== "done" ? "animate-pulse" : ""}
+                />
               </div>
               <span
                 className="text-[10px] font-medium leading-none"
@@ -170,12 +175,12 @@ function isDocxFile(file)   { return file && (getExt(file) === ".docx"); }
 function isAllowedFile(file){ return file && (ALLOWED_TYPES.includes(file.type) || isExcelFile(file)); }
 
 function fileTypeLabel(file) {
-  if (isImageFile(file))  return { label: "Image",       color: "bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300", icon: "🖼️" };
-  if (isPdfFile(file))    return { label: "PDF",         color: "bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300",             icon: "📑" };
-  if (isExcelFile(file))  return { label: "Spreadsheet", color: "bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300", icon: "📊" };
-  if (isDocxFile(file))   return { label: "Word Doc",    color: "bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300",         icon: "📝" };
-  if (isTextFile(file))   return { label: "Text",        color: "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300",         icon: "📄" };
-  return                         { label: "Document",    color: "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300",         icon: "📄" };
+  if (isImageFile(file))  return { label: "Image",       color: "bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300", Icon: FileImage       };
+  if (isPdfFile(file))    return { label: "PDF",         color: "bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300",             Icon: FileText        };
+  if (isExcelFile(file))  return { label: "Spreadsheet", color: "bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300", Icon: FileSpreadsheet };
+  if (isDocxFile(file))   return { label: "Word Doc",    color: "bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300",         Icon: FileText        };
+  if (isTextFile(file))   return { label: "Text",        color: "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300",         Icon: FileText        };
+  return                         { label: "Document",    color: "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300",         Icon: File            };
 }
 
 // ── FilePreview component ─────────────────────────────────────────────────────
@@ -650,8 +655,7 @@ function Uploadcard() {
     resetProgress();
   }
 
-  const { icon: fileIcon } = selectedFile ? fileTypeLabel(selectedFile) : { icon: "📄" };
-  const { label: typeLabel, color: typeBadgeColor } = selectedFile ? fileTypeLabel(selectedFile) : {};
+  const { Icon: FileTypeIcon = File, label: typeLabel, color: typeBadgeColor } = selectedFile ? fileTypeLabel(selectedFile) : {};
 
   const dropLabel = selectedFile && isImageFile(selectedFile) ? "Image ready for analysis"
     : selectedFile && isPdfFile(selectedFile)   ? "PDF ready for summary"
@@ -697,7 +701,9 @@ function Uploadcard() {
               onDragLeave={() => setDragging(false)}
               onDrop={(e) => { e.preventDefault(); setDragging(false); handleFileSelect(e.dataTransfer.files[0]); }}
             >
-              <div className="text-6xl mb-4">📄</div>
+              <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4" style={{ background: "rgba(var(--primary-rgb),.08)" }}>
+                <UploadIcon size={28} style={{ color: "var(--primary)" }} />
+              </div>
               <h3 className="text-xl font-semibold mb-2" style={{ color: "var(--text)" }}>Drag & Drop your file here</h3>
               <p className="text-sm mb-6 text-center" style={{ color: "var(--muted)" }}>
                 PDF, DOCX, TXT, XLSX, CSV, JPG, PNG, WEBP supported
@@ -716,7 +722,7 @@ function Uploadcard() {
               {/* File name bar */}
               <div className="px-5 py-3 flex items-center gap-3 shrink-0"
                 style={{ background: "var(--secondary)", borderBottom: "1px solid var(--border)" }}>
-                <span className="text-xl">{fileIcon}</span>
+                <FileTypeIcon size={18} style={{ color: "var(--primary)", flexShrink: 0 }} />
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-sm truncate" style={{ color: "var(--text)" }}>{selectedFile.name}</p>
                   <div className="flex items-center gap-2 mt-0.5">
@@ -825,7 +831,49 @@ function Uploadcard() {
                   </div>
                 )}
 
-                <div className="flex gap-2 mt-5 flex-wrap">
+                {/* ── Next-step CTA panel ── */}
+                <div
+                  className="mt-5 rounded-xl p-4"
+                  style={{ background: "var(--secondary)", border: "1px solid var(--border)" }}
+                >
+                  <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: "var(--muted)" }}>
+                    What's next?
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => setShowWizard(true)}
+                      disabled={wizardLoading || !summary}
+                      className="flex items-center gap-2 px-4 py-2 rounded-lg text-white text-sm font-semibold transition hover:opacity-90 disabled:opacity-50"
+                      style={{ background: "linear-gradient(135deg, #7c3aed, #2563eb)", boxShadow: "0 2px 10px rgba(124,58,237,.3)" }}
+                    >
+                      <Presentation size={14} />
+                      {wizardLoading ? "Generating…" : "Export to PPT"}
+                      <ArrowRight size={12} style={{ opacity: 0.7 }} />
+                    </button>
+                    <button
+                      onClick={() => {
+                        // Scroll down to the chat section
+                        document.getElementById("doc-chat-anchor")?.scrollIntoView({ behavior: "smooth" });
+                      }}
+                      className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition hover:opacity-80"
+                      style={{ background: "var(--card)", color: "var(--text)", border: "1px solid var(--border)" }}
+                    >
+                      <MessageSquare size={14} />
+                      Chat with doc
+                    </button>
+                    <button
+                      onClick={copySummary}
+                      className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition hover:opacity-80"
+                      style={{ background: "var(--card)", color: "var(--muted)", border: "1px solid var(--border)" }}
+                    >
+                      <Copy size={13} />
+                      {copied ? "Copied!" : "Copy text"}
+                    </button>
+                  </div>
+                </div>
+
+                {/* ── Export options ── */}
+                <div className="flex gap-2 mt-3 flex-wrap">
                   <button onClick={copySummary}
                     className="px-4 py-2 rounded-lg text-white text-sm transition hover:opacity-90"
                     style={{ background: "var(--primary)" }}>
@@ -914,7 +962,7 @@ function Uploadcard() {
                   </button>
                 </div>
 
-                <DocumentChat documentId={documentId} />
+                <div id="doc-chat-anchor"><DocumentChat documentId={documentId} /></div>
               </div>
             )}
           </div>
