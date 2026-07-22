@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import api from "../api";
 import toast from "react-hot-toast";
 import { useNotifications } from "../context/NotificationContext";
+import TagManager from "../components/TagManager";
 
 const PAGE_SIZE = 10;
 
@@ -668,6 +669,15 @@ function History() {
                                 <p className="text-gray-600 dark:text-gray-400 text-sm line-clamp-2 mb-3">
                                     {item.summary?.replace(/[#*_`>]/g, "").slice(0, 200)}...
                                 </p>
+
+                                <div
+                                    className="mb-3"
+                                    onClick={(e) => e.stopPropagation()} // Prevent opening the history page when clicking tags
+                                >
+
+                                    <TagManager docId={doc._id} initialTags={doc.tags || []} />
+
+                                </div>
 
                                 {/* Footer */}
                                 <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-gray-800">

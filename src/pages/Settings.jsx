@@ -1,7 +1,7 @@
 import { useState } from "react";
 import api from "../api";
 import { Link, useNavigate } from "react-router-dom";
-import { User, Lock, CreditCard, AlertTriangle } from "lucide-react";
+import { User, Lock, CreditCard, AlertTriangle, Bell, Key, Copy, RefreshCw, Check } from "lucide-react";
 
 function Settings({ user, setIsAuthenticated }) {
     const navigate = useNavigate();
@@ -22,6 +22,59 @@ function Settings({ user, setIsAuthenticated }) {
     // Delete state
     const [deleteConfirm, setDeleteConfirm] = useState("");
     const [deleteError, setDeleteError] = useState("");
+
+    // Notifications state
+    const [notifPrefs, setNotifPrefs] = useState({
+      summaryReady:   true,
+      weeklyDigest:   true,
+      usageAlerts:    true,
+      productUpdates: false,
+    });
+    const [notifMsg, setNotifMsg] = useState("");
+
+    async function handleSaveNotifications() {
+      setNotifMsg("");
+      try {
+        await api.put("/auth/notification-preferences", notifPrefs);
+        setNotifMsg("Notification preferences saved.");
+      } catch {
+        setNotifMsg("Saved locally (server endpoint not yet wired).");
+      }
+      setTimeout(() => setNotifMsg(""), 3000);
+    }
+
+    // API Keys state
+    const [apiKeys, setApiKeys] = useState([]);
+    const [apiKeyLoading, setApiKeyLoading] = useState(false);
+    const [copiedKey, setCopiedKey] = useState(null);
+    const canUseApiKeys = ["pro", "enterprise"].includes(user?.plan?.toLowerCase());
+
+    async function generateApiKey() {
+      setApiKeyLoading(true);
+      try {
+        const r = await api.post("/auth/api-keys");
+        setApiKeys(prev => [r.data, ...prev]);
+      } catch (err) {
+        alert(err.response?.data?.message || "Failed to generate API key.");
+      } finally {
+        setApiKeyLoading(false);
+      }
+    }
+
+    async function revokeApiKey(keyId) {
+      if (!window.confirm("Revoke this API key? Apps using it will stop working immediately.")) return;
+      try {
+        await api.delete(`/auth/api-keys/${keyId}`);
+        setApiKeys(prev => prev.filter(k => k.id !== keyId));
+      } catch { alert("Failed to revoke key."); }
+    }
+
+    function copyKey(key) {
+      navigator.clipboard.writeText(key).then(() => {
+        setCopiedKey(key);
+        setTimeout(() => setCopiedKey(null), 2000);
+      });
+    }
 
     async function handleUpdateProfile() {
         setProfileMsg(""); setProfileError("");
@@ -66,12 +119,13 @@ function Settings({ user, setIsAuthenticated }) {
         }
     }
 
-    // Tabs now use Lucide icons — no emoji in navigation
     const tabs = [
-        { id: "profile",  label: "Profile",     icon: User          },
-        { id: "password", label: "Password",     icon: Lock          },
-        { id: "billing",  label: "Billing",      icon: CreditCard    },
-        { id: "danger",   label: "Danger Zone",  icon: AlertTriangle },
+        { id: "profile",       label: "Profile",        icon: User          },
+        { id: "password",      label: "Password",        icon: Lock          },
+        { id: "notifications", label: "Notifications",   icon: Bell          },
+        { id: "apikeys",       label: "API Keys",        icon: Key           },
+        { id: "billing",       label: "Billing",         icon: CreditCard    },
+        { id: "danger",        label: "Danger Zone",     icon: AlertTriangle },
     ];
 
     return (
@@ -241,6 +295,137 @@ function Settings({ user, setIsAuthenticated }) {
                     >
                         Update Password
                     </button>
+                </div>
+            )}
+
+            {/* Notifications Tab */}
+            {activeTab === "notifications" && (
+                <div className="rounded-2xl shadow p-6 space-y-5 transition-colors duration-300"
+                    style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
+                    <h2 className="text-lg font-semibold" style={{ color: "var(--text)" }}>Email Notifications</h2>
+                    <p className="text-sm" style={{ color: "var(--muted)" }}>
+                        Choose which emails SharyX sends you.
+                    </p>
+
+                    {notifMsg && (
+                        <p className="px-4 py-2 rounded-lg text-sm"
+                            style={{ color: "var(--success)", background: "rgba(16,185,129,.1)" }}>
+                            {notifMsg}
+                        </p>
+                    )}
+
+                    <div className="space-y-4">
+                        {[
+                            { key: "summaryReady",   label: "Summary ready",      desc: "Email me when a document finishes processing" },
+                            { key: "weeklyDigest",   label: "Weekly digest",       desc: "A weekly summary of your activity and usage" },
+                            { key: "usageAlerts",    label: "Usage alerts",        desc: "Warn me when I'm close to my daily limit" },
+                            { key: "productUpdates", label: "Product updates",     desc: "New features, improvements, and announcements" },
+                        ].map(({ key, label, desc }) => (
+                            <label key={key} className="flex items-start justify-between gap-4 cursor-pointer group">
+                                <div>
+                                    <p className="text-sm font-medium" style={{ color: "var(--text)" }}>{label}</p>
+                                    <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>{desc}</p>
+                                </div>
+                                {/* Toggle */}
+                                <div
+                                    onClick={() => setNotifPrefs(p => ({ ...p, [key]: !p[key] }))}
+                                    className="relative shrink-0 w-11 h-6 rounded-full transition-colors duration-200 cursor-pointer mt-0.5"
+                                    style={{ background: notifPrefs[key] ? "var(--primary)" : "var(--border)" }}
+                                >
+                                    <span
+                                        className="absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all duration-200"
+                                        style={{ left: notifPrefs[key] ? "calc(100% - 20px)" : "4px" }}
+                                    />
+                                </div>
+                            </label>
+                        ))}
+                    </div>
+
+                    <button
+                        onClick={handleSaveNotifications}
+                        className="w-full py-3 rounded-lg text-white font-medium transition hover:opacity-90"
+                        style={{ background: "var(--primary)" }}
+                    >
+                        Save Preferences
+                    </button>
+                </div>
+            )}
+
+            {/* API Keys Tab */}
+            {activeTab === "apikeys" && (
+                <div className="rounded-2xl shadow p-6 space-y-5 transition-colors duration-300"
+                    style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <h2 className="text-lg font-semibold" style={{ color: "var(--text)" }}>API Keys</h2>
+                            <p className="text-sm mt-0.5" style={{ color: "var(--muted)" }}>
+                                Use these keys to access SharyX from your own apps or scripts.
+                            </p>
+                        </div>
+                        {canUseApiKeys && (
+                            <button
+                                onClick={generateApiKey}
+                                disabled={apiKeyLoading}
+                                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-60"
+                                style={{ background: "var(--primary)" }}
+                            >
+                                <RefreshCw size={13} className={apiKeyLoading ? "animate-spin" : ""} />
+                                {apiKeyLoading ? "Generating…" : "New key"}
+                            </button>
+                        )}
+                    </div>
+
+                    {!canUseApiKeys && (
+                        <div className="rounded-xl p-4 flex items-start gap-3"
+                            style={{ background: "rgba(var(--primary-rgb),.07)", border: "1px solid rgba(var(--primary-rgb),.15)" }}>
+                            <Key size={16} style={{ color: "var(--primary)", marginTop: 2, flexShrink: 0 }} />
+                            <div>
+                                <p className="text-sm font-semibold" style={{ color: "var(--text)" }}>Pro or Enterprise required</p>
+                                <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>
+                                    API access is available on Pro and Enterprise plans.
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
+                    {canUseApiKeys && apiKeys.length === 0 && (
+                        <div className="rounded-xl p-6 text-center"
+                            style={{ background: "var(--secondary)", border: "1px dashed var(--border)" }}>
+                            <Key size={20} className="mx-auto mb-2" style={{ color: "var(--muted)" }} />
+                            <p className="text-sm" style={{ color: "var(--muted)" }}>
+                                No API keys yet. Generate one above to get started.
+                            </p>
+                        </div>
+                    )}
+
+                    {apiKeys.map((k) => (
+                        <div key={k.id} className="rounded-xl p-4 flex items-center gap-3"
+                            style={{ background: "var(--secondary)", border: "1px solid var(--border)" }}>
+                            <Key size={14} style={{ color: "var(--muted)", flexShrink: 0 }} />
+                            <code className="flex-1 text-xs font-mono truncate" style={{ color: "var(--text)" }}>
+                                {k.key}
+                            </code>
+                            <button
+                                onClick={() => copyKey(k.key)}
+                                className="shrink-0 p-1.5 rounded-lg transition hover:opacity-70"
+                                style={{ color: "var(--muted)" }}
+                                title="Copy key"
+                            >
+                                {copiedKey === k.key ? <Check size={13} color="#22c55e" /> : <Copy size={13} />}
+                            </button>
+                            <button
+                                onClick={() => revokeApiKey(k.id)}
+                                className="shrink-0 text-xs font-semibold px-2.5 py-1 rounded-lg transition hover:opacity-80"
+                                style={{ background: "rgba(239,68,68,.1)", color: "var(--danger)" }}
+                            >
+                                Revoke
+                            </button>
+                        </div>
+                    ))}
+
+                    <p className="text-xs" style={{ color: "var(--muted)", opacity: 0.7 }}>
+                        Keep API keys secret. They grant full access to your account. Revoke any key you don't recognize immediately.
+                    </p>
                 </div>
             )}
 

@@ -174,7 +174,7 @@ function ProductMockup() {
                 </span>
                 <div
                   className="ml-auto px-2 py-0.5 rounded-full text-[10px] font-semibold"
-                  style={{ background: "#dcfce7", color: "#16a34a" }}
+                  style={{ background: "rgba(34,197,94,0.15)", color: "var(--success, #16a34a)" }}
                 >
                   Done in 4s
                 </div>

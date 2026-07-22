@@ -9,7 +9,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 
-const API_BASE = "/api";
+const API_BASE = `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api`;;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function fmt(bytes) {
@@ -69,6 +69,34 @@ const PROGRESS_STEPS = [
   { id: 6, icon: "🎨", label: "Assembling PPTX file" },
 ];
 
+// NEW — Wizard static data
+const PRESENTATION_TYPES = [
+  "Business Pitch","Board Meeting","Sales Deck","Investor Pitch","Executive Summary","Academic",
+  "Research","Financial Report","Medical Report","Risk Analysis","Legal Report","Education",
+  "Training","Conference","Marketing","Product Launch","Custom",
+];
+const WIZARD_AUDIENCES = [
+  "CEO","Management","Investors","Customers","Students","Teachers","Doctors","Researchers",
+  "Government","Employees","Clients","Technical","Non Technical","Mixed",
+];
+const WIZARD_GOALS = [
+  "Inform","Convince","Sell","Educate","Analyze","Compare","Report","Present Findings","Decision Making","Executive Review",
+];
+const WIZARD_THEMES_FULL = [
+  "Modern","Glassmorphism","Minimal","Apple","MS Fluent","Dark","Corporate","Luxury",
+  "Professional","Creative","AI Futuristic","Finance","Healthcare","Education","Amber Grid","Government",
+];
+const WIZARD_ANIMATIONS = ["Professional","Smooth","Minimal","Corporate","No Animation"];
+const WIZARD_SLIDE_COUNTS = ["Auto","5","10","15","20","30","40","50","Custom"];
+const WIZARD_LANGUAGES = ["English","Tamil","Hindi","French","Spanish","German","Arabic","Japanese","Chinese","Portuguese"];
+const ALL_CHART_TYPES = [
+  "Automatically Detect","Pie","Bar","Line","Area","Scatter","Radar","Waterfall","Funnel",
+  "KPI Dashboard","SWOT Diagram","Timeline","Donut","Treemap","Gantt","Risk Matrix",
+];
+const WIZARD_SECTIONS_LIST = [
+  "Executive Summary","Agenda","Key Insights","Recommendations","Conclusion","References","Appendix","Questions Slide",
+];
+
 // ── Theme colours ─────────────────────────────────────────────────────────────
 const C = {
   bg: "#050A14", card: "#0B1120", cardBorder: "rgba(255,255,255,0.07)",
@@ -116,6 +144,20 @@ export default function PptGeneratorPage() {
 
   // Smart detection label
   const [detectedType, setDetectedType] = useState("");
+
+  // NEW — wizard modal state
+  const [wizardOpen, setWizardOpen]         = useState(false);
+  const [wizardStep, setWizardStep]         = useState(1);
+  const [wizardPresentationType, setWizardPresentationType] = useState("Business Pitch");
+  const [wizardGoal, setWizardGoal]         = useState("Inform");
+  const [wizardTheme, setWizardTheme]       = useState("Professional");
+  const [wizardAnimation, setWizardAnimation] = useState("Professional");
+  const [wizardSlideCountOption, setWizardSlideCountOption] = useState("Auto");
+  const [wizardContentDensity, setWizardContentDensity] = useState("Balanced");
+  const [wizardLanguage, setWizardLanguage] = useState("English");
+  const [wizardSpeakerNotes, setWizardSpeakerNotes] = useState("Yes");
+  const [selectedChartTypes, setSelectedChartTypes] = useState([]);
+  const [wizardSections, setWizardSections] = useState(["Executive Summary", "Key Insights", "Conclusion"]);
 
   useEffect(() => {
     if (activeTab === "history") loadHistory();
@@ -252,6 +294,111 @@ export default function PptGeneratorPage() {
     setSections(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]);
   }
 
+  // NEW — wizard helpers
+function toggleWizardSection(s) {
+  setWizardSections(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]);
+}
+function toggleChartType(ct) {
+  setSelectedChartTypes(prev => prev.includes(ct) ? prev.filter(x => x !== ct) : [...prev, ct]);
+}
+function openWizard() {
+  setWizardStep(1);
+  setWizardOpen(true);
+}
+function closeWizard() {
+  setWizardOpen(false);
+}
+function applyWizardAndGenerate() {
+  // Sync wizard choices into existing state before generating
+  if (wizardTheme && THEMES.find(t => t.label === wizardTheme)) setTheme(wizardTheme);
+  if (wizardSlideCountOption !== "Auto" && wizardSlideCountOption !== "Custom") {
+    setSlideCount(parseInt(wizardSlideCountOption) || slideCount);
+  }
+  if (wizardContentDensity) setContentDensity(wizardContentDensity);
+  if (wizardLanguage) {/* passed via wizardOptions below */}
+  setSpeakerNotes(wizardSpeakerNotes === "Yes");
+  if (wizardSections.length > 0) setSections(wizardSections);
+  setWizardOpen(false);
+  // Small delay to let state flush, then generate
+  setTimeout(() => handleGenerateWithWizard(), 50);
+}
+
+async function handleGenerateWithWizard() {
+  if (!extractedData) return;
+  const docText = extractedData.documentText || extractedData.extractedText || "";
+  if (!docText && !extractedData.documentId) {
+    setGenerationError("No document text found. Please re-upload the file.");
+    return;
+  }
+  setGenerating(true);
+  setGenerationError("");
+  setSuccess(null);
+
+  const effectiveSlideCount = wizardSlideCountOption === "Auto" ? slideCount
+    : wizardSlideCountOption === "Custom" ? slideCount
+    : parseInt(wizardSlideCountOption) || slideCount;
+
+  const effectiveChartType = selectedChartTypes.length > 0
+    ? selectedChartTypes.join(",")
+    : chartType === "Smart" ? "auto" : chartType === "Rich" ? "rich" : "minimal";
+
+  try {
+    const body = {
+      documentId:   extractedData.documentId,
+      documentText: docText,
+      filename:     file?.name || "Document",
+      wizardOptions: {
+        title,
+        subtitle,
+        audience,
+        purpose: wizardGoal || purpose,
+        theme:   wizardTheme || theme,
+        slideCount: effectiveSlideCount,
+        contentDensity: wizardContentDensity || contentDensity,
+        chartType: effectiveChartType,
+        sections: wizardSections.length > 0 ? wizardSections : sections,
+        speakerNotes: wizardSpeakerNotes,
+        presentationType: wizardPresentationType,
+        language: wizardLanguage,
+        animationStyle: wizardAnimation,
+        isImage:    extractedData.isImage    || false,
+        base64Data: extractedData.base64Data || undefined,
+        mimeType:   extractedData.mimeType   || undefined,
+      },
+    };
+
+    const r = await fetch(`${API_BASE}/ppt/generate-ppt-ai`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      credentials: "include",
+    });
+
+    if (!r.ok) {
+      const d = await r.json().catch(() => ({}));
+      throw new Error(d.message || "Generation failed");
+    }
+
+    const blob = await r.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href     = url;
+    a.download = `${title || "presentation"}.pptx`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    setSuccess({
+      slides:  r.headers.get("X-Slide-Count") || effectiveSlideCount,
+      theme:   wizardTheme || theme,
+      docType: detectedType,
+    });
+    setCurrentStep(6);
+  } catch (e) {
+    setGenerationError(e.message);
+  }
+  setGenerating(false);
+  }
+
   async function downloadHistory(id, filename) {
     try {
       const r = await fetch(`${API_BASE}/ppt/presentations/${id}/download`, { credentials: "include" });
@@ -372,7 +519,7 @@ export default function PptGeneratorPage() {
                 </div>
               ) : (
                 <div style={{ textAlign:"center", pointerEvents:"none" }}>
-                  <svg width="52" height="52" viewBox="0 0 52 52" fill="none" style={{ marginBottom:16 }}>
+                  <svg width="52" height="52" viewBox="0 0 52 52" fill="none" style={{ display:"block", margin:"0 auto 16px" }}>
                     <rect width="52" height="52" rx="14" fill="rgba(99,102,241,0.1)" />
                     <path d="M16 38h20M26 14v20M19 21l7-7 7 7" stroke={C.accent} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
                     <rect x="18" y="28" width="16" height="14" rx="2" stroke={C.textMuted} strokeWidth="1.5" />
@@ -498,9 +645,25 @@ export default function PptGeneratorPage() {
                       <label style={labelStyle}>Content Density</label>
                       <ToggleGroup options={["Concise","Balanced","Detailed"]} value={contentDensity} onChange={setContentDensity} />
                     </div>
-                    <div>
-                      <label style={labelStyle}>Chart Richness</label>
-                      <ToggleGroup options={["Minimal","Smart","Rich"]} value={chartType} onChange={setChartType} />
+                    <div style={{ gridColumn: "1 / -1" }}>
+                      <label style={labelStyle}>Chart Types (select all you want — AI picks best fit per slide)</label>
+                      <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginTop:6 }}>
+                        {ALL_CHART_TYPES.map(ct => (
+                          <button key={ct} onClick={() => toggleChartType(ct)} style={{
+                            background: selectedChartTypes.includes(ct) ? "rgba(99,102,241,0.15)" : "rgba(255,255,255,0.03)",
+                            border: `1px solid ${selectedChartTypes.includes(ct) ? "rgba(99,102,241,0.5)" : C.cardBorder}`,
+                            color: selectedChartTypes.includes(ct) ? C.accent : C.textMuted,
+                            borderRadius:20, padding:"6px 14px", fontSize:12, fontWeight:500, cursor:"pointer", transition:T,
+                          }}>
+                            {ct}
+                          </button>
+                        ))}
+                      </div>
+                      {selectedChartTypes.length === 0 && (
+                        <div style={{ fontSize:11, color:C.textMuted, marginTop:6 }}>
+                          No types selected — AI will automatically detect the best chart types from your document.
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -531,7 +694,24 @@ export default function PptGeneratorPage() {
                 </WizardSection>
 
                 {/* Generate button */}
-                <button onClick={handleGenerate} disabled={!canGenerate} style={{
+                {/* AI Thinking Pipeline banner */}
+                <div style={{ background:"rgba(99,102,241,0.07)", border:"1px solid rgba(99,102,241,0.2)", borderRadius:12, padding:"12px 18px", marginBottom:16 }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
+                    <span style={{ fontSize:14 }}>🤖</span>
+                    <span style={{ fontSize:12, fontWeight:700, color:C.accent, letterSpacing:0.5 }}>AI Thinking Pipeline</span>
+                  </div>
+                  <div style={{ display:"flex", flexWrap:"wrap", gap:4, alignItems:"center" }}>
+                    {["Understand Document","→","Detect Audience","→","Create Strategy","→","Build Outline","→","Write Narrative","→","Design Slides","→","Assign Charts","→","Generate PPTX"].map((s, i) => (
+                      <span key={i} style={{ fontSize:11, color: s === "→" ? C.textMuted : C.textSecondary, fontWeight: s === "→" ? 400 : 500 }}>{s}</span>
+                    ))}
+                  </div>
+                  <div style={{ fontSize:11, color:C.textMuted, marginTop:6 }}>
+                    Uses Claude Opus 4 → Claude Sonnet 4 → GPT-5 → Gemini (fallback). Never reuse summary text.
+                  </div>
+                </div>
+
+                {/* Generate button — opens wizard */}
+                <button onClick={canGenerate ? openWizard : undefined} disabled={!canGenerate} style={{
                   width:"100%", height:56, borderRadius:12, border:"none",
                   background: canGenerate ? `linear-gradient(135deg,${C.accent} 0%,#8B5CF6 100%)` : "rgba(255,255,255,0.05)",
                   color: canGenerate ? "#fff" : C.textMuted,
@@ -663,6 +843,333 @@ export default function PptGeneratorPage() {
           </div>
         )}
       </div>
+
+      {/* ── WIZARD MODAL ──────────────────────────────────────────── */}
+      {wizardOpen && (
+        <div style={{
+          position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", zIndex:1000,
+          display:"flex", alignItems:"center", justifyContent:"center", padding:16,
+        }}>
+          <div style={{
+            background:"#0B1120", border:`1px solid rgba(255,255,255,0.1)`,
+            borderRadius:20, width:"100%", maxWidth:560,
+            maxHeight:"90vh", overflowY:"auto",
+            padding:28, position:"relative",
+          }}>
+            {/* Header */}
+            <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:4 }}>
+              <span style={{ fontSize:18 }}>🎯</span>
+              <span style={{ fontWeight:700, fontSize:18, color:C.textPrimary }}>AI Presentation Wizard</span>
+              <button onClick={closeWizard} style={{ marginLeft:"auto", background:"none", border:"none", color:C.textMuted, fontSize:20, cursor:"pointer", lineHeight:1 }}>×</button>
+            </div>
+            <div style={{ fontSize:12, color:C.textMuted, marginBottom:18 }}>Step {wizardStep} of 5 — {["Type & Audience","Goal & Theme","Slides & Content","Visuals & Charts","Sections & Export"][wizardStep - 1]}</div>
+
+            {/* Step tabs */}
+            <div style={{ display:"flex", gap:4, marginBottom:24 }}>
+              {[
+                { n:1, icon:"🎯", label:"Type & Audience" },
+                { n:2, icon:"🎨", label:"Goal & Theme" },
+                { n:3, icon:"📄", label:"Slides & Content" },
+                { n:4, icon:"📊", label:"Visuals & Charts" },
+                { n:5, icon:"📋", label:"Sections & Export" },
+              ].map(tab => (
+                <div key={tab.n} onClick={() => setWizardStep(tab.n)} style={{
+                  flex:1, padding:"8px 4px", textAlign:"center", cursor:"pointer", borderRadius:10,
+                  background: wizardStep === tab.n ? "rgba(99,102,241,0.2)" : "rgba(255,255,255,0.03)",
+                  border: `1px solid ${wizardStep === tab.n ? "rgba(99,102,241,0.5)" : "rgba(255,255,255,0.07)"}`,
+                  transition:T,
+                }}>
+                  <div style={{ fontSize:16 }}>{tab.icon}</div>
+                  <div style={{ fontSize:10, color: wizardStep === tab.n ? C.accent : C.textMuted, fontWeight:600, marginTop:2 }}>{tab.label}</div>
+                  {wizardStep > tab.n && <div style={{ fontSize:9, color:C.success }}>✓</div>}
+                </div>
+              ))}
+            </div>
+
+            {/* ── STEP 1: Type & Audience ── */}
+            {wizardStep === 1 && (
+              <div>
+                <div style={{ marginBottom:20 }}>
+                  <label style={labelStyle}>Presentation Title</label>
+                  <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Auto-generated from document" style={inputStyle} />
+                </div>
+                <div style={{ marginBottom:20 }}>
+                  <label style={labelStyle}>Presentation Type</label>
+                  <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                    {PRESENTATION_TYPES.map(pt => (
+                      <button key={pt} onClick={() => setWizardPresentationType(pt)} style={{
+                        background: wizardPresentationType === pt ? "rgba(99,102,241,0.2)" : "rgba(255,255,255,0.03)",
+                        border:`1px solid ${wizardPresentationType === pt ? "rgba(99,102,241,0.6)" : "rgba(255,255,255,0.08)"}`,
+                        color: wizardPresentationType === pt ? C.accent : C.textSecondary,
+                        borderRadius:8, padding:"6px 12px", fontSize:12, fontWeight:500, cursor:"pointer", transition:T,
+                      }}>{pt}</button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label style={labelStyle}>Target Audience</label>
+                  <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                    {WIZARD_AUDIENCES.map(a => (
+                      <button key={a} onClick={() => setAudience(a)} style={{
+                        background: audience === a ? "rgba(99,102,241,0.2)" : "rgba(255,255,255,0.03)",
+                        border:`1px solid ${audience === a ? "rgba(99,102,241,0.6)" : "rgba(255,255,255,0.08)"}`,
+                        color: audience === a ? C.accent : C.textSecondary,
+                        borderRadius:8, padding:"6px 12px", fontSize:12, fontWeight:500, cursor:"pointer", transition:T,
+                      }}>{a}</button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── STEP 2: Goal & Theme ── */}
+            {wizardStep === 2 && (
+              <div>
+                <div style={{ marginBottom:20 }}>
+                  <label style={labelStyle}>Presentation Goal</label>
+                  <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                    {WIZARD_GOALS.map(g => (
+                      <button key={g} onClick={() => setWizardGoal(g)} style={{
+                        background: wizardGoal === g ? "rgba(99,102,241,0.2)" : "rgba(255,255,255,0.03)",
+                        border:`1px solid ${wizardGoal === g ? "rgba(99,102,241,0.6)" : "rgba(255,255,255,0.08)"}`,
+                        color: wizardGoal === g ? C.accent : C.textSecondary,
+                        borderRadius:8, padding:"6px 12px", fontSize:12, fontWeight:500, cursor:"pointer", transition:T,
+                      }}>{g}</button>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ marginBottom:20 }}>
+                  <label style={labelStyle}>Theme</label>
+                  <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8 }}>
+                    {WIZARD_THEMES_FULL.map(t => (
+                      <button key={t} onClick={() => setWizardTheme(t)} style={{
+                        background: wizardTheme === t ? "rgba(99,102,241,0.2)" : "rgba(255,255,255,0.03)",
+                        border:`1px solid ${wizardTheme === t ? "rgba(99,102,241,0.6)" : "rgba(255,255,255,0.08)"}`,
+                        color: wizardTheme === t ? C.accent : C.textSecondary,
+                        borderRadius:8, padding:"8px 6px", fontSize:11, fontWeight:500, cursor:"pointer", transition:T, textAlign:"center",
+                      }}>{t}</button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label style={labelStyle}>Brand Colors <span style={{ color:C.textMuted, fontWeight:400 }}>(optional)</span></label>
+                  <div style={{ fontSize:12, color:C.textMuted }}>Using theme defaults. Customize in your PPTX editor after download.</div>
+                </div>
+                <div style={{ marginTop:16 }}>
+                  <label style={labelStyle}>Animation Style</label>
+                  <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                    {WIZARD_ANIMATIONS.map(a => (
+                      <button key={a} onClick={() => setWizardAnimation(a)} style={{
+                        background: wizardAnimation === a ? "rgba(99,102,241,0.2)" : "rgba(255,255,255,0.03)",
+                        border:`1px solid ${wizardAnimation === a ? "rgba(99,102,241,0.6)" : "rgba(255,255,255,0.08)"}`,
+                        color: wizardAnimation === a ? C.accent : C.textSecondary,
+                        borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:500, cursor:"pointer", transition:T,
+                      }}>{a}</button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── STEP 3: Slides & Content ── */}
+            {wizardStep === 3 && (
+              <div>
+                <div style={{ marginBottom:20 }}>
+                  <label style={labelStyle}>Slide Count</label>
+                  <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                    {WIZARD_SLIDE_COUNTS.map(sc => (
+                      <button key={sc} onClick={() => setWizardSlideCountOption(sc)} style={{
+                        background: wizardSlideCountOption === sc ? "rgba(99,102,241,0.2)" : "rgba(255,255,255,0.03)",
+                        border:`1px solid ${wizardSlideCountOption === sc ? "rgba(99,102,241,0.6)" : "rgba(255,255,255,0.08)"}`,
+                        color: wizardSlideCountOption === sc ? C.accent : C.textSecondary,
+                        borderRadius:8, padding:"6px 16px", fontSize:12, fontWeight:500, cursor:"pointer", transition:T,
+                      }}>{sc}</button>
+                    ))}
+                  </div>
+                  {wizardSlideCountOption === "Custom" && (
+                    <div style={{ marginTop:10 }}>
+                      <input type="range" min={5} max={50} step={1} value={slideCount}
+                        onChange={e => setSlideCount(Number(e.target.value))}
+                        style={{ width:"100%" }} />
+                      <div style={{ textAlign:"center", color:C.accent, fontWeight:700, fontSize:18, marginTop:4 }}>{slideCount} slides</div>
+                    </div>
+                  )}
+                </div>
+                <div style={{ marginBottom:20 }}>
+                  <label style={labelStyle}>Content Density</label>
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                    {[
+                      { key:"Minimal", desc:"High-level, concise slides" },
+                      { key:"Balanced", desc:"Recommended for most decks" },
+                      { key:"Detailed", desc:"Deep content per slide" },
+                      { key:"Extremely Detailed", desc:"Max content, every point covered" },
+                    ].map(opt => (
+                      <button key={opt.key} onClick={() => setWizardContentDensity(opt.key)} style={{
+                        background: wizardContentDensity === opt.key ? "rgba(99,102,241,0.15)" : "rgba(255,255,255,0.03)",
+                        border:`1px solid ${wizardContentDensity === opt.key ? "rgba(99,102,241,0.5)" : "rgba(255,255,255,0.08)"}`,
+                        color: wizardContentDensity === opt.key ? C.accent : C.textSecondary,
+                        borderRadius:10, padding:"12px 14px", fontSize:12, fontWeight:500, cursor:"pointer", transition:T,
+                        textAlign:"left",
+                      }}>
+                        <div style={{ fontWeight:600 }}>{opt.key}</div>
+                        <div style={{ fontSize:11, color:C.textMuted, marginTop:2 }}>{opt.desc}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ marginBottom:20 }}>
+                  <label style={labelStyle}>Output Language</label>
+                  <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                    {WIZARD_LANGUAGES.map(lang => (
+                      <button key={lang} onClick={() => setWizardLanguage(lang)} style={{
+                        background: wizardLanguage === lang ? "rgba(99,102,241,0.2)" : "rgba(255,255,255,0.03)",
+                        border:`1px solid ${wizardLanguage === lang ? "rgba(99,102,241,0.6)" : "rgba(255,255,255,0.08)"}`,
+                        color: wizardLanguage === lang ? C.accent : C.textSecondary,
+                        borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:500, cursor:"pointer", transition:T,
+                      }}>{lang}</button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label style={labelStyle}>Speaker Notes</label>
+                  <div style={{ display:"flex", gap:6 }}>
+                    {["Yes","No"].map(v => (
+                      <button key={v} onClick={() => setWizardSpeakerNotes(v)} style={{
+                        background: wizardSpeakerNotes === v ? "rgba(99,102,241,0.2)" : "rgba(255,255,255,0.03)",
+                        border:`1px solid ${wizardSpeakerNotes === v ? "rgba(99,102,241,0.6)" : "rgba(255,255,255,0.08)"}`,
+                        color: wizardSpeakerNotes === v ? C.accent : C.textSecondary,
+                        borderRadius:8, padding:"6px 22px", fontSize:12, fontWeight:500, cursor:"pointer", transition:T,
+                      }}>{v}</button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── STEP 4: Visuals & Charts ── */}
+            {wizardStep === 4 && (
+              <div>
+                <div style={{ marginBottom:20 }}>
+                  <label style={labelStyle}>Chart Types <span style={{ color:C.textMuted, fontWeight:400 }}>(select as many as you want)</span></label>
+                  <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                    {ALL_CHART_TYPES.map(ct => (
+                      <button key={ct} onClick={() => toggleChartType(ct)} style={{
+                        background: selectedChartTypes.includes(ct) ? "rgba(99,102,241,0.2)" : "rgba(255,255,255,0.03)",
+                        border:`1px solid ${selectedChartTypes.includes(ct) ? "rgba(99,102,241,0.6)" : "rgba(255,255,255,0.08)"}`,
+                        color: selectedChartTypes.includes(ct) ? C.accent : C.textSecondary,
+                        borderRadius:8, padding:"6px 12px", fontSize:12, fontWeight:500, cursor:"pointer", transition:T,
+                      }}>{ct}</button>
+                    ))}
+                  </div>
+                  {selectedChartTypes.length === 0 && (
+                    <div style={{ fontSize:11, color:C.textMuted, marginTop:8, background:"rgba(255,255,255,0.03)", borderRadius:8, padding:"8px 12px" }}>
+                      💡 No types selected — AI will automatically detect and assign the most meaningful chart for each data slide based on your document content.
+                    </div>
+                  )}
+                </div>
+
+                {/* AI Thinking Pipeline */}
+                <div style={{ background:"rgba(99,102,241,0.07)", border:"1px solid rgba(99,102,241,0.2)", borderRadius:12, padding:"14px 16px" }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
+                    <span style={{ fontSize:14 }}>🤖</span>
+                    <span style={{ fontSize:12, fontWeight:700, color:C.accent, letterSpacing:0.5 }}>AI Thinking Pipeline</span>
+                  </div>
+                  <div style={{ display:"flex", flexWrap:"wrap", gap:4, alignItems:"center", marginBottom:8 }}>
+                    {["Understand Document","→","Detect Audience","→","Create Strategy","→","Build Outline","→","Write Narrative","→","Design Slides","→","Assign Charts","→","Generate PPTX"].map((s, i) => (
+                      <span key={i} style={{ fontSize:11, color: s === "→" ? C.textMuted : C.textSecondary, fontWeight: s === "→" ? 400 : 500 }}>{s}</span>
+                    ))}
+                  </div>
+                  <div style={{ fontSize:11, color:C.textMuted }}>
+                    Uses Claude Opus 4 → Claude Sonnet 4 → GPT-5 → Gemini (fallback). Never reuse summary text.
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── STEP 5: Sections & Export ── */}
+            {wizardStep === 5 && (
+              <div>
+                <div style={{ marginBottom:20 }}>
+                  <label style={labelStyle}>Include Sections</label>
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6 }}>
+                    {WIZARD_SECTIONS_LIST.map(s => (
+                      <button key={s} onClick={() => toggleWizardSection(s)} style={{
+                        background: wizardSections.includes(s) ? "rgba(99,102,241,0.15)" : "rgba(255,255,255,0.03)",
+                        border:`1px solid ${wizardSections.includes(s) ? "rgba(99,102,241,0.5)" : "rgba(255,255,255,0.08)"}`,
+                        color: wizardSections.includes(s) ? C.accent : C.textSecondary,
+                        borderRadius:8, padding:"8px 12px", fontSize:12, fontWeight:500, cursor:"pointer", transition:T,
+                        textAlign:"left",
+                      }}>{s}</button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* McKinsey-Quality Output badge */}
+                <div style={{ background:"rgba(16,185,129,0.07)", border:"1px solid rgba(16,185,129,0.2)", borderRadius:10, padding:"12px 14px", marginBottom:18 }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:4 }}>
+                    <span style={{ fontSize:13 }}>✅</span>
+                    <span style={{ fontSize:12, fontWeight:700, color:C.success }}>McKinsey-Quality Output</span>
+                  </div>
+                  <div style={{ fontSize:11, color:C.textMuted }}>
+                    AI QA checks: no duplicate slides, no text overflow, no empty slides, consistent typography, accurate data, professional layouts.
+                  </div>
+                </div>
+
+                {/* Presentation Summary */}
+                <div style={{ background:"rgba(255,255,255,0.03)", border:`1px solid ${C.cardBorder}`, borderRadius:12, padding:16 }}>
+                  <div style={{ fontWeight:700, fontSize:13, color:C.textPrimary, marginBottom:12 }}>📋 Presentation Summary</div>
+                  {[
+                    ["Title", title || "Auto-generated"],
+                    ["Type", wizardPresentationType],
+                    ["Audience", audience],
+                    ["Goal", wizardGoal],
+                    ["Theme", wizardTheme],
+                    ["Slides", wizardSlideCountOption === "Auto" || wizardSlideCountOption === "Custom" ? slideCount : wizardSlideCountOption],
+                    ["Density", wizardContentDensity],
+                    ["Language", wizardLanguage],
+                    ["Speaker Notes", wizardSpeakerNotes],
+                    ["Charts", selectedChartTypes.length > 0 ? selectedChartTypes.join(", ") : "Automatically Detect"],
+                    ["Sections", wizardSections.join(", ")],
+                  ].map(([k, v]) => (
+                    <div key={k} style={{ display:"flex", justifyContent:"space-between", padding:"5px 0", borderBottom:`1px solid rgba(255,255,255,0.04)`, fontSize:12 }}>
+                      <span style={{ color:C.textMuted }}>{k}</span>
+                      <span style={{ color:C.textSecondary, fontWeight:500, textAlign:"right", maxWidth:"60%", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{String(v)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Navigation buttons */}
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginTop:24 }}>
+              <div style={{ display:"flex", gap:8 }}>
+                {wizardStep > 1 && (
+                  <button onClick={() => setWizardStep(s => s - 1)} style={{
+                    background:"rgba(255,255,255,0.05)", border:`1px solid ${C.cardBorder}`,
+                    color:C.textSecondary, borderRadius:8, padding:"9px 18px", fontSize:13, fontWeight:600, cursor:"pointer", transition:T,
+                  }}>← Back</button>
+                )}
+                <button onClick={closeWizard} style={{
+                  background:"none", border:`1px solid ${C.cardBorder}`,
+                  color:C.textMuted, borderRadius:8, padding:"9px 18px", fontSize:13, cursor:"pointer",
+                }}>Cancel</button>
+              </div>
+              {wizardStep < 5 ? (
+                <button onClick={() => setWizardStep(s => s + 1)} style={{
+                  background:`linear-gradient(135deg,${C.accent} 0%,#8B5CF6 100%)`,
+                  color:"#fff", border:"none", borderRadius:8, padding:"9px 22px", fontSize:13, fontWeight:700, cursor:"pointer", transition:T,
+                }}>Next →</button>
+              ) : (
+                <button onClick={applyWizardAndGenerate} style={{
+                  background:`linear-gradient(135deg,${C.accent} 0%,#8B5CF6 100%)`,
+                  color:"#fff", border:"none", borderRadius:10, padding:"11px 24px", fontSize:14, fontWeight:700, cursor:"pointer",
+                  boxShadow:`0 4px 20px ${C.accentGlow}`, transition:T,
+                }}>✨ Generate AI Presentation</button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

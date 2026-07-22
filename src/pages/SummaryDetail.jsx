@@ -8,6 +8,7 @@ import { jsPDF } from "jspdf";
 import { useNotifications } from "../context/NotificationContext";
 import DocumentChat from "../components/DocumentChat";
 import { Link2, LinkOff, Copy, Check } from "lucide-react";
+import TagManager from "../components/TagManager";
 
 function SummaryDetail() {
   const { id } = useParams();
@@ -214,6 +215,8 @@ function SummaryDetail() {
           </div>
         )}
 
+        <TagManager docId={doc._id} initialTags={doc.tags || []} />
+
         {/* ── Share Link section ───────────────────────────────────────── */}
         <div className="mb-6 rounded-xl border border-dashed border-gray-200 dark:border-gray-700 p-4">
           <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -287,18 +290,7 @@ function SummaryDetail() {
           </ReactMarkdown>
         </div>
 
-        {/* Actions */}
-        <div className="flex gap-3 flex-wrap mt-8 pt-6 border-t border-gray-100 dark:border-gray-800">
-          <button onClick={copySummary} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 transition font-medium">
-            📋 Copy
-          </button>
-          <button onClick={downloadTXT} className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-green-700 transition font-medium">
-            📄 Download TXT
-          </button>
-          <button onClick={downloadPDF} className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-red-700 transition font-medium">
-            📑 Download PDF
-          </button>
-        </div>
+        {/* Actions */} <div className="flex gap-3 flex-wrap mt-8 pt-6 border-t border-gray-100 dark:border-gray-800"> {/* 3.3 — Prominent share button */} {!shareUrl ? ( <button onClick={handleCreateShare} disabled={shareLoading} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition disabled:opacity-60" style={{ background: "linear-gradient(135deg, var(--primary, #2563eb), #4f46e5)", color: "#fff", boxShadow: "0 2px 8px rgba(37,99,235,0.35)", }} > <Link2 size={14} /> {shareLoading ? "Creating link…" : "Share summary"} </button> ) : ( <button onClick={handleCopyShareLink} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition" style={{ background: copied ? "linear-gradient(135deg, #16a34a, #15803d)" : "linear-gradient(135deg, var(--primary, #2563eb), #4f46e5)", color: "#fff", boxShadow: "0 2px 8px rgba(37,99,235,0.35)", }} > {copied ? <Check size={14} /> : <Copy size={14} />} {copied ? "Link copied!" : "Copy share link"} </button> )} <button onClick={copySummary} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 transition font-medium"> 📋 Copy </button> <button onClick={downloadTXT} className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-green-700 transition font-medium"> 📄 Download TXT </button> <button onClick={downloadPDF} className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-red-700 transition font-medium"> 📑 Download PDF </button> </div>
 
         {/* Q&A Chat */}
         <DocumentChat

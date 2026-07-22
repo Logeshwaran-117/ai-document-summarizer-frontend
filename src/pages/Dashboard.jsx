@@ -2,11 +2,13 @@
 // Adds FeatureGate to every route so feature flags actually block access.
 // All other code unchanged.
 
-import { lazy, Suspense, useEffect } from "react";
+import { lazy, Suspense, useEffect, useState} from "react";
 import Navbar            from "../components/Navbar";
 import Sidebar           from "../components/Sidebar";
 import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import Footer from "../components/Footer";
+import BulkUpload from "../components/BulkUpload";
+import ChangelogPage from "./ChangelogPage";
 
 // ── Lazy-loaded pages (each loads only when the user navigates to it) ─────────
 const Uploadcard        = lazy(() => import("../components/Uploadcard"));
@@ -55,6 +57,7 @@ function AdminGuard({ user, children }) {
 }
 
 function Dashboard({ setIsAuthenticated, user }) {
+  const [bulkMode, setBulkMode] = useState(false);
   return (
     <MaintenanceGate user={user}>
       <div className="flex h-screen w-full overflow-hidden" style={{ background: "var(--bg)" }}>
@@ -81,7 +84,21 @@ function Dashboard({ setIsAuthenticated, user }) {
                 element={
                   <FeatureGate flag="summarizer">
                     <FeatureGate flag="docUpload">
-                      <Uploadcard />
+                      <div className="p-6">
+                        <div className="flex justify-end mb-4">
+                          <button
+                            onClick={() => setBulkMode((v) => !v)}
+                            className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition"
+                          >
+                            {bulkMode ? "📄 Single File" : "📂 Bulk Upload"}
+                          </button>
+                        </div>
+                        {bulkMode ? (
+                          <BulkUpload user={user} onComplete={(results) => console.log(results)} />
+                        ) : (
+                          <Uploadcard />
+                        )}
+                      </div>
                     </FeatureGate>
                   </FeatureGate>
                 }
@@ -92,15 +109,7 @@ function Dashboard({ setIsAuthenticated, user }) {
               <Route path="/history/:id" element={<SummaryDetailPage />} />
 
               {/* Settings */}
-              <Route
-                path="/settings"
-                element={
-                  <Settings
-                    user={user}
-                    setIsAuthenticated={setIsAuthenticated}
-                  />
-                }
-              />
+              <Route path="/settings" element={<Settings user={user} setIsAuthenticated={setIsAuthenticated} />} />
 
               {/* Table extraction */}
               <Route
@@ -158,6 +167,7 @@ function Dashboard({ setIsAuthenticated, user }) {
               <Route path="/privacy" element={<PrivacyPage />} />
 
               <Route path="*" element={<Navigate to="/" />} />
+              <Route path="/changelog" element={<ChangelogPage />} />
             </Routes>
             </Suspense>
           </main>

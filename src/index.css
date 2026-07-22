@@ -4,6 +4,7 @@
 :root {
   --bg:          #F8FAFC;
   --card:        #FFFFFF;
+  --card-rgb:    255, 255, 255; 
   --secondary:   #F1F5F9;
   --border:      #E2E8F0;
   --primary:     #4F46E5;
@@ -16,6 +17,8 @@
   --shadow:      0 1px 3px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.04);
   --shadow-md:   0 4px 24px rgba(0,0,0,.08);
   --tooltip-bg:  #FFFFFF;
+  --success:     #22c55e;             /* ← NEW — used by Footer health dot */
+  --danger:      #ef4444;  
 }
 
 .dark {
@@ -30,6 +33,9 @@
   --shadow:      0 1px 3px rgba(0,0,0,.4), 0 4px 16px rgba(0,0,0,.3);
   --shadow-md:   0 4px 24px rgba(0,0,0,.5);
   --tooltip-bg:  #1E293B;
+  --card-rgb:    17, 24, 39;
+  --success:     #4ade80;             /* ← NEW */
+  --danger:      #f87171;             /* ← NEW */
 }
 
 * { transition: background-color .2s, border-color .2s, color .15s; }
@@ -81,7 +87,11 @@ body {
 }
 
 /* ── Tailwind v4: explicit dark mode via class strategy ── */
-@variant dark (&:where(.dark, .dark *));
+@layer utilities {
+  @media (prefers-color-scheme: dark) {
+    .dark { color-scheme: dark; }
+  }
+}
 
 /* ── Fix arbitrary grid layout for side panel ── */
 .xl\:grid-cols-side {

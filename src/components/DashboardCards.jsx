@@ -7,8 +7,9 @@ import HeroSection     from "./dashboard/HeroSection";
 import AnalyticsCharts from "./dashboard/AnalyticsCharts";
 import RecentDocuments from "./dashboard/RecentDocuments";
 import SidePanel       from "./dashboard/SidePanel";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import OnboardingWizard from "./OnboardingWizard";
+import { Upload } from "lucide-react";
 
 /* ── Skeleton ── */
 function Skeleton({ className }) {
@@ -34,6 +35,37 @@ function DashboardSkeleton() {
           <Skeleton className="h-52" />
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Empty state shown when user has no documents yet ─────────────────────────
+function EmptyDocState() {
+  const navigate = useNavigate();
+  return (
+    <div
+      className="rounded-2xl flex flex-col items-center justify-center text-center py-14 px-6"
+      style={{ background: "var(--card)", border: "2px dashed var(--border)" }}
+    >
+      <div
+        className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4"
+        style={{ background: "rgba(var(--primary-rgb),.10)" }}
+      >
+        <Upload size={22} style={{ color: "var(--primary)" }} />
+      </div>
+      <h3 className="text-base font-bold mb-1.5" style={{ color: "var(--text)" }}>
+        No documents yet
+      </h3>
+      <p className="text-sm mb-5 max-w-xs" style={{ color: "var(--muted)" }}>
+        Upload your first PDF, Word doc, or spreadsheet to get an AI summary in seconds.
+      </p>
+      <button
+        onClick={() => navigate("/upload")}
+        className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition hover:opacity-90"
+        style={{ background: "var(--primary)", boxShadow: "0 2px 12px rgba(var(--primary-rgb),.3)" }}
+      >
+        Upload your first document →
+      </button>
     </div>
   );
 }
@@ -85,14 +117,33 @@ function DashboardCards({ user }) {
     }
   }
 
+  const location = useLocation();
+  const navigate  = useNavigate();
   const storageKey = `onboarding_done_${user?._id}`;
-  const [showOnboarding, setShowOnboarding] = useState(
-    !localStorage.getItem(storageKey)
- );
+
+  // Show onboarding if:
+  // 1. User just signed up (arrives with ?onboarding=1), OR
+  // 2. They haven't completed it yet (key not set in localStorage)
+  const fromSignup = new URLSearchParams(location.search).get("onboarding") === "1";
+  const [showOnboarding, setShowOnboarding] = useState(() => {
+    if (fromSignup) {
+      // Clear the flag from the URL immediately but keep wizard open
+      return true;
+    }
+    return !localStorage.getItem(storageKey);
+  });
+
+  // Strip ?onboarding=1 from URL without a page reload
+  useEffect(() => {
+    if (fromSignup) {
+      navigate("/", { replace: true });
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleDismissOnboarding = () => {
     localStorage.setItem(storageKey, "1");
     setShowOnboarding(false);
- };
+  };
 
   if (loading) return <DashboardSkeleton />;
 
@@ -114,7 +165,11 @@ function DashboardCards({ user }) {
       <div className="dashboard-main-grid gap-6">
         <div className="space-y-6 min-w-0">
           <AnalyticsCharts chartData={chartData} />
-          <RecentDocuments docs={recentDocs} />
+          {recentDocs.length === 0 && !loading ? (
+            <EmptyDocState />
+          ) : (
+            <RecentDocuments docs={recentDocs} />
+          )}
         </div>
         <SidePanel billing={billing} docs={recentDocs} />
       </div>

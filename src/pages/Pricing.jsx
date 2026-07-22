@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import api from "../api";
+import PlansBillingChatbot from "../components/PlansBillingChatbot";
 
 // ── Cashfree loader ───────────────────────────────────────────────────────────
 function loadCashfree() {
@@ -305,7 +306,7 @@ function PlanCard({ plan, current, billing, cycle, onSelect }) {
     <div className={`relative flex flex-col rounded-2xl border-2 overflow-hidden transition-all duration-200
       ${isCurrentPlan ? `ring-2 ${meta.ring} border-transparent scale-[1.02]` : "border-gray-700 hover:border-gray-500"}`}>
 
-      {plan.popular && !isCurrentPlan && (
+      {(plan.popular ?? plan.id === "pro") && !isCurrentPlan && (
         <div className="absolute top-3 right-3 z-10">
           <span className="bg-blue-500 text-white text-[10px] font-black px-2.5 py-1 rounded-full tracking-wide">POPULAR</span>
         </div>
