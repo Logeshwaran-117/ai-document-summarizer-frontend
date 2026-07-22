@@ -84,7 +84,21 @@ function Dashboard({ setIsAuthenticated, user }) {
                 element={
                   <FeatureGate flag="summarizer">
                     <FeatureGate flag="docUpload">
-                      <Uploadcard />
+                      <div className="p-6">
+                        <div className="flex justify-end mb-4">
+                          <button
+                            onClick={() => setBulkMode((v) => !v)}
+                            className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition"
+                          >
+                            {bulkMode ? "📄 Single File" : "📂 Bulk Upload"}
+                          </button>
+                        </div>
+                        {bulkMode ? (
+                          <BulkUpload user={user} onComplete={(results) => console.log(results)} />
+                        ) : (
+                          <Uploadcard />
+                        )}
+                      </div>
                     </FeatureGate>
                   </FeatureGate>
                 }
@@ -95,34 +109,7 @@ function Dashboard({ setIsAuthenticated, user }) {
               <Route path="/history/:id" element={<SummaryDetailPage />} />
 
               {/* Settings */}
-              <Route
-  path="/upload"
-  element={
-    <FeatureGate flag="summarizer">
-      <FeatureGate flag="docUpload">
-        <div className="p-6">
-          <div className="flex justify-end mb-4">
-            <button
-              onClick={() => setBulkMode((v) => !v)}
-              className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition"
-            >
-              {bulkMode ? "📄 Single File" : "📂 Bulk Upload"}
-            </button>
-          </div>
-
-          {bulkMode ? (
-            <BulkUpload
-              user={user}
-              onComplete={(results) => console.log(results)}
-            />
-          ) : (
-            <Uploadcard />
-          )}
-        </div>
-      </FeatureGate>
-    </FeatureGate>
-  }
-/>
+              <Route path="/settings" element={<Settings user={user} setIsAuthenticated={setIsAuthenticated} />} />
 
               {/* Table extraction */}
               <Route
