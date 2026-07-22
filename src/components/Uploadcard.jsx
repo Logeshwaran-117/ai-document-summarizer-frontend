@@ -892,17 +892,7 @@ function Uploadcard() {
 
                   {/* PPT split button */}
                   <div className="relative flex rounded-lg overflow-hidden shadow-sm">
-                    <button
-                      onClick={() => setShowPptModal(true)}
-                      disabled={pptLoading || pptPdfLoading}
-                      className="px-4 py-2 text-white transition font-medium text-sm flex items-center gap-1.5"
-                      style={{
-                        background: pptLoading ? "var(--warning)" : "#f97316",
-                        cursor: pptLoading || pptPdfLoading ? "not-allowed" : "pointer",
-                      }}
-                    >
-                      {pptLoading ? "⏳ Generating..." : "📊 Quick PPT"}
-                    </button>
+                  
                     <div className="w-px" style={{ background: "#ea6b10" }} />
                     <div className="relative">
                       {showPptPdfMenu && (
@@ -945,21 +935,7 @@ function Uploadcard() {
                       )}
                     </div>
                   </div>
-
-                  {/* AI Wizard button */}
-                  <button
-                    onClick={() => setShowWizard(true)}
-                    disabled={wizardLoading || !summary}
-                    className="px-4 py-2 rounded-lg text-white text-sm font-semibold transition hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
-                    style={{
-                      background: wizardLoading
-                        ? "var(--muted)"
-                        : "linear-gradient(135deg, #7c3aed, #2563eb)",
-                      boxShadow: "0 2px 12px rgba(124,58,237,0.35)",
-                    }}
-                  >
-                    {wizardLoading ? "⏳ AI Generating…" : "🚀 AI Presentation"}
-                  </button>
+                 
                 </div>
 
                 <div id="doc-chat-anchor"><DocumentChat documentId={documentId} /></div>
