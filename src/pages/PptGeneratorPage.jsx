@@ -150,7 +150,8 @@ export default function PptGeneratorPage() {
   const [wizardStep, setWizardStep]         = useState(1);
   const [wizardPresentationType, setWizardPresentationType] = useState("Business Pitch");
   const [wizardGoal, setWizardGoal]         = useState("Inform");
-  const [wizardTheme, setWizardTheme]       = useState("Professional");
+  const [wizardTheme, setWizardTheme]       = useState("Light Mode");
+  const [wizardChartCount, setWizardChartCount] = useState("Auto");
   const [wizardAnimation, setWizardAnimation] = useState("Professional");
   const [wizardSlideCountOption, setWizardSlideCountOption] = useState("Auto");
   const [wizardContentDensity, setWizardContentDensity] = useState("Balanced");
@@ -361,6 +362,7 @@ async function handleGenerateWithWizard() {
         chartType: effectiveChartType,
         sections: wizardSections.length > 0 ? wizardSections : sections,
         speakerNotes: wizardSpeakerNotes,
+        maxCharts: wizardChartCount,
         presentationType: wizardPresentationType,
         language: wizardLanguage,
         animationStyle: wizardAnimation,
@@ -798,6 +800,24 @@ async function handleGenerateWithWizard() {
             {wizardStep === 2 && (
               <div>
                 <div style={{ marginBottom:20 }}>
+                  <label style={labelStyle}>Theme Mode</label>
+                  <div style={{ display:"flex", gap:10 }}>
+                    {["Light Mode", "Dark Mode"].map(mode => (
+                      <button key={mode} onClick={() => setWizardTheme(mode)} style={{
+                        flex:1, padding:"12px 16px", borderRadius:10, cursor:"pointer",
+                        background: wizardTheme === mode ? "rgba(99,102,241,0.2)" : "rgba(255,255,255,0.03)",
+                        border:`1px solid ${wizardTheme === mode ? C.accent : "rgba(255,255,255,0.08)"}`,
+                        color: wizardTheme === mode ? C.accent : C.textSecondary,
+                        fontWeight:600, fontSize:13, transition:T,
+                        display:"flex", alignItems:"center", justifyContent:"center", gap:8
+                      }}>
+                        <span>{mode === "Light Mode" ? "☀️" : "🌙"}</span>
+                        {mode}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ marginBottom:20 }}>
                   <label style={labelStyle}>Presentation Goal</label>
                   <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
                     {WIZARD_GOALS.map(g => (
@@ -811,7 +831,7 @@ async function handleGenerateWithWizard() {
                   </div>
                 </div>
                 <div style={{ marginBottom:20 }}>
-                  <label style={labelStyle}>Theme</label>
+                  <label style={labelStyle}>Color Theme Variant</label>
                   <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8 }}>
                     {WIZARD_THEMES_FULL.map(t => (
                       <button key={t} onClick={() => setWizardTheme(t)} style={{
@@ -822,10 +842,6 @@ async function handleGenerateWithWizard() {
                       }}>{t}</button>
                     ))}
                   </div>
-                </div>
-                <div>
-                  <label style={labelStyle}>Brand Colors <span style={{ color:C.textMuted, fontWeight:400 }}>(optional)</span></label>
-                  <div style={{ fontSize:12, color:C.textMuted }}>Using theme defaults. Customize in your PPTX editor after download.</div>
                 </div>
                 <div style={{ marginTop:16 }}>
                   <label style={labelStyle}>Animation Style</label>
@@ -921,6 +937,27 @@ async function handleGenerateWithWizard() {
             {/* ── STEP 4: Visuals & Charts ── */}
             {wizardStep === 4 && (
               <div>
+                <div style={{ marginBottom:20 }}>
+                  <label style={labelStyle}>Max Number of Charts in Presentation</label>
+                  <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                    {["Auto", "0 (No Charts)", "1 Chart", "2 Charts", "3 Charts", "5 Charts"].map(opt => {
+                      const val = opt.includes("0") ? "0" : opt.includes("1") ? "1" : opt.includes("2") ? "2" : opt.includes("3") ? "3" : opt.includes("5") ? "5" : "Auto";
+                      const isSel = wizardChartCount === val;
+                      return (
+                        <button key={opt} onClick={() => setWizardChartCount(val)} style={{
+                          background: isSel ? "rgba(99,102,241,0.2)" : "rgba(255,255,255,0.03)",
+                          border:`1px solid ${isSel ? "rgba(99,102,241,0.6)" : "rgba(255,255,255,0.08)"}`,
+                          color: isSel ? C.accent : C.textSecondary,
+                          borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:500, cursor:"pointer", transition:T,
+                        }}>{opt}</button>
+                      );
+                    })}
+                  </div>
+                  <div style={{ fontSize:11, color:C.textMuted, marginTop:6 }}>
+                    If set to e.g. "1 Chart", the AI will generate at most 1 chart graph and convert all remaining data into rich analytical tables and detailed text panels.
+                  </div>
+                </div>
+
                 <div style={{ marginBottom:20 }}>
                   <label style={labelStyle}>Chart Types <span style={{ color:C.textMuted, fontWeight:400 }}>(select as many as you want)</span></label>
                   <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
