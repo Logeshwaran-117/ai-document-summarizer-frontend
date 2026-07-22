@@ -34,6 +34,8 @@ const THEMES = [
   { key: "Finance",          swatch: ["#1E2761", "#C9A84C"], label: "Finance" },
   { key: "Healthcare",       swatch: ["#0F3D3E", "#3FBFAE"], label: "Healthcare" },
   { key: "Education",        swatch: ["#1B4332", "#F4A261"], label: "Education" },
+  { key: "Amber Grid",       swatch: ["#1B2A52", "#F5A623"], label: "Amber Grid" },
+  { key: "Government",       swatch: ["#1B2A52", "#F5A623"], label: "Government" },
 ];
 
 const SLIDE_COUNTS = ["Auto", "5", "10", "15", "20", "30", "40", "50", "Custom"];
