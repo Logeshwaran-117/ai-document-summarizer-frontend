@@ -599,14 +599,6 @@ function Navbar({ setIsAuthenticated, user }) {
   );
 }
 
-<CommandPalette
-  open={showPalette}
-  onClose={() => setShowPalette(false)}
-  darkMode={darkMode}
-  setDarkMode={setDarkMode}
-  user={user}
-/>
-
 function ProfileAction({ icon: Icon, label, onClick, danger }) {
   return (
     <button

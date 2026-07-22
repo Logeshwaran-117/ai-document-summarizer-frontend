@@ -87,7 +87,11 @@ body {
 }
 
 /* ── Tailwind v4: explicit dark mode via class strategy ── */
-@variant dark (&:where(.dark, .dark *));
+@layer utilities {
+  @media (prefers-color-scheme: dark) {
+    .dark { color-scheme: dark; }
+  }
+}
 
 /* ── Fix arbitrary grid layout for side panel ── */
 .xl\:grid-cols-side {
