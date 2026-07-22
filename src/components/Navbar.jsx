@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import api from "../api";
 import NotificationCenter from "./NotificationCenter";
+import KeyboardShortcutsModal from "./KeyboardShortcutsModal";
 
 const BREADCRUMB_MAP = {
   "/":               "Overview",
@@ -365,6 +366,7 @@ function Navbar({ setIsAuthenticated, user }) {
   });
   const [showProfile, setShowProfile] = useState(false);
   const [showPalette, setShowPalette] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
   const profileRef = useRef(null);
   const navigate   = useNavigate();
   const location   = useLocation();
@@ -376,15 +378,31 @@ function Navbar({ setIsAuthenticated, user }) {
   }, [darkMode]);
 
   /* Ctrl+K / Cmd+K shortcut */
+  /* Keyboard shortcuts */
   useEffect(() => {
     const handler = (e) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+      const tag = document.activeElement?.tagName;
+      const isTyping =
+        tag === "INPUT" ||
+       tag === "TEXTAREA" ||
+       document.activeElement?.isContentEditable;
+
+     // Ctrl/Cmd + K
+     if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
-        setShowPalette(v => !v);
+        setShowPalette((v) => !v);
+       return;
       }
-    };
+
+     // ?
+      if (e.key === "?" && !isTyping) {
+        e.preventDefault();
+        setShowShortcuts((v) => !v);
+       }
+      };
+
     window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
+   return () => window.removeEventListener("keydown", handler);
   }, []);
 
   /* Close profile on outside click */
@@ -468,6 +486,18 @@ function Navbar({ setIsAuthenticated, user }) {
           >
             {darkMode ? <Sun size={15} /> : <Moon size={15} />}
           </button>
+
+          <button
+  onClick={() => setShowShortcuts(true)}
+  title="Keyboard shortcuts (?)"
+  className="w-8 h-8 flex items-center justify-center rounded-lg transition-all hover:scale-105"
+  style={{
+    background: "var(--secondary)",
+    color: "var(--muted)",
+  }}
+>
+  <Keyboard size={15} />
+</button>
 
           {/* Notifications */}
           <NotificationCenter />
@@ -568,6 +598,14 @@ function Navbar({ setIsAuthenticated, user }) {
     </>
   );
 }
+
+<CommandPalette
+  open={showPalette}
+  onClose={() => setShowPalette(false)}
+  darkMode={darkMode}
+  setDarkMode={setDarkMode}
+  user={user}
+/>
 
 function ProfileAction({ icon: Icon, label, onClick, danger }) {
   return (

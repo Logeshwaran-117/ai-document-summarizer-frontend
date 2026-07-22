@@ -519,7 +519,7 @@ async function handleGenerateWithWizard() {
                 </div>
               ) : (
                 <div style={{ textAlign:"center", pointerEvents:"none" }}>
-                  <svg width="52" height="52" viewBox="0 0 52 52" fill="none" style={{ marginBottom:16 }}>
+                  <svg width="52" height="52" viewBox="0 0 52 52" fill="none" style={{ display:"block", margin:"0 auto 16px" }}>
                     <rect width="52" height="52" rx="14" fill="rgba(99,102,241,0.1)" />
                     <path d="M16 38h20M26 14v20M19 21l7-7 7 7" stroke={C.accent} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
                     <rect x="18" y="28" width="16" height="14" rx="2" stroke={C.textMuted} strokeWidth="1.5" />

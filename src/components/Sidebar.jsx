@@ -3,7 +3,7 @@
 // Fix applied: collapsed-state tooltip uses a custom CSS tooltip instead of the
 // native `title` attribute (which shows after a 1 s browser delay and looks ugly).
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import UsageBadge from "./UsageBadge";
 import { useFeatureFlags } from "../hooks/useFeatureFlag";
+import { hasUnreadChangelog } from "../pages/ChangelogPage";
 
 // Map locked routes to the plan that unlocks them
 const ROUTE_PLAN_LABEL = {
@@ -174,6 +175,17 @@ function NavItem({ to, icon: Icon, label, sub, collapsed, isActive, accent, disa
 function Sidebar({ user }) {
   const location  = useLocation();
   const [collapsed, setCollapsed] = useState(true);
+  const [hasUnread, setHasUnread] = useState(() => hasUnreadChangelog());
+
+useEffect(() => {
+  const handler = () => setHasUnread(false);
+
+  window.addEventListener("changelog-read", handler);
+
+  return () => {
+    window.removeEventListener("changelog-read", handler);
+  };
+}, []);
   const isAdmin   = user?.role === "admin";
   const flags     = useFeatureFlags();
 
@@ -288,7 +300,7 @@ function Sidebar({ user }) {
 
         {/* What's new — always visible, dot badge when there's something new */}
         <Link
-          to="/whats-new"
+          to="/changelog"
           className="flex items-center gap-3 transition-all hover:opacity-80"
           style={{
             padding: collapsed ? "10px 0" : "10px 12px",
@@ -299,11 +311,16 @@ function Sidebar({ user }) {
         >
           <div className="relative shrink-0">
             <Sparkles size={15} />
-            {/* Unread dot */}
-            <span
-              className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full"
-              style={{ background: "#22c55e", border: "2px solid var(--card)" }}
-            />
+           {/* Unread dot — only shows when there's a new changelog entry */}
+{hasUnread && (
+  <span
+    className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full"
+    style={{
+      background: "#22c55e",
+      border: "2px solid var(--card)",
+    }}
+  />
+)}
           </div>
           <AnimatePresence>
             {!collapsed && (
