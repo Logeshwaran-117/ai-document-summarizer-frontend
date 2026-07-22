@@ -211,6 +211,9 @@ export default function PptGeneratorPage() {
       const autoTitle = droppedFile.name.replace(/\.[^/.]+$/, "").replace(/[_-]/g, " ");
       setTitle(d.suggestedTitle || autoTitle);
       setDetectedType(inferDocType(droppedFile.name));
+      // Auto-open AI Presentation Wizard immediately on upload
+      setWizardStep(1);
+      setWizardOpen(true);
     } catch (e) {
       setUploadError(e.message);
     }
@@ -572,159 +575,28 @@ async function handleGenerateWithWizard() {
               </div>
             )}
 
-            {/* Wizard — shown after upload, hidden during generation / success */}
+            {/* AI Wizard launch card — shown after upload, hidden during generation / success */}
             {extractedData && !success && !generating && (
-              <div style={{ marginTop:24 }}>
-                {/* Presentation Identity */}
-                <WizardSection title="Presentation Identity">
-                  <div style={{ marginBottom:14 }}>
-                    <label style={labelStyle}>Title</label>
-                    <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Auto-generated from document" style={inputStyle} />
-                  </div>
-                  <div>
-                    <label style={labelStyle}>Subtitle / Tagline <span style={{ color:C.textMuted, fontWeight:400 }}>(optional)</span></label>
-                    <input value={subtitle} onChange={e => setSubtitle(e.target.value)} placeholder="e.g. Q1 2026 Financial Review" style={inputStyle} />
-                  </div>
-                </WizardSection>
-
-                {/* Audience & Purpose */}
-                <WizardSection title="Audience & Purpose">
-                  <div style={{ marginBottom:18 }}>
-                    <label style={labelStyle}>Target Audience</label>
-                    <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
-                      {AUDIENCES.map(a => (
-                        <ChipCard key={a.key} selected={audience === a.key} onClick={() => setAudience(a.key)} icon={a.icon} label={a.key} />
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <label style={labelStyle}>Purpose</label>
-                    <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
-                      {PURPOSES.map(p => (
-                        <ChipCard key={p.key} selected={purpose === p.key} onClick={() => setPurpose(p.key)} icon={p.icon} label={p.label} />
-                      ))}
-                    </div>
-                  </div>
-                </WizardSection>
-
-                {/* Visual Style */}
-                <WizardSection title="Visual Style">
-                  <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(110px,1fr))", gap:10 }}>
-                    {THEMES.map(t => (
-                      <div key={t.key} onClick={() => setTheme(t.key)} style={{
-                        ...card, padding:"12px 10px", cursor:"pointer",
-                        border: theme === t.key ? `2px solid ${C.accent}` : `1px solid ${C.cardBorder}`,
-                        boxShadow: theme === t.key ? `0 0 0 3px ${C.accentGlow}` : "none",
-                        transition:T, textAlign:"center" }}>
-                        <div style={{ display:"flex", gap:3, justifyContent:"center", marginBottom:8 }}>
-                          {t.colors.map((c, i) => <div key={i} style={{ width:18, height:18, borderRadius:4, background:c }} />)}
-                        </div>
-                        <div style={{ fontSize:11, fontWeight:600, color: theme === t.key ? C.accent : C.textSecondary }}>{t.label}</div>
-                        {theme === t.key && <div style={{ width:8, height:8, borderRadius:"50%", background:C.accent, margin:"6px auto 0" }} />}
-                      </div>
-                    ))}
-                  </div>
-                </WizardSection>
-
-                {/* Slide Configuration */}
-                <WizardSection title="Slide Configuration">
-                  <div style={{ marginBottom:20 }}>
-                    <label style={labelStyle}>
-                      Slide Count — <span style={{ color:C.accent, fontSize:22, fontWeight:700 }}>{slideCount}</span>
-                    </label>
-                    <div style={{ display:"flex", alignItems:"center", gap:12, marginTop:6 }}>
-                      <span style={{ color:C.textMuted, fontSize:12 }}>5</span>
-                      <input type="range" min={5} max={30} step={1} value={slideCount}
-                        onChange={e => setSlideCount(Number(e.target.value))} style={{ flex:1 }} />
-                      <span style={{ color:C.textMuted, fontSize:12 }}>30</span>
-                    </div>
-                  </div>
-
-                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:18 }}>
-                    <div>
-                      <label style={labelStyle}>Content Density</label>
-                      <ToggleGroup options={["Concise","Balanced","Detailed"]} value={contentDensity} onChange={setContentDensity} />
-                    </div>
-                    <div style={{ gridColumn: "1 / -1" }}>
-                      <label style={labelStyle}>Chart Types (select all you want — AI picks best fit per slide)</label>
-                      <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginTop:6 }}>
-                        {ALL_CHART_TYPES.map(ct => (
-                          <button key={ct} onClick={() => toggleChartType(ct)} style={{
-                            background: selectedChartTypes.includes(ct) ? "rgba(99,102,241,0.15)" : "rgba(255,255,255,0.03)",
-                            border: `1px solid ${selectedChartTypes.includes(ct) ? "rgba(99,102,241,0.5)" : C.cardBorder}`,
-                            color: selectedChartTypes.includes(ct) ? C.accent : C.textMuted,
-                            borderRadius:20, padding:"6px 14px", fontSize:12, fontWeight:500, cursor:"pointer", transition:T,
-                          }}>
-                            {ct}
-                          </button>
-                        ))}
-                      </div>
-                      {selectedChartTypes.length === 0 && (
-                        <div style={{ fontSize:11, color:C.textMuted, marginTop:6 }}>
-                          No types selected — AI will automatically detect the best chart types from your document.
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div style={{ marginTop:18 }}>
-                    <label style={labelStyle}>Sections to Include</label>
-                    <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginTop:6 }}>
-                      {SECTIONS_LIST.map(s => (
-                        <button key={s} onClick={() => toggleSection(s)} style={{
-                          background: sections.includes(s) ? "rgba(99,102,241,0.15)" : "rgba(255,255,255,0.03)",
-                          border: `1px solid ${sections.includes(s) ? "rgba(99,102,241,0.5)" : C.cardBorder}`,
-                          color: sections.includes(s) ? C.accent : C.textMuted,
-                          borderRadius:20, padding:"6px 14px", fontSize:12, fontWeight:500, cursor:"pointer", transition:T }}>
-                          {s}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginTop:18, padding:"14px 16px", background:"rgba(255,255,255,0.03)", borderRadius:10, border:`1px solid ${C.cardBorder}` }}>
-                    <div>
-                      <div style={{ fontWeight:600, color:C.textPrimary, fontSize:13 }}>Speaker Notes</div>
-                      <div style={{ color:C.textMuted, fontSize:12 }}>Include presenter talking points</div>
-                    </div>
-                    <div onClick={() => setSpeakerNotes(p => !p)} style={{ width:46, height:26, borderRadius:13, background: speakerNotes ? C.accent : "rgba(255,255,255,0.1)", cursor:"pointer", transition:T, position:"relative" }}>
-                      <div style={{ position:"absolute", top:3, left: speakerNotes ? 23 : 3, width:20, height:20, borderRadius:"50%", background:"#fff", transition:T }} />
-                    </div>
-                  </div>
-                </WizardSection>
-
-                {/* Generate button */}
-                {/* AI Thinking Pipeline banner */}
-                <div style={{ background:"rgba(99,102,241,0.07)", border:"1px solid rgba(99,102,241,0.2)", borderRadius:12, padding:"12px 18px", marginBottom:16 }}>
-                  <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
-                    <span style={{ fontSize:14 }}>🤖</span>
-                    <span style={{ fontSize:12, fontWeight:700, color:C.accent, letterSpacing:0.5 }}>AI Thinking Pipeline</span>
-                  </div>
-                  <div style={{ display:"flex", flexWrap:"wrap", gap:4, alignItems:"center" }}>
-                    {["Understand Document","→","Detect Audience","→","Create Strategy","→","Build Outline","→","Write Narrative","→","Design Slides","→","Assign Charts","→","Generate PPTX"].map((s, i) => (
-                      <span key={i} style={{ fontSize:11, color: s === "→" ? C.textMuted : C.textSecondary, fontWeight: s === "→" ? 400 : 500 }}>{s}</span>
-                    ))}
-                  </div>
-                  <div style={{ fontSize:11, color:C.textMuted, marginTop:6 }}>
-                    Uses Claude Opus 4 → Claude Sonnet 4 → GPT-5 → Gemini (fallback). Never reuse summary text.
-                  </div>
+              <div style={{ ...card, marginTop:24, textAlign:"center", padding:"36px 24px" }}>
+                <div style={{ fontSize:36, marginBottom:12 }}>✨</div>
+                <div style={{ fontWeight:700, fontSize:20, color:C.textPrimary, marginBottom:6 }}>
+                  Document Uploaded & Parsed
+                </div>
+                <div style={{ color:C.textSecondary, fontSize:14, marginBottom:24, maxWidth:520, margin:"0 auto 24px" }}>
+                  Customize your presentation type, target audience, theme, slide count, and chart preferences in the AI Wizard.
                 </div>
 
-                {/* Generate button — opens wizard */}
-                <button onClick={canGenerate ? openWizard : undefined} disabled={!canGenerate} style={{
-                  width:"100%", height:56, borderRadius:12, border:"none",
-                  background: canGenerate ? `linear-gradient(135deg,${C.accent} 0%,#8B5CF6 100%)` : "rgba(255,255,255,0.05)",
-                  color: canGenerate ? "#fff" : C.textMuted,
-                  fontSize:16, fontWeight:700, cursor: canGenerate ? "pointer" : "not-allowed",
-                  opacity: canGenerate ? 1 : 0.5,
-                  boxShadow: canGenerate ? `0 4px 20px ${C.accentGlow}` : "none",
-                  transition:T, marginTop:8 }}>
-                  Generate Presentation →
-                  <span style={{ fontWeight:400, opacity:0.75, marginLeft:8, fontSize:13 }}>(~{slideCount} slides)</span>
+                <button onClick={openWizard} style={{
+                  background: `linear-gradient(135deg,${C.accent} 0%,#8B5CF6 100%)`,
+                  color: "#fff", border: "none", borderRadius: 12, padding: "14px 32px",
+                  fontSize: 15, fontWeight: 700, cursor: "pointer",
+                  boxShadow: `0 4px 20px ${C.accentGlow}`, transition: T
+                }}>
+                  🪄 Open AI Presentation Wizard →
                 </button>
 
                 {generationError && (
-                  <div style={{ background:"rgba(239,68,68,0.08)", border:"1px solid rgba(239,68,68,0.25)", borderRadius:10, padding:"12px 16px", color:"#FCA5A5", fontSize:13, marginTop:12 }}>
+                  <div style={{ background:"rgba(239,68,68,0.08)", border:"1px solid rgba(239,68,68,0.25)", borderRadius:10, padding:"12px 16px", color:"#FCA5A5", fontSize:13, marginTop:16 }}>
                     ⚠️ {generationError}
                   </div>
                 )}
