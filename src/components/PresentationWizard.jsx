@@ -136,7 +136,8 @@ function PresentationWizard({ open, defaultTitle = "", onCancel, onGenerate, loa
   const [presentationType, setPresentationType] = useState("Business Pitch");
   const [audience, setAudience]             = useState("Management");
   const [goal, setGoal]                     = useState("Inform");
-  const [theme, setTheme]                   = useState("Professional");
+  const [theme, setTheme]                   = useState("Light Mode");
+  const [chartCountLimit, setChartCountLimit] = useState("Auto");
   const [primaryColor, setPrimaryColor]     = useState("#1E2761");
   const [accentColor, setAccentColor]       = useState("#C9A84C");
   const [animationStyle, setAnimationStyle] = useState("Professional");
@@ -170,6 +171,7 @@ function PresentationWizard({ open, defaultTitle = "", onCancel, onGenerate, loa
       language,
       speakerNotes,
       chartType,
+      maxCharts: chartCountLimit,
       imageOption,
       sections,
     });
@@ -209,6 +211,28 @@ function PresentationWizard({ open, defaultTitle = "", onCancel, onGenerate, loa
       case 1:
         return (
           <div className="space-y-5">
+            {/* Theme Mode */}
+            <div>
+              <SectionLabel>Theme Mode</SectionLabel>
+              <div className="flex gap-3">
+                {["Light Mode", "Dark Mode"].map(mode => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => setTheme(mode)}
+                    className="flex-1 py-2.5 rounded-lg border font-semibold text-xs transition-all flex items-center justify-center gap-2"
+                    style={{
+                      border: theme === mode ? "1.5px solid var(--primary)" : "1px solid var(--border)",
+                      background: theme === mode ? "rgba(var(--primary-rgb),0.15)" : "var(--secondary)",
+                      color: theme === mode ? "var(--primary)" : "var(--muted)",
+                    }}
+                  >
+                    <span>{mode === "Light Mode" ? "☀️" : "🌙"}</span>
+                    {mode}
+                  </button>
+                ))}
+              </div>
+            </div>
             {/* Goal */}
             <div>
               <SectionLabel>Presentation Goal</SectionLabel>
@@ -216,7 +240,7 @@ function PresentationWizard({ open, defaultTitle = "", onCancel, onGenerate, loa
             </div>
             {/* Theme */}
             <div>
-              <SectionLabel>Theme</SectionLabel>
+              <SectionLabel>Color Theme Variant</SectionLabel>
               <div className="grid grid-cols-4 gap-2">
                 {THEMES.map(t => (
                   <button
@@ -320,6 +344,19 @@ function PresentationWizard({ open, defaultTitle = "", onCancel, onGenerate, loa
       case 3:
         return (
           <div className="space-y-5">
+            {/* Chart Limit */}
+            <div>
+              <SectionLabel>Max Number of Charts in Presentation</SectionLabel>
+              <ChipSelect
+                options={["Auto", "0 (No Charts)", "1 Chart", "2 Charts", "3 Charts", "5 Charts"]}
+                value={chartCountLimit}
+                onChange={setChartCountLimit}
+                cols={3}
+              />
+              <p className="text-[11px] mt-1" style={{ color: "var(--muted)" }}>
+                If set to e.g. "1 Chart", the AI will generate at most 1 chart graph and convert all remaining data into rich analytical tables and detailed text panels.
+              </p>
+            </div>
             {/* Charts */}
             <div>
               <SectionLabel>Chart Type</SectionLabel>
