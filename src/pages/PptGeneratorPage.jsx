@@ -160,6 +160,12 @@ export default function PptGeneratorPage() {
   const [selectedChartTypes, setSelectedChartTypes] = useState([]);
   const [wizardSections, setWizardSections] = useState(["Executive Summary", "Key Insights", "Conclusion"]);
 
+  // Slide previews state
+  const [svgPreviews, setSvgPreviews]             = useState([]);
+  const [previewLoading, setPreviewLoading]         = useState(false);
+  const [previewTotalSlides, setPreviewTotalSlides] = useState(0);
+  const [previewTitle, setPreviewTitle]             = useState("");
+
   useEffect(() => {
     if (activeTab === "history") loadHistory();
   }, [activeTab]);
@@ -312,6 +318,46 @@ function openWizard() {
 function closeWizard() {
   setWizardOpen(false);
 }
+
+async function loadPreviews() {
+  if (!extractedData) return;
+  const docText = extractedData.documentText || extractedData.extractedText || "";
+  if (!docText) return;
+
+  setPreviewLoading(true);
+  setSvgPreviews([]);
+  setGenerationError("");
+  try {
+    const res = await fetch(`${API_BASE}/ppt/generate-ppt-svg/preview`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        documentText: docText,
+        wizardOptions: {
+          title,
+          theme: wizardTheme || theme,
+          slideCount: wizardSlideCountOption === "Auto" ? slideCount : (parseInt(wizardSlideCountOption) || slideCount),
+          sections: wizardSections.length > 0 ? wizardSections : sections,
+        },
+      }),
+      credentials: "include",
+    });
+    const data = await res.json();
+    if (data.success) {
+      setSvgPreviews(data.previews || []);
+      setPreviewTotalSlides(data.totalSlides || 0);
+      if (data.title) setPreviewTitle(data.title);
+    } else {
+      setGenerationError(data.message || "Failed to load slide preview.");
+    }
+  } catch (err) {
+    console.error("Preview fetch error:", err);
+    setGenerationError(err.message);
+  } finally {
+    setPreviewLoading(false);
+  }
+}
+
 function applyWizardAndGenerate() {
   // Sync wizard choices into existing state before generating
   if (wizardTheme && THEMES.find(t => t.label === wizardTheme)) setTheme(wizardTheme);
@@ -319,11 +365,9 @@ function applyWizardAndGenerate() {
     setSlideCount(parseInt(wizardSlideCountOption) || slideCount);
   }
   if (wizardContentDensity) setContentDensity(wizardContentDensity);
-  if (wizardLanguage) {/* passed via wizardOptions below */}
   setSpeakerNotes(wizardSpeakerNotes === "Yes");
   if (wizardSections.length > 0) setSections(wizardSections);
   setWizardOpen(false);
-  // Small delay to let state flush, then generate
   setTimeout(() => handleGenerateWithWizard(), 50);
 }
 
@@ -372,7 +416,7 @@ async function handleGenerateWithWizard() {
       },
     };
 
-    const r = await fetch(`${API_BASE}/ppt/generate-ppt-ai`, {
+    const r = await fetch(`${API_BASE}/ppt/generate-ppt-svg`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -588,14 +632,97 @@ async function handleGenerateWithWizard() {
                   Customize your presentation type, target audience, theme, slide count, and chart preferences in the AI Wizard.
                 </div>
 
-                <button onClick={openWizard} style={{
-                  background: `linear-gradient(135deg,${C.accent} 0%,#8B5CF6 100%)`,
-                  color: "#fff", border: "none", borderRadius: 12, padding: "14px 32px",
-                  fontSize: 15, fontWeight: 700, cursor: "pointer",
-                  boxShadow: `0 4px 20px ${C.accentGlow}`, transition: T
-                }}>
-                  🪄 Open AI Presentation Wizard →
-                </button>
+                <div style={{ display:"flex", gap:12, justifyContent:"center" }}>
+                  <button onClick={openWizard} style={{
+                    background: `linear-gradient(135deg,${C.accent} 0%,#8B5CF6 100%)`,
+                    color: "#fff", border: "none", borderRadius: 12, padding: "14px 28px",
+                    fontSize: 15, fontWeight: 700, cursor: "pointer",
+                    boxShadow: `0 4px 20px ${C.accentGlow}`, transition: T
+                  }}>
+                    🪄 Open AI Presentation Wizard →
+                  </button>
+                  <button onClick={loadPreviews} disabled={previewLoading} style={{
+                    background: "rgba(34,211,238,0.12)",
+                    border: `1px solid rgba(34,211,238,0.4)`,
+                    color: C.cyan, borderRadius: 12, padding: "14px 24px",
+                    fontSize: 15, fontWeight: 700, cursor: "pointer", transition: T
+                  }}>
+                    {previewLoading ? "🎨 Rendering Previews..." : "👁️ Live Slide Preview"}
+                  </button>
+                </div>
+
+                {/* ── Slide Previews Strip ── */}
+                {previewLoading && (
+                  <div style={{ marginTop:24, padding:20, textAlign:"center", color:C.textSecondary, background:C.card, borderRadius:12, border:`1px solid ${C.cardBorder}` }}>
+                    <div style={{ fontSize:24, marginBottom:8 }}>🎨</div>
+                    Generating high-fidelity SVG slide previews...
+                  </div>
+                )}
+
+                {svgPreviews.length > 0 && !previewLoading && (
+                  <div style={{ marginTop: 24, padding: 20, background: C.card, borderRadius: 16, border: `1px solid ${C.accentGlow}`, textAlign:"left" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                      <h3 style={{ margin: 0, color: C.textPrimary, fontSize: 17, display: "flex", alignItems: "center", gap: 8 }}>
+                        <span>🖼️</span> Slide Previews ({previewTotalSlides} slides total)
+                      </h3>
+                      <span style={{ fontSize: 13, color: C.cyan, fontWeight: 600 }}>{previewTitle}</span>
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16, marginBottom: 20 }}>
+                      {svgPreviews.map((p) => (
+                        <div key={p.slideNumber} style={{ background: "#050A14", borderRadius: 10, padding: 10, border: `1px solid ${C.cardBorder}` }}>
+                          <div style={{ width: "100%", borderRadius: 6, overflow: "hidden", border: `1px solid ${C.divider}`, background: "#000" }}>
+                            <img
+                              src={`data:image/svg+xml;base64,${p.svgBase64}`}
+                              alt={`Slide ${p.slideNumber}`}
+                              style={{ width: "100%", display: "block" }}
+                            />
+                          </div>
+                          <div style={{ marginTop: 8, fontSize: 12.5, fontWeight: 600, color: C.textPrimary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            {p.slideNumber}. {p.title}
+                          </div>
+                        </div>
+                      ))}
+                      {previewTotalSlides > svgPreviews.length && (
+                        <div style={{
+                          background: "rgba(255,255,255,0.02)",
+                          borderRadius: 10,
+                          padding: 16,
+                          border: `2px dashed ${C.cardBorder}`,
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          color: C.textMuted,
+                          fontSize: 13,
+                          minHeight: 140
+                        }}>
+                          <span style={{ fontSize: 24, marginBottom: 4 }}>📊</span>
+                          <span>+{previewTotalSlides - svgPreviews.length} native slides</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <button
+                      onClick={handleGenerateWithWizard}
+                      disabled={generating}
+                      style={{
+                        width: "100%",
+                        padding: "14px 24px",
+                        borderRadius: 12,
+                        border: "none",
+                        background: `linear-gradient(135deg, ${C.accent}, #4F46E5)`,
+                        color: "#FFF",
+                        fontWeight: 700,
+                        fontSize: 15,
+                        cursor: "pointer",
+                        boxShadow: `0 4px 14px ${C.accentGlow}`,
+                      }}
+                    >
+                      {generating ? "Generating Presentation..." : `✨ Generate Full Native Presentation (${previewTotalSlides} Slides)`}
+                    </button>
+                  </div>
+                )}
 
                 {generationError && (
                   <div style={{ background:"rgba(239,68,68,0.08)", border:"1px solid rgba(239,68,68,0.25)", borderRadius:10, padding:"12px 16px", color:"#FCA5A5", fontSize:13, marginTop:16 }}>
@@ -1069,11 +1196,17 @@ async function handleGenerateWithWizard() {
                   color:"#fff", border:"none", borderRadius:8, padding:"9px 22px", fontSize:13, fontWeight:700, cursor:"pointer", transition:T,
                 }}>Next →</button>
               ) : (
-                <button onClick={applyWizardAndGenerate} style={{
-                  background:`linear-gradient(135deg,${C.accent} 0%,#8B5CF6 100%)`,
-                  color:"#fff", border:"none", borderRadius:10, padding:"11px 24px", fontSize:14, fontWeight:700, cursor:"pointer",
-                  boxShadow:`0 4px 20px ${C.accentGlow}`, transition:T,
-                }}>✨ Generate AI Presentation</button>
+                <div style={{ display: "flex", gap: 10 }}>
+                  <button onClick={() => { closeWizard(); loadPreviews(); }} style={{
+                    background: "rgba(34,211,238,0.12)", border: `1px solid rgba(34,211,238,0.4)`,
+                    color: C.cyan, borderRadius: 10, padding: "11px 18px", fontSize: 13.5, fontWeight: 700, cursor: "pointer",
+                  }}>👁️ Preview Slides</button>
+                  <button onClick={applyWizardAndGenerate} style={{
+                    background:`linear-gradient(135deg,${C.accent} 0%,#8B5CF6 100%)`,
+                    color:"#fff", border:"none", borderRadius:10, padding:"11px 24px", fontSize:14, fontWeight:700, cursor:"pointer",
+                    boxShadow:`0 4px 20px ${C.accentGlow}`, transition:T,
+                  }}>✨ Generate AI Presentation</button>
+                </div>
               )}
             </div>
           </div>
