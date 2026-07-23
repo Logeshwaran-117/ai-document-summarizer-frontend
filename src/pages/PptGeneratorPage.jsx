@@ -344,8 +344,9 @@ export default function PptGeneratorPage() {
       });
     } catch (e) {
       setGenerationError(e.message);
+    } finally {
+      setGenerating(false);
     }
-    setGenerating(false);
   }
 
   function toggleSection(s) {
@@ -426,10 +427,6 @@ async function handleGenerateWithWizard() {
     setGenerationError("No document text found. Please re-upload the file.");
     return;
   }
-  setGenerating(true);
-  setTargetSlideCount(effectiveSlideCount || slideCount || 10);
-  setGenerationError("");
-  setSuccess(null);
 
   const effectiveSlideCount = wizardSlideCountOption === "Auto" ? slideCount
     : wizardSlideCountOption === "Custom" ? slideCount
@@ -438,6 +435,11 @@ async function handleGenerateWithWizard() {
   const effectiveChartType = selectedChartTypes.length > 0
     ? selectedChartTypes.join(",")
     : chartType === "Smart" ? "auto" : chartType === "Rich" ? "rich" : "minimal";
+
+  setGenerating(true);
+  setTargetSlideCount(effectiveSlideCount || slideCount || 10);
+  setGenerationError("");
+  setSuccess(null);
 
   try {
     const body = {
@@ -490,12 +492,12 @@ async function handleGenerateWithWizard() {
       theme:   wizardTheme || theme,
       docType: detectedType,
     });
-    setCurrentStep(6);
   } catch (e) {
     setGenerationError(e.message);
+  } finally {
+    setGenerating(false);
   }
-  setGenerating(false);
-  }
+}
 
   async function downloadHistory(id, filename) {
     try {
