@@ -22,6 +22,13 @@ function fmtDate(d) {
   if (!d) return "–";
   return new Date(d).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
+function fmtDuration(seconds) {
+  if (!seconds || seconds <= 0) return "0s";
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  if (m === 0) return `${s}s`;
+  return `${m}m ${s < 10 ? "0" : ""}${s}s`;
+}
 const EXT_ICON = { pdf: "📄", docx: "📝", doc: "📝", txt: "📃", xlsx: "📊", xls: "📊", csv: "📊", png: "🖼️", jpg: "🖼️", jpeg: "🖼️", webp: "🖼️", pptx: "📊", ppt: "📊" };
 function fileIcon(name = "") { const ext = (name.split(".").pop() || "").toLowerCase(); return EXT_ICON[ext] || "📎"; }
 
@@ -61,12 +68,12 @@ const PURPOSES = [
 const SECTIONS_LIST = ["Cover", "Agenda", "Executive Summary", "Key Findings", "Data Analysis", "Charts & Visuals", "Recommendations", "Conclusions", "Appendix"];
 
 const PROGRESS_STEPS = [
-  { id: 1, icon: "📤", label: "Uploading & reading document" },
-  { id: 2, icon: "🔍", label: "Detecting document type & structure" },
-  { id: 3, icon: "🧠", label: "Building presentation strategy" },
-  { id: 4, icon: "🗂", label: "Designing slide outline" },
-  { id: 5, icon: "✍️", label: "Writing slide content" },
-  { id: 6, icon: "🎨", label: "Assembling PPTX file" },
+  { id: 1, icon: "📤", label: "Uploading & reading document", threshold: 15 },
+  { id: 2, icon: "🔍", label: "Detecting document type & structure", threshold: 35 },
+  { id: 3, icon: "🧠", label: "Building presentation strategy", threshold: 55 },
+  { id: 4, icon: "🗂", label: "Designing slide outline", threshold: 75 },
+  { id: 5, icon: "✍️", label: "Writing slide content", threshold: 90 },
+  { id: 6, icon: "🎨", label: "Assembling PPTX file", threshold: 100 },
 ];
 
 // NEW — Wizard static data
@@ -130,12 +137,13 @@ export default function PptGeneratorPage() {
   const [sections, setSections]         = useState(["Cover", "Executive Summary", "Key Findings", "Conclusions"]);
   const [speakerNotes, setSpeakerNotes] = useState(true);
 
-  // Generation
-  const [generating, setGenerating]     = useState(false);
-  const [currentStep, setCurrentStep]   = useState(0);
+  // Generation & Real-time Progress
+  const [generating, setGenerating]         = useState(false);
+  const [progressPercent, setProgressPercent] = useState(0);
+  const [elapsedTime, setElapsedTime]       = useState(0);
+  const [targetSlideCount, setTargetSlideCount] = useState(10);
   const [generationError, setGenerationError] = useState("");
-  const [success, setSuccess]           = useState(null);
-  const stepTimersRef                   = useRef([]);
+  const [success, setSuccess]               = useState(null);
 
   // History
   const [history, setHistory]           = useState([]);
@@ -170,18 +178,56 @@ export default function PptGeneratorPage() {
     if (activeTab === "history") loadHistory();
   }, [activeTab]);
 
-  // Drive progress steps forward while generating
+  // High-precision smooth progress driver dynamically scaled to target slide count
   useEffect(() => {
-    stepTimersRef.current.forEach(clearTimeout);
-    stepTimersRef.current = [];
-    if (!generating) { setCurrentStep(0); return; }
-    // Steps advance at realistic intervals matching the 4-step AI pipeline
-    const delays = [0, 1000, 3500, 7000, 12000, 18000];
-    delays.forEach((delay, i) => {
-      stepTimersRef.current.push(setTimeout(() => setCurrentStep(i + 1), delay));
-    });
-    return () => stepTimersRef.current.forEach(clearTimeout);
-  }, [generating]);
+    if (!generating) {
+      setProgressPercent(0);
+      setElapsedTime(0);
+      return;
+    }
+
+    const startTime = Date.now();
+    // Estimate realistic generation time based on requested slide count
+    // Setup & AI structure (~20s) + ~30s per individual slide
+    const slides = targetSlideCount || 10;
+    const estTotalSec = Math.max(60, 20 + slides * 30);
+
+    const timer = setInterval(() => {
+      const elapsedSec = (Date.now() - startTime) / 1000;
+      setElapsedTime(elapsedSec);
+
+      const ratio = elapsedSec / estTotalSec;
+
+      let pct = 0;
+      if (ratio <= 0.08) {
+        // 0% -> 15% (Uploading & Reading)
+        pct = (ratio / 0.08) * 15;
+      } else if (ratio <= 0.20) {
+        // 15% -> 35% (Detecting & Structure)
+        pct = 15 + ((ratio - 0.08) / 0.12) * 20;
+      } else if (ratio <= 0.40) {
+        // 35% -> 55% (Strategy Building)
+        pct = 35 + ((ratio - 0.20) / 0.20) * 20;
+      } else if (ratio <= 0.65) {
+        // 55% -> 75% (Designing Outline)
+        pct = 55 + ((ratio - 0.40) / 0.25) * 20;
+      } else if (ratio <= 0.90) {
+        // 75% -> 92% (Writing Slide Content)
+        pct = 75 + ((ratio - 0.65) / 0.25) * 17;
+      } else if (ratio <= 1.0) {
+        // 92% -> 97.5% (Assembling PPTX)
+        pct = 92 + ((ratio - 0.90) / 0.10) * 5.5;
+      } else {
+        // Exceeded expected duration: crawl smoothly towards 99.2% without sticking at 97-98%
+        const overTime = elapsedSec - estTotalSec;
+        pct = Math.min(99.2, 97.5 + 1.7 * (1 - Math.exp(-overTime / (estTotalSec * 0.3))));
+      }
+
+      setProgressPercent(prev => (prev >= 100 ? 100 : Math.max(prev, Math.min(pct, 99.2))));
+    }, 50);
+
+    return () => clearInterval(timer);
+  }, [generating, targetSlideCount]);
 
   async function loadHistory() {
     setHistoryLoading(true);
@@ -243,6 +289,7 @@ export default function PptGeneratorPage() {
     }
 
     setGenerating(true);
+    setTargetSlideCount(slideCount || 10);
     setGenerationError("");
     setSuccess(null);
 
@@ -288,12 +335,13 @@ export default function PptGeneratorPage() {
       a.click();
       URL.revokeObjectURL(url);
 
+      setProgressPercent(100);
+      await new Promise(res => setTimeout(res, 600));
       setSuccess({
         slides:  r.headers.get("X-Slide-Count") || slideCount,
         theme,
         docType: detectedType,
       });
-      setCurrentStep(6);
     } catch (e) {
       setGenerationError(e.message);
     }
@@ -379,6 +427,7 @@ async function handleGenerateWithWizard() {
     return;
   }
   setGenerating(true);
+  setTargetSlideCount(effectiveSlideCount || slideCount || 10);
   setGenerationError("");
   setSuccess(null);
 
@@ -733,52 +782,144 @@ async function handleGenerateWithWizard() {
             )}
 
             {/* ── PROGRESS (shown while generating) ── */}
-            {generating && (
-              <div style={{ ...card, marginTop:24 }}>
-                <div style={{ fontWeight:600, color:C.textPrimary, marginBottom:20, fontSize:15 }}>
-                  Generating your presentation…
-                </div>
-                {PROGRESS_STEPS.map(step => {
-                  const done   = currentStep > step.id;
-                  const active = currentStep === step.id;
-                  return (
-                    <div key={step.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 0", borderBottom: step.id < 6 ? `1px solid ${C.divider}` : "none" }}>
-                      <div style={{
-                        width:32, height:32, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0,
-                        background: done ? "rgba(16,185,129,0.15)" : active ? "rgba(99,102,241,0.2)" : "rgba(255,255,255,0.04)",
-                        border: `1.5px solid ${done ? C.success : active ? C.accent : "rgba(255,255,255,0.1)"}`,
-                        fontSize:14, transition:T,
-                      }}>
-                        {done
-                          ? <span style={{ color:C.success, fontWeight:700 }}>✓</span>
-                          : active
-                            ? <span style={{ display:"inline-block", animation:"spin 1s linear infinite", color:C.accent }}>◌</span>
-                            : <span style={{ color:C.textMuted, fontSize:11 }}>·</span>}
+            {generating && (() => {
+              const estTotalSec = Math.max(60, 20 + (targetSlideCount || 10) * 30);
+              const remainingSec = Math.max(0, estTotalSec - elapsedTime);
+
+              return (
+                <div style={{ ...card, marginTop: 24, background: C.card, position: "relative", overflow: "hidden", border: `1px solid ${C.accentGlow}` }}>
+                  {/* Top header row with title, active step & big percentage badge */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                    <div>
+                      <div style={{ fontWeight: 700, color: C.textPrimary, fontSize: 16, display: "flex", alignItems: "center", gap: 10 }}>
+                        <span style={{ display: "inline-block", animation: "spin 1s linear infinite", color: C.cyan, fontSize: 18 }}>◌</span>
+                        Generating your presentation…
                       </div>
-                      <div>
-                        <span style={{ fontSize:16, marginRight:8 }}>{step.icon}</span>
-                        <span style={{ fontSize:13, color: done ? C.success : active ? C.textPrimary : C.textMuted, transition:T }}>
-                          {step.label}
-                        </span>
+                      <div style={{ fontSize: 13, color: C.textSecondary, marginTop: 4 }}>
+                        {(() => {
+                          const activeStep = PROGRESS_STEPS.find(s => progressPercent < s.threshold) || PROGRESS_STEPS[PROGRESS_STEPS.length - 1];
+                          if (activeStep.id === 5) {
+                            const slideNum = Math.min(targetSlideCount, Math.max(1, Math.ceil(((progressPercent - 55) / 35) * targetSlideCount)));
+                            return `Step 5 of 6: Writing slide ${slideNum} of ${targetSlideCount} content…`;
+                          }
+                          if (activeStep.id === 6) {
+                            return `Step 6 of 6: Assembling ${targetSlideCount} slides into PPTX file…`;
+                          }
+                          return `Step ${activeStep.id} of 6: ${activeStep.label}`;
+                        })()}
                       </div>
                     </div>
-                  );
-                })}
-                {/* Progress bar */}
-                <div style={{ marginTop:20, height:4, background:"rgba(255,255,255,0.06)", borderRadius:2, overflow:"hidden" }}>
+
+                    <div style={{ textAlign: "right" }}>
+                      <div style={{
+                        fontSize: 32,
+                        fontWeight: 800,
+                        background: `linear-gradient(135deg, ${C.cyan}, ${C.accent}, #10B981)`,
+                        WebkitBackgroundClip: "text",
+                        WebkitTextFillColor: "transparent",
+                        fontFamily: "monospace, sans-serif",
+                        lineHeight: 1,
+                      }}>
+                        {Math.round(progressPercent)}%
+                      </div>
+                      <div style={{ fontSize: 11.5, color: C.textMuted, marginTop: 4, fontWeight: 600 }}>
+                        ⏱️ {fmtDuration(elapsedTime)} elapsed · ~{fmtDuration(remainingSec)} remaining
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Smooth Progress Bar Container */}
                   <div style={{
-                    height:"100%",
-                    background:`linear-gradient(90deg,${C.accent},${C.cyan})`,
-                    borderRadius:2,
-                    width:`${Math.min((currentStep / 6) * 100, 100)}%`,
-                    transition:"width 1s ease",
-                  }} />
+                    position: "relative",
+                    height: 10,
+                    background: "rgba(255, 255, 255, 0.06)",
+                    borderRadius: 6,
+                    overflow: "hidden",
+                    border: `1px solid rgba(255, 255, 255, 0.08)`,
+                    margin: "16px 0 24px 0",
+                  }}>
+                    <div style={{
+                      height: "100%",
+                      width: `${progressPercent}%`,
+                      background: `linear-gradient(90deg, ${C.accent} 0%, ${C.cyan} 50%, ${C.success} 100%)`,
+                      borderRadius: 6,
+                      transition: "width 0.1s linear",
+                      boxShadow: `0 0 14px ${C.cyan}`,
+                    }} />
+                  </div>
+
+                  {/* Steps List */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    {PROGRESS_STEPS.map((step, idx) => {
+                      const done = progressPercent >= step.threshold || progressPercent === 100;
+                      const prevThreshold = idx === 0 ? 0 : PROGRESS_STEPS[idx - 1].threshold;
+                      const active = !done && progressPercent >= prevThreshold;
+
+                      return (
+                        <div
+                          key={step.id}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            padding: "10px 14px",
+                            borderRadius: 10,
+                            background: active ? "rgba(99,102,241,0.08)" : done ? "rgba(16,185,129,0.04)" : "transparent",
+                            border: active ? `1px solid ${C.accentGlow}` : "1px solid transparent",
+                            transition: T,
+                          }}
+                        >
+                          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                            <div style={{
+                              width: 32, height: 32, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                              background: done ? "rgba(16,185,129,0.2)" : active ? "rgba(99,102,241,0.25)" : "rgba(255,255,255,0.04)",
+                              border: `1.5px solid ${done ? C.success : active ? C.accent : "rgba(255,255,255,0.1)"}`,
+                              fontSize: 14, transition: T,
+                            }}>
+                              {done ? (
+                                <span style={{ color: C.success, fontWeight: 700 }}>✓</span>
+                              ) : active ? (
+                                <span style={{ display: "inline-block", animation: "spin 1s linear infinite", color: C.cyan }}>◌</span>
+                              ) : (
+                                <span style={{ color: C.textMuted, fontSize: 11 }}>{step.id}</span>
+                              )}
+                            </div>
+                            <div>
+                              <span style={{ fontSize: 15, marginRight: 8 }}>{step.icon}</span>
+                              <span style={{ fontSize: 13.5, fontWeight: active || done ? 600 : 400, color: done ? C.success : active ? C.textPrimary : C.textMuted, transition: T }}>
+                                {step.label}
+                                {active && step.id === 5 && (
+                                  <span style={{ fontSize: 12, color: C.cyan, marginLeft: 8, fontWeight: 500 }}>
+                                    (Writing slide {Math.min(targetSlideCount, Math.max(1, Math.ceil(((progressPercent - 55) / 35) * targetSlideCount)))} of {targetSlideCount})
+                                  </span>
+                                )}
+                              </span>
+                            </div>
+                          </div>
+
+                          {active && (
+                            <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 12, background: C.accentGlow, color: C.cyan, letterSpacing: 0.5 }}>
+                              IN PROGRESS
+                            </span>
+                          )}
+                          {done && (
+                            <span style={{ fontSize: 11, fontWeight: 600, color: C.success }}>
+                              Completed
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Footer Note */}
+                  <div style={{ marginTop: 18, paddingTop: 14, borderTop: `1px solid ${C.divider}`, fontSize: 12, color: C.textMuted, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span>💡 Generating {targetSlideCount} high-fidelity slides with AI layouts & graphics</span>
+                    <span>Estimated total: ~{fmtDuration(estTotalSec)}</span>
+                  </div>
                 </div>
-                <div style={{ marginTop:10, fontSize:12, color:C.textMuted, textAlign:"center" }}>
-                  This usually takes 20–60 seconds depending on document size
-                </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* ── SUCCESS ── */}
             {success && (
