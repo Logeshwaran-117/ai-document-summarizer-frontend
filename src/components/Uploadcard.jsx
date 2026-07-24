@@ -12,7 +12,8 @@ import UsageBadge from "./UsageBadge";
 import {
   Upload as UploadIcon, BookOpen, Sparkles, Save, CheckCircle2,
   FileText, FileSpreadsheet, FileImage, File, Presentation, MessageSquare,
-  Copy, Download, ArrowRight,
+  Copy, Download, ArrowRight, Maximize2, Minimize2, ZoomIn, ZoomOut,
+  RotateCcw, Eye, Layers, X, Check, Info, ExternalLink
 } from "lucide-react";
 
 // ── SSE progress hook (inline — no extra file needed) ────────────────────────
@@ -183,27 +184,35 @@ function fileTypeLabel(file) {
   return                         { label: "Document",    color: "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300",         Icon: File            };
 }
 
-// ── FilePreview component ─────────────────────────────────────────────────────
+// ── FilePreview component (Enhanced v2) ────────────────────────────────────────
 function FilePreview({ file }) {
   const [preview, setPreview] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [viewMode, setViewMode] = useState("visual"); // visual | text | info
+  const [zoom, setZoom] = useState(100);
+  const [copied, setCopied] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [activeSheetIdx, setActiveSheetIdx] = useState(0);
+
   const objUrlRef = useRef(null);
 
   useEffect(() => {
     if (!file) { setPreview(null); return; }
     if (objUrlRef.current) { URL.revokeObjectURL(objUrlRef.current); objUrlRef.current = null; }
     setPreview(null);
+    setZoom(100);
+    setActiveSheetIdx(0);
 
     if (isImageFile(file)) {
       const url = URL.createObjectURL(file);
       objUrlRef.current = url;
-      setPreview({ type: "image", src: url });
+      setPreview({ type: "image", src: url, name: file.name, size: file.size });
       return;
     }
     if (isPdfFile(file)) {
       const url = URL.createObjectURL(file);
       objUrlRef.current = url;
-      setPreview({ type: "pdf", src: url });
+      setPreview({ type: "pdf", src: url, name: file.name, size: file.size });
       return;
     }
     if (isTextFile(file)) {
@@ -211,7 +220,7 @@ function FilePreview({ file }) {
       const reader = new FileReader();
       reader.onload = (e) => {
         const text = e.target.result || "";
-        setPreview({ type: "text", content: text.slice(0, 2000) + (text.length > 2000 ? "\n…" : "") });
+        setPreview({ type: "text", content: text, name: file.name, size: file.size });
         setLoading(false);
       };
       reader.onerror = () => setLoading(false);
@@ -223,8 +232,14 @@ function FilePreview({ file }) {
       const reader = new FileReader();
       reader.onload = (e) => {
         const text = e.target.result || "";
-        const rows = text.trim().split("\n").slice(0, 10).map(r => r.split(",").map(c => c.replace(/^"|"$/g, "").trim()));
-        setPreview({ type: "table", rows });
+        const rows = text.trim().split("\n").map(r => r.split(",").map(c => c.replace(/^"|"$/g, "").trim()));
+        setPreview({
+          type: "table",
+          sheets: [{ sheetName: "Data", rows }],
+          content: text,
+          name: file.name,
+          size: file.size
+        });
         setLoading(false);
       };
       reader.onerror = () => setLoading(false);
@@ -238,10 +253,13 @@ function FilePreview({ file }) {
         try {
           const XLSX = await import("https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs");
           const wb = XLSX.read(e.target.result, { type: "array" });
-          const sheetName = wb.SheetNames[0];
-          const ws = wb.Sheets[sheetName];
-          const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
-          setPreview({ type: "table", rows: rows.slice(0, 10), sheetName, totalSheets: wb.SheetNames.length });
+          const sheets = wb.SheetNames.map(sName => {
+            const ws = wb.Sheets[sName];
+            const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+            return { sheetName: sName, rows: rows.slice(0, 30) };
+          });
+          const firstSheetText = sheets.map(s => `--- ${s.sheetName} ---\n` + s.rows.map(r => r.join("\t")).join("\n")).join("\n\n");
+          setPreview({ type: "table", sheets, content: firstSheetText, name: file.name, size: file.size });
         } catch {
           setPreview({ type: "error", message: "Could not render spreadsheet preview." });
         }
@@ -258,9 +276,9 @@ function FilePreview({ file }) {
         try {
           const mammoth = await import("https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js");
           const result = await mammoth.convertToHtml({ arrayBuffer: e.target.result });
-          setPreview({ type: "docx-html", html: result.value, name: file.name, size: file.size });
+          const rawText = result.value.replace(/<[^>]+>/g, " ");
+          setPreview({ type: "docx-html", html: result.value, content: rawText, name: file.name, size: file.size });
         } catch {
-          // Fallback if mammoth fails
           setPreview({ type: "docx", name: file.name, size: file.size });
         }
         setLoading(false);
@@ -275,132 +293,308 @@ function FilePreview({ file }) {
 
   if (!file) return null;
 
-  const wrapper = (children) => (
-    <div className="w-full h-full flex flex-col rounded-xl overflow-hidden" style={{ border: "1px solid var(--border)", minHeight: "360px" }}>
-      {/* Panel header */}
-      <div className="px-4 py-3 flex items-center gap-2 shrink-0"
-        style={{ background: "var(--secondary)", borderBottom: "1px solid var(--border)" }}>
-        <div className="w-2 h-2 rounded-full" style={{ background: "var(--primary)" }} />
-        <span className="text-sm font-semibold" style={{ color: "var(--text)" }}>Preview</span>
-        <span className="text-xs ml-auto truncate max-w-[60%]" style={{ color: "var(--muted)" }}>{file.name}</span>
-      </div>
-      <div style={{ background: "var(--card)" }} className="flex-1 p-4 overflow-auto">{children}</div>
-    </div>
-  );
-
-  if (loading) return wrapper(
-    <div className="flex items-center justify-center py-8 gap-2" style={{ color: "var(--muted)" }}>
-      <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none">
-        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-      </svg>
-      <span className="text-sm">Loading preview…</span>
-    </div>
-  );
-
-  if (!preview) return null;
-
-  if (preview.type === "image") return wrapper(
-    <div className="flex justify-center">
-      <img src={preview.src} alt={file.name} className="max-h-72 max-w-full rounded-lg object-contain shadow-md" />
-    </div>
-  );
-
-  if (preview.type === "pdf") return wrapper(
-    <div className="w-full" style={{ height: "320px" }}>
-      <iframe src={preview.src + "#toolbar=0&navpanes=0&scrollbar=0&page=1"} title="PDF Preview" className="w-full h-full rounded border-0" />
-    </div>
-  );
-
-  if (preview.type === "text") return wrapper(
-    <pre className="text-xs whitespace-pre-wrap break-words max-h-56 overflow-y-auto font-mono leading-relaxed"
-      style={{ color: "var(--text)" }}>
-      {preview.content || "(empty file)"}
-    </pre>
-  );
-
-  if (preview.type === "table") {
-    const [header, ...rows] = preview.rows;
-    return wrapper(
-      <div>
-        {preview.sheetName && (
-          <p className="text-xs mb-2" style={{ color: "var(--muted)" }}>
-            Sheet: <strong>{preview.sheetName}</strong>{preview.totalSheets > 1 && ` (+${preview.totalSheets - 1} more)`}
-          </p>
-        )}
-        <div className="overflow-x-auto max-h-56 overflow-y-auto rounded" style={{ border: "1px solid var(--border)" }}>
-          <table className="text-xs w-full border-collapse">
-            {header && header.length > 0 && (
-              <thead>
-                <tr style={{ background: "var(--secondary)" }} className="sticky top-0">
-                  {header.map((h, i) => (
-                    <th key={i} className="px-3 py-2 text-left font-semibold whitespace-nowrap"
-                      style={{ color: "var(--text)", borderBottom: "1px solid var(--border)" }}>
-                      {String(h || "")}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-            )}
-            <tbody>
-              {rows.map((row, ri) => (
-                <tr key={ri} style={{ background: ri % 2 === 0 ? "var(--card)" : "var(--secondary)" }}>
-                  {(Array.isArray(row) ? row : []).map((cell, ci) => (
-                    <td key={ci} className="px-3 py-1.5 whitespace-nowrap max-w-xs truncate"
-                      style={{ color: "var(--muted)", borderBottom: "1px solid var(--border)" }}>
-                      {String(cell ?? "")}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <p className="text-xs mt-2" style={{ color: "var(--muted)", opacity: 0.6 }}>Showing up to 10 rows</p>
-      </div>
-    );
+  function copyContent() {
+    const textToCopy = preview?.content || (preview?.type === "text" ? preview.content : file.name);
+    navigator.clipboard.writeText(textToCopy).then(() => {
+      setCopied(true);
+      toast.success("Preview content copied to clipboard!");
+      setTimeout(() => setCopied(false), 2000);
+    });
   }
 
-  if (preview.type === "docx-html") return wrapper(
-    <div>
-      <div className="flex items-center gap-2 mb-2">
-        <span className="text-lg">📝</span>
-        <span className="text-xs font-medium" style={{ color: "var(--muted)" }}>{preview.name} · {(preview.size / 1024).toFixed(1)} KB</span>
+  const { Icon: FileIconComponent = File, label: typeLabel } = fileTypeLabel(file);
+
+  const wordCount = preview?.content ? preview.content.trim().split(/\s+/).filter(Boolean).length : 0;
+  const lineCount = preview?.content ? preview.content.split("\n").length : 0;
+
+  function renderVisualContent(isModal = false) {
+    if (!preview) return null;
+
+    if (preview.type === "image") {
+      return (
+        <div className="w-full h-full flex items-center justify-center overflow-auto p-2">
+          <img
+            src={preview.src}
+            alt={file.name}
+            style={{ transform: `scale(${zoom / 100})`, transformOrigin: "center center" }}
+            className={`rounded-xl object-contain transition-transform duration-200 shadow-lg ${isModal ? "max-h-[75vh]" : "max-h-[320px]"}`}
+          />
+        </div>
+      );
+    }
+
+    if (preview.type === "pdf") {
+      return (
+        <div className="w-full h-full flex flex-col" style={{ minHeight: isModal ? "70vh" : "320px" }}>
+          <iframe
+            src={preview.src + "#toolbar=0&navpanes=0&scrollbar=1&page=1"}
+            title="PDF Preview"
+            style={{ transform: `scale(${zoom / 100})`, transformOrigin: "top center" }}
+            className="w-full h-full rounded-xl border-0 flex-1 transition-transform duration-200"
+          />
+        </div>
+      );
+    }
+
+    if (preview.type === "text") {
+      return (
+        <div style={{ transform: `scale(${zoom / 100})`, transformOrigin: "top left" }} className="transition-transform duration-200">
+          <pre className="text-xs whitespace-pre-wrap break-words font-mono leading-relaxed p-3 bg-gray-50 dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-800 text-gray-800 dark:text-gray-200">
+            {preview.content || "(empty file)"}
+          </pre>
+        </div>
+      );
+    }
+
+    if (preview.type === "table") {
+      const currentSheet = preview.sheets?.[activeSheetIdx] || preview.sheets?.[0] || { rows: [] };
+      const [header, ...rows] = currentSheet.rows || [];
+      return (
+        <div className="space-y-3" style={{ transform: `scale(${zoom / 100})`, transformOrigin: "top left" }}>
+          {preview.sheets?.length > 1 && (
+            <div className="flex gap-1.5 overflow-x-auto pb-1">
+              {preview.sheets.map((s, idx) => (
+                <button
+                  key={s.sheetName}
+                  onClick={() => setActiveSheetIdx(idx)}
+                  className={`px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition ${
+                    activeSheetIdx === idx
+                      ? "bg-indigo-600 text-white shadow-xs"
+                      : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
+                  }`}
+                >
+                  📊 {s.sheetName}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="overflow-x-auto overflow-y-auto max-h-[300px] rounded-xl border border-gray-200 dark:border-gray-800">
+            <table className="text-xs w-full border-collapse">
+              {header && header.length > 0 && (
+                <thead>
+                  <tr className="bg-gray-100 dark:bg-gray-800 sticky top-0 border-b border-gray-200 dark:border-gray-700">
+                    {header.map((h, i) => (
+                      <th key={i} className="px-3 py-2 text-left font-semibold text-gray-800 dark:text-gray-200 whitespace-nowrap">
+                        {String(h || "")}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+              )}
+              <tbody>
+                {rows.map((row, ri) => (
+                  <tr key={ri} className="border-b border-gray-100 dark:border-gray-800/60 hover:bg-indigo-500/5 transition">
+                    {(Array.isArray(row) ? row : []).map((cell, ci) => (
+                      <td key={ci} className="px-3 py-1.5 whitespace-nowrap text-gray-600 dark:text-gray-400 max-w-xs truncate">
+                        {String(cell ?? "")}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    }
+
+    if (preview.type === "docx-html") {
+      return (
+        <div
+          style={{ transform: `scale(${zoom / 100})`, transformOrigin: "top left" }}
+          className="overflow-y-auto max-h-[320px] rounded-xl p-4 text-xs leading-relaxed bg-white text-gray-900 border border-gray-200 shadow-inner prose prose-xs max-w-none font-serif transition-transform duration-200"
+          dangerouslySetInnerHTML={{ __html: preview.html || "<p><em>No content found in document.</em></p>" }}
+        />
+      );
+    }
+
+    if (preview.type === "docx") {
+      return (
+        <div className="flex items-center gap-4 py-6 px-4 bg-gray-50 dark:bg-gray-900/50 rounded-2xl border border-gray-200 dark:border-gray-800">
+          <div className="text-5xl">📝</div>
+          <div>
+            <p className="font-bold text-gray-900 dark:text-white text-sm">{preview.name}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Word Document · {(preview.size / 1024).toFixed(1)} KB</p>
+          </div>
+        </div>
+      );
+    }
+
+    if (preview.type === "error") {
+      return <p className="text-xs py-4 text-center text-red-500 font-semibold">{preview.message}</p>;
+    }
+
+    return null;
+  }
+
+  function renderContent(isModal = false) {
+    if (loading) {
+      return (
+        <div className="flex items-center justify-center py-12 gap-2 text-gray-500 dark:text-gray-400">
+          <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+          <span className="text-xs font-semibold">Generating live preview…</span>
+        </div>
+      );
+    }
+
+    if (viewMode === "text") {
+      return (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-800 pb-2">
+            <span>Extracted Text Content</span>
+            <span className="font-mono">{wordCount} words · {lineCount} lines</span>
+          </div>
+          <textarea
+            readOnly
+            value={preview?.content || "No plain text available."}
+            rows={isModal ? 16 : 9}
+            className="w-full p-3 font-mono text-xs bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-gray-800 rounded-xl resize-none focus:outline-none"
+          />
+        </div>
+      );
+    }
+
+    if (viewMode === "info") {
+      return (
+        <div className="grid grid-cols-2 gap-3 text-xs p-1">
+          <div className="glass-card p-3 rounded-xl border">
+            <span className="text-gray-400 block text-[10px] uppercase font-bold mb-0.5">Filename</span>
+            <span className="font-semibold text-gray-800 dark:text-white truncate block">{file.name}</span>
+          </div>
+          <div className="glass-card p-3 rounded-xl border">
+            <span className="text-gray-400 block text-[10px] uppercase font-bold mb-0.5">File Size</span>
+            <span className="font-semibold text-gray-800 dark:text-white font-mono">{(file.size / 1024 / 1024).toFixed(2)} MB</span>
+          </div>
+          <div className="glass-card p-3 rounded-xl border">
+            <span className="text-gray-400 block text-[10px] uppercase font-bold mb-0.5">Type</span>
+            <span className="font-semibold text-gray-800 dark:text-white">{typeLabel || file.type || "Document"}</span>
+          </div>
+          <div className="glass-card p-3 rounded-xl border">
+            <span className="text-gray-400 block text-[10px] uppercase font-bold mb-0.5">Est. Words</span>
+            <span className="font-semibold text-gray-800 dark:text-white font-mono">{wordCount || "N/A"}</span>
+          </div>
+        </div>
+      );
+    }
+
+    return renderVisualContent(isModal);
+  }
+
+  return (
+    <div className="w-full h-full flex flex-col rounded-2xl overflow-hidden glass-card border shadow-sm">
+      {/* ── Toolbar Header ── */}
+      <div className="px-4 py-2.5 flex items-center justify-between gap-2 shrink-0 flex-wrap bg-gray-100/70 dark:bg-gray-900/70 border-b border-gray-200 dark:border-gray-800">
+        
+        {/* Mode switch */}
+        <div className="flex items-center gap-1 bg-white/80 dark:bg-black/50 p-1 rounded-xl border border-gray-200 dark:border-gray-800 shadow-inner">
+          <button
+            onClick={() => setViewMode("visual")}
+            className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 transition ${
+              viewMode === "visual"
+                ? "bg-indigo-600 text-white shadow-xs"
+                : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+            }`}
+          >
+            <Eye size={12} /> Visual
+          </button>
+          <button
+            onClick={() => setViewMode("text")}
+            className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 transition ${
+              viewMode === "text"
+                ? "bg-indigo-600 text-white shadow-xs"
+                : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+            }`}
+          >
+            <FileText size={12} /> Text
+          </button>
+          <button
+            onClick={() => setViewMode("info")}
+            className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 transition ${
+              viewMode === "info"
+                ? "bg-indigo-600 text-white shadow-xs"
+                : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+            }`}
+          >
+            <Info size={12} /> Info
+          </button>
+        </div>
+
+        {/* Controls */}
+        <div className="flex items-center gap-1.5 ml-auto">
+          {/* Zoom controls */}
+          <div className="flex items-center gap-1 bg-white/80 dark:bg-black/50 px-2 py-1 rounded-xl border border-gray-200 dark:border-gray-800 text-xs">
+            <button onClick={() => setZoom(z => Math.max(50, z - 25))} className="p-0.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded text-gray-600 dark:text-gray-300" title="Zoom out">
+              <ZoomOut size={12} />
+            </button>
+            <span className="px-1 text-[10px] font-mono font-bold text-gray-700 dark:text-gray-300">{zoom}%</span>
+            <button onClick={() => setZoom(z => Math.min(200, z + 25))} className="p-0.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded text-gray-600 dark:text-gray-300" title="Zoom in">
+              <ZoomIn size={12} />
+            </button>
+            {zoom !== 100 && (
+              <button onClick={() => setZoom(100)} className="p-0.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded text-gray-400" title="Reset zoom">
+                <RotateCcw size={11} />
+              </button>
+            )}
+          </div>
+
+          {/* Copy button */}
+          <button
+            onClick={copyContent}
+            className="p-1.5 text-xs bg-white/80 dark:bg-black/50 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-xl border border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 transition"
+            title="Copy Content"
+          >
+            {copied ? <Check size={13} className="text-emerald-500" /> : <Copy size={13} />}
+          </button>
+
+          {/* Fullscreen button */}
+          <button
+            onClick={() => setIsFullscreen(true)}
+            className="p-1.5 text-xs bg-white/80 dark:bg-black/50 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-xl border border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 transition"
+            title="Full Screen Preview"
+          >
+            <Maximize2 size={13} />
+          </button>
+        </div>
       </div>
-      <div
-        className="overflow-y-auto max-h-72 rounded p-3 text-sm leading-relaxed prose prose-sm max-w-none"
-        style={{
-          background: "#fff",
-          color: "#1a1a1a",
-          border: "1px solid var(--border)",
-          fontFamily: "'Calibri', 'Georgia', serif",
-        }}
-        dangerouslySetInnerHTML={{ __html: preview.html || "<p><em>No content found in document.</em></p>" }}
-      />
-      <p className="text-xs mt-1.5" style={{ color: "var(--muted)", opacity: 0.6 }}>Showing document content preview</p>
+
+      {/* ── Content View ── */}
+      <div className="flex-1 p-4 overflow-auto min-h-[300px]">
+        {renderContent(false)}
+      </div>
+
+      {/* ── Fullscreen Overlay Modal ── */}
+      {isFullscreen && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex flex-col p-4 sm:p-8 animate-fadeIn">
+          <div className="flex items-center justify-between mb-4 text-white">
+            <div className="flex items-center gap-3">
+              <FileIconComponent size={24} className="text-indigo-400" />
+              <div>
+                <h3 className="font-bold text-lg leading-snug">{file.name}</h3>
+                <p className="text-xs text-gray-400">{(file.size / 1024 / 1024).toFixed(2)} MB · {typeLabel}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={copyContent}
+                className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold flex items-center gap-1.5 transition"
+              >
+                {copied ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />} Copy
+              </button>
+              <button
+                onClick={() => setIsFullscreen(false)}
+                className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition"
+              >
+                <X size={20} />
+              </button>
+            </div>
+          </div>
+          <div className="flex-1 bg-white dark:bg-gray-900 rounded-2xl overflow-hidden p-6 shadow-2xl border border-white/10 flex flex-col">
+            {renderContent(true)}
+          </div>
+        </div>
+      )}
     </div>
   );
-
-  if (preview.type === "docx") return wrapper(
-    <div className="flex items-center gap-4 py-4">
-      <div className="text-5xl">📝</div>
-      <div>
-        <p className="font-semibold" style={{ color: "var(--text)" }}>{preview.name}</p>
-        <p className="text-sm mt-1" style={{ color: "var(--muted)" }}>
-          Word Document · {(preview.size / 1024).toFixed(1)} KB
-        </p>
-        <p className="text-xs mt-1" style={{ color: "var(--muted)", opacity: 0.6 }}>
-          Click "Summarize Document" to extract and analyze content
-        </p>
-      </div>
-    </div>
-  );
-
-  if (preview.type === "error") return wrapper(
-    <p className="text-sm py-4 text-center" style={{ color: "var(--danger)" }}>{preview.message}</p>
-  );
-
-  return null;
 }
 
 // ── Main Uploadcard ───────────────────────────────────────────────────────────

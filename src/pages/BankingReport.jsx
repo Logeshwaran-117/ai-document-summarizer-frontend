@@ -160,10 +160,21 @@ export default function BankingReport({ result, onBack }) {
 
   const fmt = (n) => (n != null ? Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—");
 
-  // Filtered transactions
-  const categories = ["all", ...new Set(rawTx.map(t => t.category).filter(Boolean))];
+  // Filtered transactions & categories list
+  const ALL_CATEGORIES = [
+    'Salary & Income', 'Food & Dining', 'Groceries & Supermarket', 'Shopping & Retail',
+    'Fuel & Petrol', 'Travel & Transport', 'Utilities & Bills', 'Healthcare & Medical',
+    'Entertainment & Media', 'Transfers (P2P)', 'Merchant Payments (P2M)', 'Loan & EMI',
+    'Credit Card Bill', 'Investment & Wealth', 'Rent & Maintenance', 'Education & Learning',
+    'Cash Withdrawal & ATM', 'Tax & Government Fees', 'Bank Charges & Fees',
+    'Subscriptions & Software', 'Business & Professional', 'Other'
+  ];
+
+  const presentCategories = Array.from(new Set(rawTx.map(t => t.category).filter(Boolean)));
+  const categories = ["all", ...presentCategories, ...ALL_CATEGORIES.filter(c => !presentCategories.includes(c))];
+
   const filteredTx = rawTx.filter(t => {
-    const matchSearch = !txSearch || (t.description || "").toLowerCase().includes(txSearch.toLowerCase());
+    const matchSearch = !txSearch || (t.description || "").toLowerCase().includes(txSearch.toLowerCase()) || (t.counterparty || "").toLowerCase().includes(txSearch.toLowerCase());
     const matchCat = txCategory === "all" || t.category === txCategory;
     const matchAnomaly = !showAnomalyOnly || t.isAnomaly;
     return matchSearch && matchCat && matchAnomaly;
@@ -220,6 +231,10 @@ export default function BankingReport({ result, onBack }) {
 
   async function sendChat() {
     if (!chatInput.trim() || chatLoading) return;
+    if (!_id) {
+      toast.error("Document ID missing. Please re-upload or select from history.");
+      return;
+    }
     const question = chatInput.trim();
     setChatInput("");
     setChatLoading(true);
@@ -227,10 +242,11 @@ export default function BankingReport({ result, onBack }) {
     setChatHistory(prev);
     try {
       const res = await api.post(`/api/banking/history/${_id}/chat`, { question });
-      setChatHistory(res.data.chatHistory);
-    } catch {
-      toast.error("Failed to get answer");
-      setChatHistory([...prev, { role: "assistant", text: "Sorry, I couldn't answer that right now." }]);
+      setChatHistory(res.data.chatHistory || prev);
+    } catch (err) {
+      const serverMsg = err.response?.data?.message || err.message || "Failed to get answer";
+      toast.error(serverMsg);
+      setChatHistory([...prev, { role: "assistant", text: `Sorry, ${serverMsg}. Please try asking again.` }]);
     } finally {
       setChatLoading(false);
     }
@@ -427,7 +443,7 @@ export default function BankingReport({ result, onBack }) {
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
                   <tr>
-                    {["Date", "Description", "Category", "Debit", "Credit", "Balance", ""].map(h => (
+                    {["Date", "Description", "Mode", "Category", "Debit", "Credit", "Balance", ""].map(h => (
                       <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -435,7 +451,7 @@ export default function BankingReport({ result, onBack }) {
                 <tbody>
                   {filteredTx.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="text-center py-10 text-gray-400 dark:text-gray-500">
+                      <td colSpan={8} className="text-center py-10 text-gray-400 dark:text-gray-500">
                         {rawTx.length === 0
                           ? "No transactions were extracted from this document. Try uploading a clearer PDF."
                           : "No transactions match your filters"}
@@ -444,7 +460,13 @@ export default function BankingReport({ result, onBack }) {
                   ) : filteredTx.map((t, i) => (
                     <tr key={i} className={`border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition ${t.isAnomaly ? "bg-orange-50 dark:bg-orange-900/10" : ""}`}>
                       <td className="px-4 py-3 text-gray-600 dark:text-gray-400 whitespace-nowrap text-xs">{t.date || "—"}</td>
-                      <td className="px-4 py-3 text-gray-800 dark:text-gray-200 max-w-[200px] truncate">{t.description || "—"}</td>
+                      <td className="px-4 py-3 text-gray-800 dark:text-gray-200 max-w-[240px]">
+                        <p className="truncate font-medium">{t.description || "—"}</p>
+                        {t.counterparty && (
+                          <p className="text-[10px] text-blue-600 dark:text-blue-400 truncate">Payee: {t.counterparty}</p>
+                        )}
+                      </td>
+                      <td className="px-4 py-3"><PaymentMethodBadge mode={t.paymentMethod} /></td>
                       <td className="px-4 py-3"><CategoryBadge cat={t.category} /></td>
                       <td className="px-4 py-3 text-red-600 dark:text-red-400 font-medium whitespace-nowrap">
                         {t.debit != null ? `${cur} ${fmtVal(t.debit)}` : "—"}
@@ -530,12 +552,16 @@ export default function BankingReport({ result, onBack }) {
             )}
             {chatHistory.map((m, i) => (
               <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-                <div className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm
+                <div className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm
                   ${m.role === "user"
                     ? "bg-blue-600 text-white rounded-br-sm"
-                    : "bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200 rounded-bl-sm"}`}
+                    : "bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200 rounded-bl-sm prose dark:prose-invert max-w-none font-normal"}`}
                 >
-                  {m.text}
+                  {m.role === "user" ? (
+                    m.text
+                  ) : (
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.text}</ReactMarkdown>
+                  )}
                 </div>
               </div>
             ))}
@@ -639,27 +665,63 @@ function ExportMenu({ onExport, loading }) {
 
 function StatCard({ label, val, icon }) {
   return (
-    <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
-      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{icon} {label}</p>
-      <p className="text-base font-bold text-gray-900 dark:text-white break-all">{val}</p>
+    <div className="glass-card rounded-2xl p-4.5 border transition-all duration-200 hover:-translate-y-0.5 shadow-sm">
+      <div className="flex items-center gap-2 mb-1.5">
+        <span className="text-base">{icon}</span>
+        <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{label}</p>
+      </div>
+      <p className="text-lg font-bold text-gray-900 dark:text-white break-all font-heading tracking-tight">{val}</p>
     </div>
   );
 }
 
 const CAT_COLORS = {
-  "Salary & Income": "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400",
-  "Food & Dining": "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400",
-  "Shopping": "bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-400",
-  "Transport": "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400",
-  "Utilities": "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400",
-  "Healthcare": "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400",
-  "Entertainment": "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400",
-  "Transfers": "bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-400",
-  "Loan & EMI": "bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400",
-  "Investment": "bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400",
-  "Tax & Fees": "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300",
-  "Other": "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400",
+  "Salary & Income": "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800",
+  "Food & Dining": "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800",
+  "Groceries & Supermarket": "bg-lime-100 dark:bg-lime-900/40 text-lime-700 dark:text-lime-300 border border-lime-200 dark:border-lime-800",
+  "Shopping & Retail": "bg-pink-100 dark:bg-pink-900/40 text-pink-700 dark:text-pink-300 border border-pink-200 dark:border-pink-800",
+  "Fuel & Petrol": "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800",
+  "Travel & Transport": "bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800",
+  "Utilities & Bills": "bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-800",
+  "Healthcare & Medical": "bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800",
+  "Entertainment & Media": "bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800",
+  "Transfers (P2P)": "bg-cyan-100 dark:bg-cyan-900/40 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800",
+  "Merchant Payments (P2M)": "bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800",
+  "Loan & EMI": "bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-800",
+  "Credit Card Bill": "bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800",
+  "Investment & Wealth": "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800",
+  "Rent & Maintenance": "bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-800",
+  "Education & Learning": "bg-fuchsia-100 dark:bg-fuchsia-900/40 text-fuchsia-700 dark:text-fuchsia-300 border border-fuchsia-200 dark:border-fuchsia-800",
+  "Cash Withdrawal & ATM": "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700",
+  "Tax & Government Fees": "bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 border border-stone-200 dark:border-stone-700",
+  "Bank Charges & Fees": "bg-zinc-200 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-300 border border-zinc-300 dark:border-zinc-700",
+  "Subscriptions & Software": "bg-indigo-100 dark:bg-indigo-900/40 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800",
+  "Business & Professional": "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800",
+  "Other": "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700",
 };
+
+const METHOD_COLORS = {
+  UPI: "bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800",
+  NEFT: "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800",
+  IMPS: "bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800",
+  RTGS: "bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800",
+  ATM: "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800",
+  POS: "bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800",
+  CHEQUE: "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700",
+  INTEREST: "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800",
+  CHARGE: "bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800",
+  OTHER: "bg-gray-100 dark:bg-gray-800/60 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700",
+};
+
+function PaymentMethodBadge({ mode }) {
+  if (!mode || mode === 'OTHER') return null;
+  const cls = METHOD_COLORS[mode] || METHOD_COLORS["OTHER"];
+  return (
+    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-wider ${cls}`}>
+      {mode}
+    </span>
+  );
+}
 
 function CategoryBadge({ cat }) {
   const cls = CAT_COLORS[cat] || CAT_COLORS["Other"];
