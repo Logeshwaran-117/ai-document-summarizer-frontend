@@ -1,11 +1,15 @@
 import { useState } from "react";
 
 const THEMES = [
-  { key: "navyGold",     label: "Navy & Gold",    swatch: ["#1E2761", "#C9A84C"] },
-  { key: "tealSlate",    label: "Teal & Slate",   swatch: ["#0F3D3E", "#3FBFAE"] },
-  { key: "charcoalRuby", label: "Charcoal & Ruby", swatch: ["#231F20", "#C0392B"] },
-  { key: "midnightBlue", label: "Midnight Blue",  swatch: ["#0D1B2A", "#00B4D8"] },
-  { key: "forestGreen",  label: "Forest & Amber", swatch: ["#1B4332", "#F4A261"] },
+  { key: "Professional", label: "Professional", swatch: ["#0F1B38", "#F5A623"] },
+  { key: "Light Mode",   label: "Light Mode",   swatch: ["#F8FAFC", "#2563EB"] },
+  { key: "Modern",       label: "Midnight Blue", swatch: ["#0D1B2A", "#00B4D8"] },
+  { key: "Minimal",      label: "Teal & Slate",  swatch: ["#0F3D3E", "#3FBFAE"] },
+  { key: "Corporate",    label: "Corporate",    swatch: ["#1A1A2E", "#7C3AED"] },
+  { key: "Dark Mode",    label: "Dark Executive", swatch: ["#090F1E", "#F5A623"] },
+  { key: "Finance",      label: "Financial",    swatch: ["#0A2342", "#D4AF37"] },
+  { key: "Healthcare",   label: "Healthcare",   swatch: ["#1B3A4B", "#52B788"] },
+  { key: "Creative",     label: "Forest & Amber", swatch: ["#1B4332", "#F4A261"] },
 ];
 
 const DETAIL_LEVELS = [
