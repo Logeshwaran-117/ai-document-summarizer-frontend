@@ -138,6 +138,8 @@ function PresentationWizard({ open, defaultTitle = "", onCancel, onGenerate, loa
   const [goal, setGoal]                     = useState("Inform");
   const [theme, setTheme]                   = useState("Light Mode");
   const [chartCountLimit, setChartCountLimit] = useState("Auto");
+  const [chartCounts, setChartCounts]       = useState({ bar: 0, pie: 0, line: 0, donut: 0 });
+  const [usePerTypeCharts, setUsePerTypeCharts] = useState(false);
   const [primaryColor, setPrimaryColor]     = useState("#1E2761");
   const [accentColor, setAccentColor]       = useState("#C9A84C");
   const [animationStyle, setAnimationStyle] = useState("Professional");
@@ -172,6 +174,7 @@ function PresentationWizard({ open, defaultTitle = "", onCancel, onGenerate, loa
       speakerNotes,
       chartType,
       maxCharts: chartCountLimit,
+      chartCounts: usePerTypeCharts ? chartCounts : {},
       imageOption,
       sections,
     });
@@ -344,46 +347,110 @@ function PresentationWizard({ open, defaultTitle = "", onCancel, onGenerate, loa
       case 3:
         return (
           <div className="space-y-5">
-            {/* Chart Limit */}
+            {/* Chart Mode toggle */}
             <div>
-              <SectionLabel>Max Number of Charts in Presentation</SectionLabel>
-              <ChipSelect
-                options={["Auto", "0 (No Charts)", "1 Chart", "2 Charts", "3 Charts", "5 Charts"]}
-                value={chartCountLimit}
-                onChange={setChartCountLimit}
-                cols={3}
-              />
-              <p className="text-[11px] mt-1" style={{ color: "var(--muted)" }}>
-                If set to e.g. "1 Chart", the AI will generate at most 1 chart graph and convert all remaining data into rich analytical tables and detailed text panels.
-              </p>
+              <SectionLabel>Chart Configuration Mode</SectionLabel>
+              <div className="flex gap-3 mb-3">
+                {[
+                  { key: false, label: "🎯 Simple — Set a total max", hint: "Pick a total chart limit" },
+                  { key: true,  label: "🎛️ Advanced — Per chart type", hint: "Exact count per chart type" },
+                ].map(opt => (
+                  <button
+                    key={String(opt.key)}
+                    type="button"
+                    onClick={() => setUsePerTypeCharts(opt.key)}
+                    className="flex-1 text-left px-3 py-2.5 rounded-lg border transition-all"
+                    style={{
+                      border: usePerTypeCharts === opt.key ? "1.5px solid var(--primary)" : "1px solid var(--border)",
+                      background: usePerTypeCharts === opt.key ? "rgba(var(--primary-rgb),0.12)" : "var(--secondary)",
+                    }}
+                  >
+                    <p className="text-sm font-semibold" style={{ color: "var(--text)" }}>{opt.label}</p>
+                    <p className="text-[11px] mt-0.5" style={{ color: "var(--muted)" }}>{opt.hint}</p>
+                  </button>
+                ))}
+              </div>
             </div>
-            {/* Charts */}
-            <div>
-              <SectionLabel>Chart Type</SectionLabel>
-              <ChipSelect options={CHART_TYPES} value={chartType} onChange={setChartType} cols={3} />
-            </div>
+
+            {!usePerTypeCharts ? (
+              <>
+                {/* Simple mode: global max + type */}
+                <div>
+                  <SectionLabel>Max Number of Charts in Presentation</SectionLabel>
+                  <ChipSelect
+                    options={["Auto", "0 (No Charts)", "1 Chart", "2 Charts", "3 Charts", "5 Charts"]}
+                    value={chartCountLimit}
+                    onChange={setChartCountLimit}
+                    cols={3}
+                  />
+                  <p className="text-[11px] mt-1" style={{ color: "var(--muted)" }}>
+                    AI will include at most this many chart slides. Remaining data becomes tables or KPI cards.
+                  </p>
+                </div>
+                <div>
+                  <SectionLabel>Chart Type</SectionLabel>
+                  <ChipSelect options={CHART_TYPES} value={chartType} onChange={setChartType} cols={3} />
+                </div>
+              </>
+            ) : (
+              /* Advanced mode: per-type counters */
+              <div>
+                <SectionLabel>Exact Chart Count Per Type</SectionLabel>
+                <p className="text-[11px] mb-3" style={{ color: "var(--muted)" }}>
+                  Set exactly how many of each chart type to include. The AI will generate precisely these counts — no more, no less.
+                </p>
+                <div className="space-y-2">
+                  {[
+                    { key: "bar",   icon: "📊", label: "Bar Chart",    hint: "Vertical grouped bars for comparisons" },
+                    { key: "pie",   icon: "🥧", label: "Pie / Donut",  hint: "Distribution and proportions" },
+                    { key: "line",  icon: "📈", label: "Line Chart",   hint: "Trends over time or sequence" },
+                    { key: "donut", icon: "🍩", label: "Donut Chart",  hint: "Proportions with center callout" },
+                  ].map(ct => (
+                    <div
+                      key={ct.key}
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-lg"
+                      style={{ border: "1px solid var(--border)", background: "var(--secondary)" }}
+                    >
+                      <span className="text-xl">{ct.icon}</span>
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold" style={{ color: "var(--text)" }}>{ct.label}</p>
+                        <p className="text-[10px]" style={{ color: "var(--muted)" }}>{ct.hint}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setChartCounts(prev => ({ ...prev, [ct.key]: Math.max(0, (prev[ct.key] || 0) - 1) }))}
+                          className="w-7 h-7 rounded-full flex items-center justify-center text-base font-bold transition"
+                          style={{ background: "var(--card)", border: "1px solid var(--border)", color: "var(--muted)" }}
+                        >−</button>
+                        <span className="w-5 text-center text-sm font-bold" style={{ color: "var(--text)" }}>
+                          {chartCounts[ct.key] || 0}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setChartCounts(prev => ({ ...prev, [ct.key]: Math.min(10, (prev[ct.key] || 0) + 1) }))}
+                          className="w-7 h-7 rounded-full flex items-center justify-center text-base font-bold transition"
+                          style={{ background: "rgba(var(--primary-rgb),0.15)", border: "1px solid rgba(var(--primary-rgb),0.3)", color: "var(--primary)" }}
+                        >+</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-2 px-3 py-2 rounded-lg" style={{ background: "rgba(var(--primary-rgb),0.07)", border: "1px solid rgba(var(--primary-rgb),0.2)" }}>
+                  <p className="text-xs font-semibold" style={{ color: "var(--primary)" }}>
+                    Total chart slides: {Object.values(chartCounts).reduce((a, b) => a + b, 0)}
+                  </p>
+                  <p className="text-[10px] mt-0.5" style={{ color: "var(--muted)" }}>
+                    {Object.entries(chartCounts).filter(([, n]) => n > 0).map(([k, n]) => `${n} ${k}`).join(" + ") || "None selected"}
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Images */}
             <div>
               <SectionLabel>Images & Illustrations</SectionLabel>
               <ChipSelect options={IMAGE_OPTIONS} value={imageOption} onChange={setImageOption} cols={2} />
-            </div>
-            {/* AI Thinking info */}
-            <div className="rounded-xl p-3 mt-2" style={{ background: "rgba(var(--primary-rgb),0.07)", border: "1px solid rgba(var(--primary-rgb),0.2)" }}>
-              <p className="text-xs font-bold mb-1.5" style={{ color: "var(--primary)" }}>🧠 AI Thinking Pipeline</p>
-              <div className="flex flex-wrap gap-1.5">
-                {[
-                  "Understand Document", "→", "Detect Audience", "→", "Create Strategy",
-                  "→", "Build Outline", "→", "Write Narrative", "→", "Design Slides",
-                  "→", "Assign Charts", "→", "Generate PPTX",
-                ].map((step, i) => (
-                  <span key={i} className="text-[10px]" style={{ color: step === "→" ? "var(--muted)" : "var(--text)", fontWeight: step !== "→" ? 600 : 400 }}>
-                    {step}
-                  </span>
-                ))}
-              </div>
-              <p className="text-[10px] mt-2" style={{ color: "var(--muted)" }}>
-                Uses Claude Opus 4 → Claude Sonnet 4 → GPT-5 → Gemini (fallback). Never reuses summary text.
-              </p>
             </div>
           </div>
         );

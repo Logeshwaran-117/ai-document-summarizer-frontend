@@ -35,7 +35,7 @@ const CHART_DENSITIES = [
  */
 function PptOptionsModal({ open, defaultTitle = "", onCancel, onConfirm, onConfirmPdf, loading = false }) {
   const [title, setTitle]               = useState(defaultTitle);
-  const [theme, setTheme]               = useState("navyGold");
+  const [theme, setTheme]               = useState("Professional");
   const [detailLevel, setDetailLevel]   = useState("standard");
   const [chartDensity, setChartDensity] = useState("auto");
   const [includeAgenda, setIncludeAgenda] = useState(true);
