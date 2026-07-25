@@ -47,6 +47,10 @@ function History() {
     const [tableShowFilters, setTableShowFilters] = useState(false);
     const [tableFilters, setTableFilters] = useState(DEFAULT_SIMPLE_FILTERS);
 
+    // PPT Presentations tab state
+    const [pptDecks, setPptDecks] = useState([]);
+    const [pptLoading, setPptLoading] = useState(false);
+
     const navigate = useNavigate();
     const { addNotification } = useNotifications();
 
@@ -68,6 +72,22 @@ function History() {
         if (activeTab === "tables") fetchTables();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [tablePage, tableDebouncedSearch, tableFilters, activeTab]);
+
+    useEffect(() => {
+        if (activeTab === "presentations") fetchPptDecks();
+    }, [activeTab]);
+
+    async function fetchPptDecks() {
+        setPptLoading(true);
+        try {
+            const res = await api.get("/api/ppt/history");
+            setPptDecks(res.data.decks || []);
+        } catch (err) {
+            console.error("Failed to fetch PPT history", err);
+        } finally {
+            setPptLoading(false);
+        }
+    }
 
     async function fetchTables() {
         setTableLoading(true);
@@ -260,6 +280,17 @@ function History() {
                     }`}
                 >
                     📄 Documents
+                </button>
+
+                <button
+                    onClick={() => setActiveTab("presentations")}
+                    className={`px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px transition ${
+                        activeTab === "presentations"
+                            ? "border-blue-600 text-blue-600 dark:text-blue-400"
+                            : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                    }`}
+                >
+                    📊 PPT Decks
                 </button>
         
                 <button
@@ -541,6 +572,78 @@ function History() {
             )}
 
             {/* ── Tables Tab ── */}
+            {activeTab === "presentations" && (
+                <>
+                    {pptLoading ? (
+                        <div className="flex justify-center items-center py-24">
+                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+                        </div>
+                    ) : pptDecks.length === 0 ? (
+                        <div className="text-center py-16 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
+                            <div className="text-5xl mb-4">📊</div>
+                            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+                                No PPT Presentations Found
+                            </h3>
+                            <p className="text-gray-500 dark:text-gray-400 max-w-sm mx-auto mb-6">
+                                Generate stunning multi-format presentations from your documents or custom text prompts.
+                            </p>
+                            <button
+                                onClick={() => navigate("/ppt")}
+                                className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-medium rounded-lg shadow transition"
+                            >
+                                ✨ Create New Presentation
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {pptDecks.map((deck) => (
+                                <div
+                                    key={deck._id}
+                                    onClick={() => navigate("/ppt")}
+                                    className="bg-white dark:bg-gray-900 rounded-xl p-5 border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md transition cursor-pointer flex flex-col justify-between"
+                                >
+                                    <div>
+                                        <div className="flex items-center justify-between mb-3">
+                                            <span className="text-xs bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-300 font-semibold px-2.5 py-1 rounded-full">
+                                                📊 {deck.pageCount || deck.slides?.length || 10} Slides
+                                            </span>
+                                            <span className="text-xs text-gray-400">
+                                                {new Date(deck.createdAt).toLocaleDateString()}
+                                            </span>
+                                        </div>
+                                        <h3 className="font-bold text-gray-900 dark:text-white text-lg mb-2 line-clamp-2">
+                                            {deck.title || "Untitled Presentation"}
+                                        </h3>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-4 line-clamp-2">
+                                            Style: {deck.styleTone || "Modern Business"} | Ratio: {deck.aspectRatio || "16:9"}
+                                        </p>
+                                    </div>
+
+                                    {deck.slides?.[0]?.image_base64 && (
+                                        <div className="w-full h-32 rounded-lg bg-gray-100 dark:bg-gray-800 overflow-hidden mb-3 border border-gray-200 dark:border-gray-700">
+                                            <img
+                                                src={deck.slides[0].image_base64.startsWith("data:") ? deck.slides[0].image_base64 : `data:image/png;base64,${deck.slides[0].image_base64}`}
+                                                alt="Slide cover"
+                                                className="w-full h-full object-cover"
+                                            />
+                                        </div>
+                                    )}
+
+                                    <div className="pt-3 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between">
+                                        <span className="text-xs text-green-600 dark:text-green-400 font-semibold flex items-center gap-1">
+                                            ✅ Ready
+                                        </span>
+                                        <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline">
+                                            Open in Generator →
+                                        </span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </>
+            )}
+
             {activeTab === "tables" && (
                 <>
                     {/* Search + Filter toggle */}

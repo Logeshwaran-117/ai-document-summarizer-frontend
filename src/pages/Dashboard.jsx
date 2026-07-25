@@ -21,6 +21,7 @@ const TableDetailPage   = lazy(() => import("./TableDetailPage"));
 const AdminPanel        = lazy(() => import("./AdminPanel"));
 const Pricing           = lazy(() => import("./Pricing"));
 const Banking           = lazy(() => import("./Banking"));
+const PptGenerator      = lazy(() => import("./PptGenerator"));
 const UsageDashboard    = lazy(() => import("./UsageDashboard"));
 const TermsPage   = lazy(() => import("./TermsPage"));
 const PrivacyPage = lazy(() => import("./PrivacyPage"));
@@ -130,6 +131,16 @@ function Dashboard({ setIsAuthenticated, user }) {
                 element={
                   <FeatureGate flag="summarizer">
                     <Banking user={user} />
+                  </FeatureGate>
+                }
+              />
+
+              {/* PPT Generator */}
+              <Route
+                path="/ppt"
+                element={
+                  <FeatureGate flag="summarizer">
+                    <PptGenerator user={user} />
                   </FeatureGate>
                 }
               />
