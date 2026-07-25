@@ -599,6 +599,7 @@ function FilePreview({ file }) {
 function Uploadcard() {
   const [selectedFile,  setSelectedFile]  = useState(null);
   const [dragging,      setDragging]      = useState(false);
+  const [loading,       setLoading]       = useState(false);
   const [summary,       setSummary]       = useState("");
   const [filename,      setFilename]      = useState("");
   const [stats,         setStats]         = useState(null);
