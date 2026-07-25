@@ -35,16 +35,11 @@ export default function PptGenerator({ user }) {
     setStyleError(null);
     try {
       // Fetch style profile from main server proxy route
-      const res = await api.get("/api/ppt/reference-style").catch(async () => {
-        const directRes = await fetch("http://localhost:8000/api/reference-ppts/style-profile");
-        if (!directRes.ok) throw new Error("AIPPT Service Offline");
-        return { data: await directRes.json() };
-      });
-
-      if (res.data && res.data.success !== false) {
-        setStyleProfile(res.data.profile || res.data);
-      } else {
-        throw new Error(res.data?.message || "Failed to load style profile");
+      const res = await api.get("/api/ppt/reference-style");
+      if (res.data && res.data.profile) {
+        setStyleProfile(res.data.profile);
+      } else if (res.data) {
+        setStyleProfile(res.data);
       }
     } catch (err) {
       console.warn("Style profile load warning:", err);
