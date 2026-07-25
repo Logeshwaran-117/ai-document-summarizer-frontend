@@ -26,6 +26,8 @@ export default function PptGenerator({ user }) {
   const [genError, setGenError] = useState(null);
   const [slides, setSlides] = useState([]);
   const [outline, setOutline] = useState(null);
+  const [parsingFile, setParsingFile] = useState(false);
+  const [downloadingPptx, setDownloadingPptx] = useState(false);
 
   useEffect(() => {
     fetchStyleProfile();
@@ -54,18 +56,70 @@ export default function PptGenerator({ user }) {
     const files = Array.from(e.target.files);
     if (!files.length) return;
     setSelectedFiles(files);
+    setParsingFile(true);
 
-    // Combine text content from uploaded files
     let mergedContent = "";
     for (const f of files) {
       if (f.name.endsWith(".txt") || f.name.endsWith(".md")) {
         const text = await f.text();
         mergedContent += `\n\n--- Source: ${f.name} ---\n` + text;
       } else {
-        mergedContent += `\n\n--- Source: ${f.name} ---\n[Document uploaded for multi-format parsing]`;
+        try {
+          const formData = new FormData();
+          formData.append("file", f);
+          const res = await api.post("/api/ppt/parse-file", formData, {
+            headers: { "Content-Type": "multipart/form-data" },
+          });
+          if (res.data && res.data.text) {
+            mergedContent += `\n\n--- Source: ${f.name} ---\n` + res.data.text;
+          } else {
+            mergedContent += `\n\n--- Source: ${f.name} ---\n[Document uploaded for multi-format parsing]`;
+          }
+        } catch (err) {
+          console.warn("File text parsing fallback warning:", err);
+          mergedContent += `\n\n--- Source: ${f.name} ---\n[Document uploaded for presentation parsing]`;
+        }
       }
     }
     setSourceText((prev) => (prev ? prev + "\n" + mergedContent : mergedContent));
+    setParsingFile(false);
+  };
+
+  const handleDownloadPptx = async () => {
+    if (!slides || !slides.length) return;
+    setDownloadingPptx(true);
+    try {
+      const payload = {
+        slides: slides.map((s, i) => ({
+          image_base64: s.image_base64,
+          slide_id: s.id || `slide_${i + 1}`,
+          text_metadata: s.text_metadata || [],
+        })),
+        format: "pptx",
+        aspect_ratio: aspectRatio,
+      };
+
+      const res = await api.post("/api/ppt/export", payload, {
+        responseType: "blob",
+      });
+
+      const blob = new Blob([res.data], {
+        type: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `presentation_${Date.now()}.pptx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("PPTX Export error:", err);
+      alert("Failed to export PPTX presentation file. Please try again.");
+    } finally {
+      setDownloadingPptx(false);
+    }
   };
 
   const handleGenerate = async () => {
@@ -337,11 +391,21 @@ export default function PptGenerator({ user }) {
               </h2>
               {slides.length > 0 && (
                 <button
-                  onClick={() => alert("Downloading native editable .pptx deck...")}
-                  className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition flex items-center gap-1.5"
+                  onClick={handleDownloadPptx}
+                  disabled={downloadingPptx}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition flex items-center gap-1.5 disabled:opacity-50"
                 >
-                  <Download size={13} />
-                  Download PPTX
+                  {downloadingPptx ? (
+                    <>
+                      <RefreshCw size={13} className="animate-spin" />
+                      Exporting PPTX...
+                    </>
+                  ) : (
+                    <>
+                      <Download size={13} />
+                      Download PPTX
+                    </>
+                  )}
                 </button>
               )}
             </div>
