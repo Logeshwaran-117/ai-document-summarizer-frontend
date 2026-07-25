@@ -23,6 +23,7 @@ export default function PptGenerator({ user }) {
   // Progress / Generation states
   const [generating, setGenerating] = useState(false);
   const [progressMsg, setProgressMsg] = useState("");
+  const [genError, setGenError] = useState(null);
   const [slides, setSlides] = useState([]);
   const [outline, setOutline] = useState(null);
 
@@ -74,6 +75,7 @@ export default function PptGenerator({ user }) {
     }
 
     setGenerating(true);
+    setGenError(null);
     setProgressMsg("Analyzing multi-format documents and applying reference style profile...");
     setSlides([]);
 
@@ -111,16 +113,23 @@ export default function PptGenerator({ user }) {
         const lines = buffer.split("\n\n");
         buffer = lines.pop() || "";
 
-        for (const line of lines) {
+        for (const rawLine of lines) {
+          const line = rawLine.trim();
           if (line.startsWith("data: ")) {
             try {
-              const event = JSON.parse(line.replace("data: ", ""));
+              const event = JSON.parse(line.replace(/^data:\s*/, ""));
               if (event.type === "progress") {
-                setProgressMsg(event.data.message);
+                setProgressMsg(event.data?.message || "Processing...");
               } else if (event.type === "slide") {
-                setSlides((prev) => [...prev, event.data]);
+                if (event.data) {
+                  setSlides((prev) => [...prev, event.data]);
+                }
               } else if (event.type === "complete") {
                 setProgressMsg("PPT Generation completed successfully!");
+              } else if (event.type === "error") {
+                const msg = event.data?.message || "Generation error occurred";
+                console.error("PPT Stream Error:", msg);
+                setGenError(msg);
               }
             } catch (e) {
               console.error("SSE parse error", e);
@@ -130,7 +139,7 @@ export default function PptGenerator({ user }) {
       }
     } catch (err) {
       console.error("PPT Generation error:", err);
-      setProgressMsg("Generation failed. Please check backend connection.");
+      setGenError("Generation failed. Please check backend connection.");
     } finally {
       setGenerating(false);
     }
@@ -309,6 +318,13 @@ export default function PptGenerator({ user }) {
             <div className="rounded-2xl p-4 flex items-center gap-3 bg-rose-500/10 border border-rose-500/20">
               <RefreshCw size={18} className="text-rose-500 animate-spin shrink-0" />
               <p className="text-xs font-semibold text-rose-500">{progressMsg}</p>
+            </div>
+          )}
+
+          {genError && (
+            <div className="rounded-2xl p-4 flex items-center gap-3 bg-amber-500/15 border border-amber-500/30 text-amber-400">
+              <AlertCircle size={18} className="shrink-0" />
+              <p className="text-xs font-semibold">{genError}</p>
             </div>
           )}
 
