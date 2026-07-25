@@ -520,7 +520,6 @@ const FEATURE_DEFS = [
   { key: 'summarizer',      label: 'Summarizer',            sub: 'Document summarization',         group: 'AI' },
   { key: 'ocr',             label: 'OCR',                   sub: 'Optical character recognition',  group: 'AI' },
   { key: 'tableExtract',    label: 'Table Extraction',      sub: 'Extract tables from documents',  group: 'AI' },
-  { key: 'pptGen',          label: 'PPT Generator',         sub: 'Generate presentations',         group: 'AI' },
   { key: 'docUpload',       label: 'Document Upload',       sub: 'Allow file uploads',             group: 'Core' },
   { key: 'apiAccess',       label: 'API Access',            sub: 'External API access',            group: 'Core' },
   { key: 'registration',    label: 'Registration',          sub: 'New user sign-ups',              group: 'Auth' },

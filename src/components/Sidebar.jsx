@@ -9,7 +9,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard, Upload, Table2, Landmark, History,
   CreditCard, Settings, ShieldCheck, BarChart3,
-  ChevronRight, Sparkles, Lock, Presentation,
+  ChevronRight, Sparkles, Lock,
 } from "lucide-react";
 import UsageBadge from "./UsageBadge";
 import { useFeatureFlags } from "../hooks/useFeatureFlag";
@@ -20,7 +20,6 @@ const ROUTE_PLAN_LABEL = {
   "/upload":  null,           // free, never locked
   "/excel":   "Pro",
   "/banking": "Pro",
-  "/ppt":     "Pro",
 };
 
 // Map each nav route to the feature flag that controls it
@@ -28,7 +27,6 @@ const ROUTE_FLAGS = {
   "/upload":  "summarizer",
   "/excel":   "tableExtract",
   "/banking": "summarizer",
-  "/ppt":     "pptGenerator",
 };
 
 const USER_LINKS = [
@@ -36,7 +34,6 @@ const USER_LINKS = [
   { to: "/upload",   icon: Upload,          label: "Doc Generator",   sub: "Upload & summarize" },
   { to: "/excel",    icon: Table2,          label: "Table Generator", sub: "Extract data tables"},
   { to: "/banking",  icon: Landmark,        label: "Banking",         sub: "Financial analysis" },
-  { to: "/ppt",      icon: Presentation,    label: "PPT Generator",   sub: "AI presentations"   },
   { to: "/history",  icon: History,         label: "History",         sub: "Past summaries"     },
   { to: "/pricing",  icon: CreditCard,      label: "Plans & Billing", sub: "Upgrade your plan"  },
   { to: "/settings", icon: Settings,        label: "Settings",        sub: "Account & prefs"    },

@@ -20,7 +20,6 @@ const FLAG_LABELS = {
   summarizer:      'Document Summarizer',
   ocr:             'OCR',
   tableExtract:    'Table Extraction',
-  pptGen:          'PPT Generator',
   docUpload:       'Document Upload',
   apiAccess:       'API Access',
   registration:    'Registration',

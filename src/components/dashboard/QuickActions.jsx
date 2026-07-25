@@ -9,7 +9,6 @@ import {
 const ACTIONS = [
   { to: "/upload",   icon: Upload,        label: "Upload PDF",        sub: "Summarize any document", grad: "linear-gradient(135deg,#4F46E5,#818cf8)" },
   { to: "/upload",   icon: FileText,      label: "Summarize",         sub: "AI-powered insights",    grad: "linear-gradient(135deg,#0ea5e9,#38bdf8)" },
-  { to: "/upload",   icon: BarChart2,     label: "Generate PPT",      sub: "Create presentations",   grad: "linear-gradient(135deg,#10b981,#34d399)" },
   { to: "/upload",   icon: MessageSquare, label: "Ask Questions",     sub: "Chat with your docs",    grad: "linear-gradient(135deg,#f59e0b,#fcd34d)" },
   { to: "/upload",   icon: ScanLine,      label: "OCR",               sub: "Extract text from images",grad:"linear-gradient(135deg,#ec4899,#f9a8d4)" },
   { to: "/excel",    icon: Table2,        label: "Table Generator",   sub: "Structured data export",  grad: "linear-gradient(135deg,#8b5cf6,#c4b5fd)" },
@@ -62,7 +61,7 @@ function QuickActions() {
   return (
     <div>
       <h2 className="text-base font-semibold mb-4" style={{ color: "var(--text)" }}>Quick Actions</h2>
-      <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-7 gap-3">
         {ACTIONS.map((a, i) => <ActionCard key={a.label} {...a} delay={i * .05} />)}
       </div>
     </div>

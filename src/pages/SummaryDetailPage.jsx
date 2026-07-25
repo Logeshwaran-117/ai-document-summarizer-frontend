@@ -21,7 +21,6 @@ function SummaryDetailPage() {
     const [loading, setLoading] = useState(true);
     const [notFound, setNotFound] = useState(false);
     const [deleting, setDeleting] = useState(false);
-    const [pptLoading, setPptLoading] = useState(false);
     const { addNotification } = useNotifications();
 
     useEffect(() => {
@@ -86,41 +85,7 @@ function SummaryDetailPage() {
         }
     }
 
-    async function downloadPPT() {
-        if (!doc?.summary) return;
-        try {
-            setPptLoading(true);
-            toast("Generating presentation...", { icon: "⏳" });
 
-            const response = await api.post(
-                "/api/generate-ppt",
-                { summary: doc.summary, filename: doc.filename },
-                { responseType: "blob" }
-            );
-
-            const blob = new Blob([response.data], {
-                type: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-            });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            const safeName = doc.filename.replace(/\.[^/.]+$/, "");
-            a.download = `${safeName}.pptx`;
-            a.click();
-            URL.revokeObjectURL(url);
-            toast.success("Presentation downloaded!");
-            addNotification({
-                title: "Download complete",
-                message: `${safeName}.pptx was downloaded.`,
-                type: "info",
-            });
-        } catch (err) {
-            console.error(err);
-            toast.error("Failed to generate presentation");
-        } finally {
-            setPptLoading(false);
-        }
-    }
 
     async function handleDelete() {
         if (!window.confirm(`Delete "${doc.filename}"? This can't be undone.`)) return;
@@ -241,14 +206,6 @@ function SummaryDetailPage() {
                     </button>
                     <button onClick={downloadPDF} className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-red-700 transition font-medium">
                         📑 Download PDF
-                    </button>
-                    <button
-                        onClick={downloadPPT}
-                        disabled={pptLoading}
-                        className={`px-4 py-2 rounded-lg text-sm text-white transition font-medium
-                            ${pptLoading ? "bg-orange-400 cursor-not-allowed" : "bg-orange-500 hover:bg-orange-600"}`}
-                    >
-                        {pptLoading ? "⏳ Generating..." : "📊 Download PPT"}
                     </button>
                     <button onClick={() => navigate("/history")} className="bg-gray-600 dark:bg-gray-700 text-white px-4 py-2 rounded-lg text-sm hover:bg-gray-700 dark:hover:bg-gray-600 transition font-medium">
                         ← Back

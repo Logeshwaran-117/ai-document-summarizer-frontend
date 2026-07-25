@@ -6,12 +6,10 @@ import remarkGfm from "remark-gfm";
 import toast from "react-hot-toast";
 import { useNotifications } from "../context/NotificationContext";
 import DocumentChat from "./DocumentChat";
-import PptOptionsModal from "./PptOptionsModal";
-import PresentationWizard from "./PresentationWizard";
 import UsageBadge from "./UsageBadge";
 import {
   Upload as UploadIcon, BookOpen, Sparkles, Save, CheckCircle2,
-  FileText, FileSpreadsheet, FileImage, File, Presentation, MessageSquare,
+  FileText, FileSpreadsheet, FileImage, File, MessageSquare,
   Copy, Download, ArrowRight, Maximize2, Minimize2, ZoomIn, ZoomOut,
   RotateCcw, Eye, Layers, X, Check, Info, ExternalLink
 } from "lucide-react";
@@ -603,16 +601,9 @@ function Uploadcard() {
   const [dragging,      setDragging]      = useState(false);
   const [summary,       setSummary]       = useState("");
   const [filename,      setFilename]      = useState("");
-  const [loading,       setLoading]       = useState(false);
-  const [pptLoading,    setPptLoading]    = useState(false);
-  const [pptPdfLoading, setPptPdfLoading] = useState(false);
-  const [showPptPdfMenu, setShowPptPdfMenu] = useState(false);
   const [stats,         setStats]         = useState(null);
   const [copied,        setCopied]        = useState(false);
   const [documentId,    setDocumentId]    = useState(null);
-  const [showPptModal,  setShowPptModal]  = useState(false);
-  const [showWizard,    setShowWizard]    = useState(false);
-  const [wizardLoading, setWizardLoading] = useState(false);
   const [usageKey,      setUsageKey]      = useState(0);
 
   const { addNotification } = useNotifications();
@@ -707,129 +698,7 @@ function Uploadcard() {
     } catch { toast.error("Failed to download PDF"); }
   }
 
-  async function downloadPPT(options) {
-    if (!summary) return;
-    try {
-      setPptLoading(true);
-      toast("Generating presentation...", { icon: "⏳" });
-      const response = await api.post("/api/generate-ppt", { summary, filename: filename || selectedFile?.name || "Summary", documentId, options }, { responseType: "blob" });
-      const blob = new Blob([response.data], { type: "application/vnd.openxmlformats-officedocument.presentationml.presentation" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      const safeName = (options?.title || filename || "Summary").replace(/\.[^/.]+$/, "");
-      a.download = `${safeName}.pptx`;
-      a.click();
-      URL.revokeObjectURL(url);
-      toast.success("Presentation downloaded!");
-      addNotification({ title: "Download complete", message: `${safeName}.pptx was downloaded.`, type: "info" });
-      setShowPptModal(false);
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to generate presentation");
-    } finally {
-      setPptLoading(false);
-    }
-  }
 
-  // ── NEW: AI Wizard Presentation ───────────────────────────────────────────
-  async function downloadAIPPT(wizardOptions) {
-    if (!summary) return;
-    try {
-      setWizardLoading(true);
-      toast("🧠 AI is building your presentation strategy…", { icon: "⏳", duration: 8000 });
-      const response = await api.post(
-        "/api/generate-ppt-ai",
-        {
-          documentText: summary,
-          filename: filename || selectedFile?.name || "Document",
-          documentId,
-          wizardOptions,
-        },
-        { responseType: "blob" }
-      );
-      const blob = new Blob([response.data], {
-        type: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      const safeName = (wizardOptions?.title || filename || "Presentation").replace(/\.[^/.]+$/, "");
-      a.download = `${safeName}.pptx`;
-      a.click();
-      URL.revokeObjectURL(url);
-      toast.success("🎉 AI Presentation downloaded!");
-      addNotification({ title: "AI Presentation ready", message: `${safeName}.pptx downloaded.`, type: "info" });
-      setShowWizard(false);
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to generate AI presentation. Please try again.");
-    } finally {
-      setWizardLoading(false);
-    }
-  }
-
-  async function downloadPPTAsPDF(options) {
-    if (!summary) return;
-    try {
-      setPptPdfLoading(true);
-      toast("Generating presentation PDF...", { icon: "⏳" });
-      await api.post(
-        "/api/generate-ppt",
-        { summary, filename: filename || selectedFile?.name || "Summary", documentId, options },
-        { responseType: "blob" }
-      );
-      const { jsPDF } = await import("jspdf");
-      const pdfName = (options?.title || filename || "Summary").replace(/\.[^/.]+$/, "");
-      const pdf = new jsPDF({ orientation: "landscape", unit: "pt", format: "letter" });
-
-      pdf.setFillColor(30, 39, 97);
-      pdf.rect(0, 0, 792, 612, "F");
-      pdf.setFontSize(30);
-      pdf.setTextColor(255, 255, 255);
-      pdf.setFont("helvetica", "bold");
-      const titleLines = pdf.splitTextToSize(pdfName, 680);
-      pdf.text(titleLines, 56, 210);
-      pdf.setFontSize(14);
-      pdf.setFont("helvetica", "normal");
-      pdf.setTextColor(201, 168, 76);
-      pdf.text("AI Document Summarizer — Presentation Export", 56, 280);
-      pdf.setFontSize(11);
-      pdf.setTextColor(160, 176, 208);
-      pdf.text(`Generated on ${new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}`, 56, 308);
-      pdf.setFillColor(201, 168, 76);
-      pdf.rect(56, 330, 120, 4, "F");
-
-      pdf.addPage();
-      pdf.setFillColor(247, 249, 252);
-      pdf.rect(0, 0, 792, 612, "F");
-      pdf.setFillColor(30, 39, 97);
-      pdf.rect(0, 0, 792, 60, "F");
-      pdf.setFontSize(16);
-      pdf.setFont("helvetica", "bold");
-      pdf.setTextColor(255, 255, 255);
-      pdf.text("AI Summary Excerpt", 40, 38);
-      pdf.setFontSize(10);
-      pdf.setFont("helvetica", "normal");
-      pdf.setTextColor(26, 26, 46);
-      const cleanSummary = summary.replace(/[#*_`>]/g, "").trim().slice(0, 1200);
-      const summaryLines = pdf.splitTextToSize(cleanSummary, 710);
-      pdf.text(summaryLines.slice(0, 38), 40, 90);
-      pdf.setFillColor(201, 168, 76);
-      pdf.rect(0, 600, 792, 12, "F");
-
-      pdf.save(`${pdfName}.pdf`);
-      toast.success("Presentation PDF downloaded!");
-      addNotification({ title: "PDF download complete", message: `${pdfName}.pdf was downloaded.`, type: "info" });
-      setShowPptPdfMenu(false);
-      setShowPptModal(false);
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to generate presentation PDF");
-    } finally {
-      setPptPdfLoading(false);
-    }
-  }
 
   function clearFile() {
     setSelectedFile(null);
@@ -1035,16 +904,6 @@ function Uploadcard() {
                   </p>
                   <div className="flex flex-wrap gap-2">
                     <button
-                      onClick={() => setShowWizard(true)}
-                      disabled={wizardLoading || !summary}
-                      className="flex items-center gap-2 px-4 py-2 rounded-lg text-white text-sm font-semibold transition hover:opacity-90 disabled:opacity-50"
-                      style={{ background: "linear-gradient(135deg, #7c3aed, #2563eb)", boxShadow: "0 2px 10px rgba(124,58,237,.3)" }}
-                    >
-                      <Presentation size={14} />
-                      {wizardLoading ? "Generating…" : "Export to PPT"}
-                      <ArrowRight size={12} style={{ opacity: 0.7 }} />
-                    </button>
-                    <button
                       onClick={() => {
                         // Scroll down to the chat section
                         document.getElementById("doc-chat-anchor")?.scrollIntoView({ behavior: "smooth" });
@@ -1083,53 +942,6 @@ function Uploadcard() {
                     style={{ background: "var(--danger)" }}>
                     📑 PDF
                   </button>
-
-                  {/* PPT split button */}
-                  <div className="relative flex rounded-lg overflow-hidden shadow-sm">
-                  
-                    <div className="w-px" style={{ background: "#ea6b10" }} />
-                    <div className="relative">
-                      {showPptPdfMenu && (
-                        <div
-                          className="absolute right-0 bottom-full mb-1 w-52 rounded-xl shadow-xl z-50"
-                          style={{ background: "var(--card)", border: "1px solid var(--border)" }}
-                          onMouseLeave={() => setShowPptPdfMenu(false)}
-                        >
-                          <p className="text-[10px] font-bold uppercase tracking-wider px-3 pt-2.5 pb-1"
-                            style={{ color: "var(--muted)" }}>
-                            Export as PDF
-                          </p>
-                          {[
-                            { key: "navyGold",     label: "Navy & Gold",     colors: ["#1E2761", "#C9A84C"] },
-                            { key: "tealSlate",    label: "Teal & Slate",    colors: ["#0F3D3E", "#3FBFAE"] },
-                            { key: "charcoalRuby", label: "Charcoal & Ruby", colors: ["#231F20", "#C0392B"] },
-                          ].map(t => (
-                            <button
-                              key={t.key}
-                              onClick={() => downloadPPTAsPDF({ title: (filename || selectedFile?.name || "Summary").replace(/\.[^/.]+$/, ""), theme: t.key, detailLevel: "standard", includeAgenda: true, includeNotes: false })}
-                              className="flex items-center gap-2 w-full px-3 py-2 text-sm transition hover:opacity-80"
-                              style={{ color: "var(--text)" }}
-                            >
-                              <span className="flex gap-1">
-                                <span className="w-3 h-3 rounded-full" style={{ background: t.colors[0] }} />
-                                <span className="w-3 h-3 rounded-full" style={{ background: t.colors[1] }} />
-                              </span>
-                              {t.label}
-                            </button>
-                          ))}
-                          <div className="border-t mt-1 mb-1" style={{ borderColor: "var(--border)" }} />
-                          <button
-                            onClick={() => { setShowPptPdfMenu(false); setShowPptModal(true); }}
-                            className="flex items-center gap-2 w-full px-3 py-2 text-sm transition hover:opacity-80"
-                            style={{ color: "var(--primary)" }}
-                          >
-                            ⚙️ Custom options…
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                 
                 </div>
 
                 <div id="doc-chat-anchor"><DocumentChat documentId={documentId} /></div>
@@ -1138,25 +950,6 @@ function Uploadcard() {
           </div>
         )}
       </div>
-      
-
-      <PptOptionsModal
-        open={showPptModal}
-        defaultTitle={(filename || selectedFile?.name || "Summary").replace(/\.[^/.]+$/, "")}
-        onCancel={() => setShowPptModal(false)}
-        onConfirm={downloadPPT}
-        onConfirmPdf={downloadPPTAsPDF}
-        loading={pptLoading || pptPdfLoading}
-      />
-
-      {/* NEW: AI Presentation Wizard */}
-      <PresentationWizard
-        open={showWizard}
-        defaultTitle={(filename || selectedFile?.name || "Presentation").replace(/\.[^/.]+$/, "")}
-        onCancel={() => setShowWizard(false)}
-        onGenerate={downloadAIPPT}
-        loading={wizardLoading}
-      />
     </section>
   );
 }

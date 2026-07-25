@@ -871,7 +871,6 @@ const FEATURE_FLAGS = [
   { key: 'summarizer',     label: 'Summarizer',           sub: 'Document summarization feature',            group: 'AI' },
   { key: 'ocr',            label: 'OCR',                  sub: 'Optical character recognition',             group: 'AI' },
   { key: 'tableExtract',   label: 'Table Extraction',     sub: 'Extract tables from documents',             group: 'AI' },
-  { key: 'pptGen',         label: 'PPT Generator',        sub: 'Generate presentations from documents',     group: 'AI' },
   { key: 'docUpload',      label: 'Document Upload',      sub: 'Allow users to upload documents',           group: 'Core' },
   { key: 'apiAccess',      label: 'API Access',           sub: 'External API access for users',             group: 'Core' },
   { key: 'registration',   label: 'Registration',         sub: 'New user sign-ups',                         group: 'Auth' },

@@ -566,7 +566,6 @@ export default function Pricing({ user }) {
                     ["Max file size",              "10 MB",    "50 MB",      "200 MB"],
                     ["History retention",          "30 days",  "1 year",     "Forever"],
                     ["All AI models",              "❌",       "✅",         "✅"],
-                    ["PPT export",                 "❌",       "✅",         "✅"],
                     ["Document Q&A chat",          "✅",       "✅",         "✅"],
                     ["Banking doc detection",      "✅",       "✅",         "✅"],
                     ["Priority AI processing",     "❌",       "✅",         "✅"],

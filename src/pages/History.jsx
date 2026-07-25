@@ -36,19 +36,6 @@ function History() {
     const [showFilters, setShowFilters] = useState(false);
     const [filters, setFilters] = useState(DEFAULT_FILTERS);
 
-    // Presentations tab state
-    const [presentations, setPresentations] = useState([]);
-    const [presPage, setPresPage] = useState(1);
-    const [presTotalPages, setPresTotalPages] = useState(1);
-    const [presTotal, setPresTotal] = useState(0);
-    const [presLoading, setPresLoading] = useState(true);
-    const [downloadingId, setDownloadingId] = useState(null);
-    const [downloadingPdfId, setDownloadingPdfId] = useState(null);
-    const [presSearch, setPresSearch] = useState("");
-    const [presDebouncedSearch, setPresDebouncedSearch] = useState("");
-    const [presShowFilters, setPresShowFilters] = useState(false);
-    const [presFilters, setPresFilters] = useState(DEFAULT_SIMPLE_FILTERS);
-
     // Tables tab state
     const [tables, setTables] = useState([]);
     const [tablePage, setTablePage] = useState(1);
@@ -72,33 +59,10 @@ function History() {
         return () => clearTimeout(timer);
     }, [search]);
 
-    // Debounce search (presentations)
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            setPresDebouncedSearch(presSearch);
-            setPresPage(1);
-        }, 400);
-        return () => clearTimeout(timer);
-    }, [presSearch]);
-
-    // Debounce search (tables)
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            setTableDebouncedSearch(tableSearch);
-            setTablePage(1);
-        }, 400);
-        return () => clearTimeout(timer);
-    }, [tableSearch]);
-
     useEffect(() => {
         if (activeTab === "documents") fetchHistory();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [page, debouncedSearch, filters, activeTab]);
-
-    useEffect(() => {
-        if (activeTab === "presentations") fetchPresentations();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [presPage, presDebouncedSearch, presFilters, activeTab]);
 
     useEffect(() => {
         if (activeTab === "tables") fetchTables();
@@ -165,167 +129,7 @@ function History() {
         }
     }
 
-    async function fetchPresentations() {
-        setPresLoading(true);
-        try {
-            const response = await api.get("/api/presentations", {
-                params: {
-                    page: presPage,
-                    limit: PAGE_SIZE,
-                    search: presDebouncedSearch || undefined,
-                    fileType: presFilters.fileType,
-                    dateFrom: presFilters.dateFrom || undefined,
-                    dateTo: presFilters.dateTo || undefined,
-                    sort: presFilters.sort,
-                },
-            });
-            const data = response.data;
-            setPresentations(data.presentations || []);
-            setPresTotal(data.total || 0);
-            setPresTotalPages(data.totalPages || 1);
-        } catch (error) {
-            console.log(error);
-            toast.error("Failed to load presentations");
-        } finally {
-            setPresLoading(false);
-        }
-    }
 
-    function updatePresFilter(key, value) {
-        setPresFilters((prev) => ({ ...prev, [key]: value }));
-        setPresPage(1);
-    }
-
-    function resetPresFilters() {
-        setPresFilters(DEFAULT_SIMPLE_FILTERS);
-        setPresPage(1);
-    }
-
-    const presActiveFilterCount =
-        (presFilters.fileType !== "all" ? 1 : 0) +
-        (presFilters.dateFrom ? 1 : 0) +
-        (presFilters.dateTo ? 1 : 0) +
-        (presFilters.sort !== "newest" ? 1 : 0);
-
-    async function downloadPresentation(id, filename) {
-        setDownloadingId(id);
-        try {
-            const response = await api.get(`/api/presentations/${id}/download`, { responseType: "blob" });
-            const blob = new Blob([response.data], {
-                type: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-            });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = filename || "Presentation.pptx";
-            a.click();
-            URL.revokeObjectURL(url);
-            toast.success("Presentation downloaded!");
-        } catch (error) {
-            console.log(error);
-            toast.error("Failed to download presentation");
-        } finally {
-            setDownloadingId(null);
-        }
-    }
-
-    async function downloadPresentationAsPdf(id, filename) {
-        setDownloadingPdfId(id);
-        try {
-            // Fetch the PPTX blob
-            const response = await api.get(`/api/presentations/${id}/download`, { responseType: "blob" });
-            const pptxBlob = new Blob([response.data], {
-                type: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-            });
-
-            // Convert PPTX → PDF using PptxGenJS slide metadata re-render approach:
-            // We use a canvas-based render via browser's native print API on a hidden iframe.
-            // Since full PPTX→PDF conversion needs LibreOffice server-side, we instead:
-            // 1. Trigger download of PPTX
-            // 2. Then open a print-friendly metadata PDF using jsPDF with slide info
-            const { jsPDF } = await import("jspdf");
-            const pdf = new jsPDF({ orientation: "landscape", unit: "pt", format: "letter" });
-
-            const pdfName = filename.replace(/\.pptx$/i, "") || "Presentation";
-
-            // Cover page
-            pdf.setFillColor(30, 39, 97); // navyGold dark
-            pdf.rect(0, 0, 792, 612, "F");
-            pdf.setFontSize(28);
-            pdf.setTextColor(255, 255, 255);
-            pdf.setFont("helvetica", "bold");
-            const titleLines = pdf.splitTextToSize(pdfName, 680);
-            pdf.text(titleLines, 56, 220);
-            pdf.setFontSize(14);
-            pdf.setFont("helvetica", "normal");
-            pdf.setTextColor(201, 168, 76);
-            pdf.text("AI Document Summarizer — Presentation Export", 56, 290);
-            pdf.setFontSize(11);
-            pdf.setTextColor(160, 176, 208);
-            pdf.text(`Exported on ${new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}`, 56, 320);
-
-            // Info page
-            pdf.addPage();
-            pdf.setFillColor(247, 249, 252);
-            pdf.rect(0, 0, 792, 612, "F");
-            pdf.setFontSize(18);
-            pdf.setTextColor(26, 26, 46);
-            pdf.setFont("helvetica", "bold");
-            pdf.text("Presentation Details", 56, 80);
-            pdf.setFontSize(12);
-            pdf.setFont("helvetica", "normal");
-            pdf.setTextColor(90, 106, 138);
-            const infoLines = [
-                `File: ${filename}`,
-                `Exported: ${new Date().toLocaleString()}`,
-                "",
-                "To view slides with full formatting, please open the .pptx file",
-                "in Microsoft PowerPoint or Google Slides.",
-                "",
-                "This PDF contains presentation metadata and slide outline.",
-            ];
-            infoLines.forEach((line, i) => {
-                pdf.text(line, 56, 120 + i * 22);
-            });
-
-            // Accent bar
-            pdf.setFillColor(201, 168, 76);
-            pdf.rect(0, 600, 792, 12, "F");
-
-            pdf.save(`${pdfName}.pdf`);
-            toast.success("PDF exported!");
-            addNotification({ title: "PDF exported", message: `${pdfName}.pdf downloaded.`, type: "info" });
-        } catch (error) {
-            console.log(error);
-            toast.error("Failed to export as PDF");
-        } finally {
-            setDownloadingPdfId(null);
-        }
-    }
-
-    async function deletePresentation(e, id, filename) {
-        e.stopPropagation();
-        if (!window.confirm(`Delete "${filename}"? This can't be undone.`)) return;
-        try {
-            await api.delete(`/api/presentations/${id}`);
-            toast.success("Presentation deleted");
-            addNotification({ title: "Presentation deleted", message: `${filename} removed.`, type: "info" });
-            if (presentations.length === 1 && presPage > 1) {
-                setPresPage((p) => p - 1);
-            } else {
-                fetchPresentations();
-            }
-        } catch (error) {
-            console.log(error);
-            toast.error("Failed to delete presentation");
-        }
-    }
-
-    const THEME_LABELS = {
-        navyGold: "Navy & Gold",
-        tealSlate: "Teal & Slate",
-        charcoalRuby: "Charcoal & Ruby",
-    };
 
     function formatBytes(bytes) {
         if (!bytes) return "0 KB";
@@ -440,7 +244,7 @@ function History() {
                 <p className="text-gray-500 dark:text-gray-400">
                     {activeTab === "documents"
                         ? (loading ? "Loading..." : total > 0 ? `${total} document${total !== 1 ? 's' : ''} summarized` : "No documents yet")
-                        : (presLoading ? "Loading..." : presTotal > 0 ? `${presTotal} presentation${presTotal !== 1 ? 's' : ''} generated` : "No presentations yet")
+                        : (tableLoading ? "Loading..." : tableTotal > 0 ? `${tableTotal} table${tableTotal !== 1 ? 's' : ''} extracted` : "No tables yet")
                     }
                 </p>
             </div>
@@ -675,7 +479,7 @@ function History() {
                                     onClick={(e) => e.stopPropagation()} // Prevent opening the history page when clicking tags
                                 >
 
-                                    <TagManager docId={doc._id} initialTags={doc.tags || []} />
+                                    <TagManager docId={item._id} initialTags={item.tags || []} />
 
                                 </div>
 
@@ -734,217 +538,6 @@ function History() {
                 </>
             )}
             </>
-            )}
-
-            {/* ── Presentations Tab ── */}
-            {activeTab === "presentations" && (
-                <>
-                    {/* Search + Filter toggle */}
-                    <div className="flex gap-3 mb-4">
-                        <input
-                            type="text"
-                            placeholder="Search by filename..."
-                            value={presSearch}
-                            onChange={(e) => setPresSearch(e.target.value)}
-                            className="flex-1 border border-gray-300 dark:border-gray-700 p-3 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                        />
-                        <button
-                            onClick={() => setPresShowFilters((s) => !s)}
-                            className={`relative px-4 py-3 rounded-lg font-medium text-sm flex items-center gap-2 transition shrink-0 border ${
-                                presShowFilters
-                                    ? "bg-blue-600 text-white border-blue-600"
-                                    : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700"
-                            }`}
-                        >
-                            🎛️ Filters
-                            {presActiveFilterCount > 0 && (
-                                <span className="bg-red-500 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                                    {presActiveFilterCount}
-                                </span>
-                            )}
-                        </button>
-                    </div>
-
-                    {presDebouncedSearch && !presLoading && (
-                        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4 -mt-2">
-                            Found {presTotal} result{presTotal !== 1 ? "s" : ""} for "{presDebouncedSearch}"
-                        </p>
-                    )}
-
-                    {presShowFilters && (
-                        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-5 mb-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            <div>
-                                <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wide">Source File Type</label>
-                                <select
-                                    value={presFilters.fileType}
-                                    onChange={(e) => updatePresFilter("fileType", e.target.value)}
-                                    className="w-full border border-gray-300 dark:border-gray-700 rounded-lg p-2.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                                >
-                                    <option value="all">All Types</option>
-                                    <option value="pdf">PDF</option>
-                                    <option value="docx">DOCX</option>
-                                    <option value="txt">TXT</option>
-                                    <option value="xlsx">Excel (XLSX/XLS/CSV)</option>
-                                    <option value="jpg">JPG</option>
-                                    <option value="png">PNG</option>
-                                </select>
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wide">Sort By</label>
-                                <select
-                                    value={presFilters.sort}
-                                    onChange={(e) => updatePresFilter("sort", e.target.value)}
-                                    className="w-full border border-gray-300 dark:border-gray-700 rounded-lg p-2.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                                >
-                                    <option value="newest">Newest First</option>
-                                    <option value="oldest">Oldest First</option>
-                                </select>
-                            </div>
-
-                            <div className="flex items-end">
-                                <button
-                                    onClick={resetPresFilters}
-                                    disabled={presActiveFilterCount === 0}
-                                    className="w-full px-4 py-2.5 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition"
-                                >
-                                    ↺ Reset Filters
-                                </button>
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wide">From Date</label>
-                                <input
-                                    type="date"
-                                    value={presFilters.dateFrom}
-                                    onChange={(e) => updatePresFilter("dateFrom", e.target.value)}
-                                    className="w-full border border-gray-300 dark:border-gray-700 rounded-lg p-2.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wide">To Date</label>
-                                <input
-                                    type="date"
-                                    value={presFilters.dateTo}
-                                    onChange={(e) => updatePresFilter("dateTo", e.target.value)}
-                                    className="w-full border border-gray-300 dark:border-gray-700 rounded-lg p-2.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                                />
-                            </div>
-                        </div>
-                    )}
-
-                    {presLoading ? (
-                        <div className="flex items-center justify-center py-20">
-                            <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                        </div>
-                    ) : presentations.length === 0 ? (
-                        <div className="text-center py-12 text-gray-400 dark:text-gray-500">
-                            <p className="text-4xl mb-3">📊</p>
-                            <p className="text-lg">No presentations yet</p>
-                            <p className="text-sm mt-2">Generate one from a document's summary to see it here</p>
-                        </div>
-                    ) : (
-                        <>
-                            <div className="space-y-4 mb-8">
-                                {presentations.map((p) => (
-                                    <div
-                                        key={p._id}
-                                        className="bg-white dark:bg-gray-900 rounded-xl shadow-md p-5 transition-all duration-200"
-                                    >
-                                        <div className="flex items-start justify-between mb-3">
-                                            <div className="flex items-center gap-3 min-w-0">
-                                                <div className="bg-orange-100 dark:bg-orange-900/40 rounded-lg p-2 text-xl shrink-0">
-                                                    📊
-                                                </div>
-                                                <div className="min-w-0">
-                                                    <h2 className="text-lg font-bold text-orange-600 dark:text-orange-400 truncate">
-                                                        {p.filename}
-                                                    </h2>
-                                                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-                                                        {new Date(p.createdAt).toLocaleString()}
-                                                        {p.sourceFilename ? ` · from ${p.sourceFilename}` : ""}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                            <button
-                                                onClick={(e) => deletePresentation(e, p._id, p.filename)}
-                                                className="text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 text-lg ml-3 shrink-0 transition"
-                                                title="Delete"
-                                            >
-                                                🗑️
-                                            </button>
-                                        </div>
-
-                                        <div className="flex gap-2 mb-4 flex-wrap">
-                                            <span className="text-xs bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 px-2 py-1 rounded-full">
-                                                🎨 {THEME_LABELS[p.theme] || p.theme}
-                                            </span>
-                                            <span className="text-xs bg-purple-50 dark:bg-purple-900/40 text-purple-600 dark:text-purple-300 px-2 py-1 rounded-full">
-                                                📏 {p.detailLevel}
-                                            </span>
-                                            <span className="text-xs bg-green-50 dark:bg-green-900/40 text-green-600 dark:text-green-300 px-2 py-1 rounded-full">
-                                                🗂️ {p.slideCount} slides
-                                            </span>
-                                            <span className="text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 px-2 py-1 rounded-full">
-                                                💾 {formatBytes(p.sizeBytes)}
-                                            </span>
-                                        </div>
-
-                                        <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-gray-800">
-                                            <div className="flex items-center gap-3 flex-wrap">
-                                                <button
-                                                    onClick={() => downloadPresentation(p._id, p.filename)}
-                                                    disabled={downloadingId === p._id || downloadingPdfId === p._id}
-                                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 text-xs font-semibold hover:bg-orange-100 dark:hover:bg-orange-900/50 disabled:opacity-50 transition border border-orange-200 dark:border-orange-800"
-                                                >
-                                                    {downloadingId === p._id ? "⏳ Downloading..." : "📊 Download PPTX"}
-                                                </button>
-                                                <button
-                                                    onClick={() => downloadPresentationAsPdf(p._id, p.filename)}
-                                                    disabled={downloadingId === p._id || downloadingPdfId === p._id}
-                                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-xs font-semibold hover:bg-red-100 dark:hover:bg-red-900/50 disabled:opacity-50 transition border border-red-200 dark:border-red-800"
-                                                >
-                                                    {downloadingPdfId === p._id ? "⏳ Exporting..." : "📑 Download PDF"}
-                                                </button>
-                                            </div>
-                                            {p.documentId && (
-                                                <button
-                                                    onClick={() => navigate(`/history/${p.documentId}`)}
-                                                    className="text-gray-500 dark:text-gray-400 text-sm hover:underline"
-                                                >
-                                                    View source →
-                                                </button>
-                                            )}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-
-                            {presTotalPages > 1 && (
-                                <div className="flex items-center justify-center gap-2 flex-wrap">
-                                    <button
-                                        onClick={() => setPresPage((p) => Math.max(1, p - 1))}
-                                        disabled={presPage === 1}
-                                        className="px-3 py-2 rounded-lg text-sm font-medium bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-gray-800 transition"
-                                    >
-                                        ← Prev
-                                    </button>
-                                    <span className="text-sm text-gray-500 dark:text-gray-400 mx-2">
-                                        Page {presPage} of {presTotalPages} ({presTotal} total)
-                                    </span>
-                                    <button
-                                        onClick={() => setPresPage((p) => Math.min(presTotalPages, p + 1))}
-                                        disabled={presPage === presTotalPages}
-                                        className="px-3 py-2 rounded-lg text-sm font-medium bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-gray-800 transition"
-                                    >
-                                        Next →
-                                    </button>
-                                </div>
-                            )}
-                        </>
-                    )}
-                </>
             )}
 
             {/* ── Tables Tab ── */}

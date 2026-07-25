@@ -625,7 +625,6 @@ function ExportMenu({ onExport, loading }) {
     { fmt: "xlsx", icon: "📗", label: "Excel",       sub: "Multi-sheet workbook" },
     { fmt: "pdf",  icon: "📄", label: "PDF Report",  sub: "Formatted report" },
     { fmt: "txt",  icon: "📝", label: "Text File",   sub: "Plain text report" },
-    { fmt: "ppt",  icon: "📑", label: "PowerPoint",  sub: "AI-generated slides" },
   ];
 
   return (

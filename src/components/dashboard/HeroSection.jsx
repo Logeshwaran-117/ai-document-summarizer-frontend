@@ -162,7 +162,6 @@ function StatPill({ icon: Icon, value, label, color, delay }) {
 const ACTIONS = [
   { to: "/upload",  icon: Upload,        label: "Upload",    grad: "linear-gradient(135deg,#4F46E5,#818cf8)" },
   { to: "/upload",  icon: FileText,      label: "Summarize", grad: "linear-gradient(135deg,#0ea5e9,#38bdf8)" },
-  { to: "/ppt",  icon: BarChart2,     label: "PPT",       grad: "linear-gradient(135deg,#10b981,#34d399)" },
   { to: "/upload",  icon: MessageSquare, label: "Ask AI",    grad: "linear-gradient(135deg,#f59e0b,#fcd34d)" },
   { to: "/upload",  icon: ScanLine,      label: "OCR",       grad: "linear-gradient(135deg,#ec4899,#f9a8d4)" },
   { to: "/excel",   icon: Table2,        label: "Tables",    grad: "linear-gradient(135deg,#8b5cf6,#c4b5fd)" },
@@ -284,7 +283,7 @@ function HeroSection({ user, stats, billing }) {
         <div className="h-px mb-4" style={{ background: "var(--border)" }} />
 
         {/* ── Row 2: Quick action chips ── */}
-        <div className="grid grid-cols-4 sm:grid-cols-8 gap-2 mb-4">
+        <div className="grid grid-cols-4 sm:grid-cols-7 gap-2 mb-4">
           {ACTIONS.map((a, i) => (
             <ActionChip key={a.label} {...a} delay={i * 0.04} />
           ))}

@@ -17,11 +17,6 @@ const FEATURES = [
     desc: "Auto-detect and analyse financial documents",
   },
   {
-    Icon: Presentation,
-    title: "One-click PPT Export",
-    desc: "Turn any summary into a presentation instantly",
-  },
-  {
     Icon: MessageSquare,
     title: "Chat with your Docs",
     desc: "Ask questions, get answers from your documents",

@@ -12,7 +12,7 @@ import api from '../api';
 
 // ─── Default feature flags ────────────────────────────────────────────────────
 const DEFAULT_FLAGS = {
-  aiChat: true, summarizer: true, ocr: true, tableExtract: true, pptGen: true,
+  aiChat: true, summarizer: true, ocr: true, tableExtract: true,
   docUpload: true, apiAccess: true, registration: true, login: true,
   newDashboard: false, experimental: false, betaFeatures: false, maintenanceBanner: false,
 };

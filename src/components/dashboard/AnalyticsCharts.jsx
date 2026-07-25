@@ -53,7 +53,6 @@ const FEATURES = [
   { name: "Banking",   value: 14, color: "var(--warning)" },
   { name: "Tables",    value: 12, color: "#ec4899" },
   { name: "QA",        value:  5, color: "#8b5cf6"  },
-  { name: "PPT",       value:  3, color: "#06b6d4"  },
 ];
 
 function DonutChart({ data }) {

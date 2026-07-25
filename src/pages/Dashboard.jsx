@@ -22,7 +22,6 @@ const AdminPanel        = lazy(() => import("./AdminPanel"));
 const Pricing           = lazy(() => import("./Pricing"));
 const Banking           = lazy(() => import("./Banking"));
 const UsageDashboard    = lazy(() => import("./UsageDashboard"));
-const PptGeneratorPage  = lazy(() => import("./PptGeneratorPage"));
 const TermsPage   = lazy(() => import("./TermsPage"));
 const PrivacyPage = lazy(() => import("./PrivacyPage"));
 
@@ -135,15 +134,7 @@ function Dashboard({ setIsAuthenticated, user }) {
                 }
               />
 
-              {/* PPT Generator */}
-              <Route
-                path="/ppt"
-                element={
-                  <FeatureGate flag="pptGenerator">
-                    <PptGeneratorPage />
-                  </FeatureGate>
-                }
-              />
+
 
               {/* Admin — always accessible to admins regardless of flags */}
               <Route
