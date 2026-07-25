@@ -89,7 +89,7 @@ export default function PptGenerator({ user }) {
         style_profile_id: styleProfile?.style_profile_id || null,
       };
 
-      const apiBase = import.meta.env.VITE_API_URL || "http://localhost:5000";
+      const apiBase = (api.defaults.baseURL || import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\/$/, "");
       const response = await fetch(`${apiBase}/api/ppt/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
