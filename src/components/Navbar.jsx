@@ -6,7 +6,7 @@ import {
   Search, Sun, Moon, Bell, Settings, LogOut,
   ChevronDown, Sparkles, Command, Upload, History,
   BarChart2, Table, CreditCard, ShieldCheck, ArrowRight,
-  Keyboard, Presentation,
+  Keyboard,
 } from "lucide-react";
 import api from "../api";
 import NotificationCenter from "./NotificationCenter";
@@ -17,7 +17,6 @@ const BREADCRUMB_MAP = {
   "/upload":         "Summarize",
   "/excel":          "Table Generator",
   "/banking":        "Banking",
-  "/ppt":            "PPT Generator",
   "/history":        "History",
   "/pricing":        "Plans & Billing",
   "/settings":       "Settings",
@@ -35,15 +34,6 @@ const COMMANDS = [
     path: "/upload",
     group: "Navigate",
     keywords: ["summarize", "file", "pdf", "docx", "txt", "upload"],
-  },
-  {
-    id: "ppt",
-    label: "PPT Generator",
-    description: "Convert documents into AI PowerPoint slides",
-    icon: Presentation,
-    path: "/ppt",
-    group: "Navigate",
-    keywords: ["ppt", "presentation", "powerpoint", "slides", "deck"],
   },
   {
     id: "history",

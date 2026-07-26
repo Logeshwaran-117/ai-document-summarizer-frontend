@@ -166,7 +166,6 @@ const ACTIONS = [
   { to: "/upload",  icon: ScanLine,      label: "OCR",       grad: "linear-gradient(135deg,#ec4899,#f9a8d4)" },
   { to: "/excel",   icon: Table2,        label: "Tables",    grad: "linear-gradient(135deg,#8b5cf6,#c4b5fd)" },
   { to: "/banking", icon: Landmark,      label: "Banking",   grad: "linear-gradient(135deg,#06b6d4,#67e8f9)" },
-  { to: "/ppt",     icon: Presentation,  label: "PPT Gen",   grad: "linear-gradient(135deg,#e11d48,#fb7185)" },
   { to: "/history", icon: History,       label: "History",   grad: "linear-gradient(135deg,#f97316,#fdba74)" },
 ];
 

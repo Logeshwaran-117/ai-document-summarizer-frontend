@@ -197,9 +197,8 @@ export default function BankingReport({ result, onBack }) {
         xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         pdf: "application/pdf",
         txt: "text/plain",
-        ppt: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
       };
-      const extMap = { csv: "csv", xlsx: "xlsx", pdf: "pdf", txt: "txt", ppt: "pptx" };
+      const extMap = { csv: "csv", xlsx: "xlsx", pdf: "pdf", txt: "txt" };
       const blob = new Blob([res.data], { type: mimeMap[format] });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");

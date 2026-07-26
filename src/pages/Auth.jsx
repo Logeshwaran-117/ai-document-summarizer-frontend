@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import api from "../api";
 import googleLogo from "../assets/google.png";
-import { FileText, Landmark, Presentation, MessageSquare } from "lucide-react";
+import { FileText, Landmark, MessageSquare } from "lucide-react";
 
 /* ── Feature bullets shown on the left panel ── */
 const FEATURES = [
