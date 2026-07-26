@@ -133,7 +133,7 @@ export default function BulkUpload({ user, onComplete }) {
 
       try {
         const form = new FormData();
-        form.append("file", item.file);
+        form.append("document", item.file);
 
         const res = await api.post("/api/summarize", form, {
           headers: { "Content-Type": "multipart/form-data" },
