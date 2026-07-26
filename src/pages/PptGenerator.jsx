@@ -87,10 +87,15 @@ export default function PptGenerator({ user }) {
 
   const handleDownloadPptx = async () => {
     if (!slides || !slides.length) return;
+    const validSlides = slides.filter((s) => s && s.image_base64);
+    if (!validSlides.length) {
+      alert("No valid slide images available for export.");
+      return;
+    }
     setDownloadingPptx(true);
     try {
       const payload = {
-        slides: slides.map((s, i) => ({
+        slides: validSlides.map((s, i) => ({
           image_base64: s.image_base64,
           slide_id: s.id || `slide_${i + 1}`,
           text_metadata: s.text_metadata || [],
@@ -116,7 +121,19 @@ export default function PptGenerator({ user }) {
       window.URL.revokeObjectURL(url);
     } catch (err) {
       console.error("PPTX Export error:", err);
-      alert("Failed to export PPTX presentation file. Please try again.");
+      let errMsg = "Failed to export PPTX presentation file. Please try again.";
+      if (err.response?.data instanceof Blob) {
+        try {
+          const text = await err.response.data.text();
+          const json = JSON.parse(text);
+          if (json.message || json.detail) {
+            errMsg = json.message || json.detail;
+          }
+        } catch (_) {}
+      } else if (err.response?.data?.message) {
+        errMsg = err.response.data.message;
+      }
+      alert(errMsg);
     } finally {
       setDownloadingPptx(false);
     }
