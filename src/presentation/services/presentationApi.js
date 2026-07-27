@@ -1,14 +1,25 @@
-
 /**
  * presentationApi.js
  * Frontend Service Client for AI Presentation Generation API endpoints.
- * Uses shared configured API instance (`api.js`) pointing to VITE_API_URL backend server.
+ * Explicitly constructs absolute target backend URLs to guarantee requests reach the backend API server.
  */
 
 import api from '../../api';
 
-const API_BASE = '/api/presentation';
-const BACKEND_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const RAW_BACKEND = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const BACKEND_URL = RAW_BACKEND.endsWith('/') ? RAW_BACKEND.slice(0, -1) : RAW_BACKEND;
+
+/**
+ * Returns full absolute API URL targeting backend server.
+ * @param {string} endpointPath 
+ */
+function getEndpointUrl(endpointPath) {
+  const path = endpointPath.startsWith('/') ? endpointPath : `/${endpointPath}`;
+  if (BACKEND_URL.startsWith('http://') || BACKEND_URL.startsWith('https://')) {
+    return `${BACKEND_URL}${path}`;
+  }
+  return path;
+}
 
 export const presentationApi = {
   /**
@@ -16,7 +27,8 @@ export const presentationApi = {
    * @param {FormData|Object} payload
    */
   async generatePresentation(payload) {
-    const response = await api.post(`${API_BASE}/generate`, payload);
+    const url = getEndpointUrl('/api/presentation/generate');
+    const response = await api.post(url, payload);
     return response.data;
   },
 
@@ -25,7 +37,8 @@ export const presentationApi = {
    * @param {FormData|Object} payload
    */
   async parseDocument(payload) {
-    const response = await api.post(`${API_BASE}/parse`, payload);
+    const url = getEndpointUrl('/api/presentation/parse');
+    const response = await api.post(url, payload);
     return response.data;
   },
 
@@ -34,7 +47,8 @@ export const presentationApi = {
    * @param {string} jobId
    */
   async getStatus(jobId) {
-    const response = await api.get(`${API_BASE}/status/${jobId}`);
+    const url = getEndpointUrl(`/api/presentation/status/${jobId}`);
+    const response = await api.get(url);
     return response.data;
   },
 
@@ -43,7 +57,7 @@ export const presentationApi = {
    * @param {string} jobId
    */
   getDownloadUrl(jobId) {
-    return `${BACKEND_URL}/api/presentation/download/${jobId}`;
+    return getEndpointUrl(`/api/presentation/download/${jobId}`);
   },
 
   /**
@@ -51,7 +65,8 @@ export const presentationApi = {
    * @param {string} jobId
    */
   async getPreview(jobId) {
-    const response = await api.get(`${API_BASE}/preview/${jobId}`);
+    const url = getEndpointUrl(`/api/presentation/preview/${jobId}`);
+    const response = await api.get(url);
     return response.data;
   },
 };
