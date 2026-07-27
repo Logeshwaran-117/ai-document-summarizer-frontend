@@ -14,6 +14,7 @@ import api from '../api';
 const DEFAULT_FLAGS = {
   aiChat: true, summarizer: true, ocr: true, tableExtract: true,
   docUpload: true, apiAccess: true, registration: true, login: true,
+  presentation: true,
   newDashboard: false, experimental: false, betaFeatures: false, maintenanceBanner: false,
 };
 

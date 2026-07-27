@@ -22,6 +22,7 @@ const AdminPanel        = lazy(() => import("./AdminPanel"));
 const Pricing           = lazy(() => import("./Pricing"));
 const Banking           = lazy(() => import("./Banking"));
 const UsageDashboard    = lazy(() => import("./UsageDashboard"));
+const PresentationPage  = lazy(() => import("./Presentation"));
 
 const TermsPage   = lazy(() => import("./TermsPage"));
 const PrivacyPage = lazy(() => import("./PrivacyPage"));
@@ -162,6 +163,16 @@ function Dashboard({ setIsAuthenticated, user }) {
 
               <Route path="*" element={<Navigate to="/" />} />
               <Route path="/changelog" element={<ChangelogPage />} />
+
+               {/* Presentation */}
+               <Route
+                 path="/presentation"
+                 element={
+                   <FeatureGate flag="presentation">
+                     <PresentationPage />
+                   </FeatureGate>
+                 }
+               />
             </Routes>
             </Suspense>
           </main>
