@@ -1,11 +1,13 @@
 /**
  * presentationApi.js
  * Frontend Service Client for AI Presentation Generation API endpoints.
+ * Uses shared configured API instance (`api.js`) pointing to VITE_API_URL backend server.
  */
 
-import axios from 'axios';
+import api from '../../api';
 
 const API_BASE = '/api/presentation';
+const BACKEND_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 export const presentationApi = {
   /**
@@ -13,7 +15,16 @@ export const presentationApi = {
    * @param {FormData|Object} payload
    */
   async generatePresentation(payload) {
-    const response = await axios.post(`${API_BASE}/generate`, payload);
+    const response = await api.post(`${API_BASE}/generate`, payload);
+    return response.data;
+  },
+
+  /**
+   * Parse document to Universal Semantic JSON.
+   * @param {FormData|Object} payload
+   */
+  async parseDocument(payload) {
+    const response = await api.post(`${API_BASE}/parse`, payload);
     return response.data;
   },
 
@@ -22,7 +33,7 @@ export const presentationApi = {
    * @param {string} jobId
    */
   async getStatus(jobId) {
-    const response = await axios.get(`${API_BASE}/status/${jobId}`);
+    const response = await api.get(`${API_BASE}/status/${jobId}`);
     return response.data;
   },
 
@@ -31,7 +42,7 @@ export const presentationApi = {
    * @param {string} jobId
    */
   getDownloadUrl(jobId) {
-    return `${API_BASE}/download/${jobId}`;
+    return `${BACKEND_URL}/api/presentation/download/${jobId}`;
   },
 
   /**
@@ -39,7 +50,7 @@ export const presentationApi = {
    * @param {string} jobId
    */
   async getPreview(jobId) {
-    const response = await axios.get(`${API_BASE}/preview/${jobId}`);
+    const response = await api.get(`${API_BASE}/preview/${jobId}`);
     return response.data;
   },
 };
