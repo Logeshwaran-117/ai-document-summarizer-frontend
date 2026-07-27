@@ -24,7 +24,7 @@ const DEFAULT_SIMPLE_FILTERS = {
 };
 
 function History() {
-    const [activeTab, setActiveTab] = useState("documents"); // "documents" | "presentations" | "tables"
+    const [activeTab, setActiveTab] = useState("documents"); // "documents" | "tables"
 
     const [history, setHistory] = useState([]);
     const [search, setSearch] = useState("");
@@ -35,17 +35,6 @@ function History() {
     const [loading, setLoading] = useState(true);
     const [showFilters, setShowFilters] = useState(false);
     const [filters, setFilters] = useState(DEFAULT_FILTERS);
-
-    // Presentations tab state
-    const [presentations, setPresentations] = useState([]);
-    const [pptPage, setPptPage] = useState(1);
-    const [pptTotalPages, setPptTotalPages] = useState(1);
-    const [pptTotal, setPptTotal] = useState(0);
-    const [pptLoading, setPptLoading] = useState(true);
-    const [pptSearch, setPptSearch] = useState("");
-    const [pptDebouncedSearch, setPptDebouncedSearch] = useState("");
-    const [selectedPpt, setSelectedPpt] = useState(null);
-    const [pptModalLoading, setPptModalLoading] = useState(false);
 
     // Tables tab state
     const [tables, setTables] = useState([]);
@@ -69,99 +58,13 @@ function History() {
         return () => clearTimeout(timer);
     }, [search]);
 
-    // Debounce search (presentations)
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            setPptDebouncedSearch(pptSearch);
-            setPptPage(1);
-        }, 400);
-        return () => clearTimeout(timer);
-    }, [pptSearch]);
-
     useEffect(() => {
         if (activeTab === "documents") fetchHistory();
     }, [page, debouncedSearch, filters, activeTab]);
 
     useEffect(() => {
-        if (activeTab === "presentations") fetchPresentations();
-    }, [pptPage, pptDebouncedSearch, activeTab]);
-
-    useEffect(() => {
         if (activeTab === "tables") fetchTables();
     }, [tablePage, tableDebouncedSearch, tableFilters, activeTab]);
-
-    async function fetchPresentations() {
-        setPptLoading(true);
-        try {
-            const response = await api.get("/api/presentation/history", {
-                params: {
-                    page: pptPage,
-                    limit: PAGE_SIZE,
-                    search: pptDebouncedSearch || undefined,
-                },
-            });
-            const data = response.data;
-            setPresentations(data.presentations || []);
-            setPptTotal(data.total || 0);
-            setPptTotalPages(data.totalPages || 1);
-        } catch (error) {
-            console.log(error);
-            toast.error("Failed to load presentations");
-        } finally {
-            setPptLoading(false);
-        }
-    }
-
-    async function viewPresentation(id) {
-        setPptModalLoading(true);
-        try {
-            const res = await api.get(`/api/presentation/history/${id}`);
-            setSelectedPpt(res.data);
-        } catch (err) {
-            toast.error("Failed to load presentation details");
-        } finally {
-            setPptModalLoading(false);
-        }
-    }
-
-    async function downloadPptx(e, id, filename) {
-        e.stopPropagation();
-        const toastId = toast.loading("Generating PPTX file...");
-        try {
-            const res = await api.get(`/api/presentation/history/${id}/download`, { responseType: 'blob' });
-            const url = window.URL.createObjectURL(new Blob([res.data]));
-            const link = document.createElement('a');
-            link.href = url;
-            const safeName = (filename || 'presentation').replace(/\.[^.]+$/, '');
-            link.setAttribute('download', `${safeName}_presentation.pptx`);
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
-            window.URL.revokeObjectURL(url);
-            toast.success("Presentation downloaded!", { id: toastId });
-        } catch (err) {
-            console.error(err);
-            toast.error("Failed to download presentation", { id: toastId });
-        }
-    }
-
-    async function deletePresentation(e, id, title) {
-        e.stopPropagation();
-        if (!window.confirm(`Delete presentation "${title}"? This can't be undone.`)) return;
-        try {
-            await api.delete(`/api/presentation/history/${id}`);
-            toast.success("Presentation deleted");
-            addNotification({ title: "Presentation deleted", message: `${title} removed.`, type: "info" });
-            if (presentations.length === 1 && pptPage > 1) {
-                setPptPage((p) => p - 1);
-            } else {
-                fetchPresentations();
-            }
-        } catch (error) {
-            console.log(error);
-            toast.error("Failed to delete presentation");
-        }
-    }
 
     async function fetchTables() {
         setTableLoading(true);
@@ -338,8 +241,6 @@ function History() {
                 <p className="text-gray-500 dark:text-gray-400">
                     {activeTab === "documents"
                         ? (loading ? "Loading..." : total > 0 ? `${total} document${total !== 1 ? 's' : ''} summarized` : "No documents yet")
-                        : activeTab === "presentations"
-                        ? (pptLoading ? "Loading..." : pptTotal > 0 ? `${pptTotal} presentation${pptTotal !== 1 ? 's' : ''} generated` : "No presentations yet")
                         : (tableLoading ? "Loading..." : tableTotal > 0 ? `${tableTotal} table${tableTotal !== 1 ? 's' : ''} extracted` : "No tables yet")
                     }
                 </p>
@@ -356,17 +257,6 @@ function History() {
                     }`}
                 >
                     📄 Documents
-                </button>
-
-                <button
-                    onClick={() => setActiveTab("presentations")}
-                    className={`px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px transition ${
-                        activeTab === "presentations"
-                            ? "border-blue-600 text-blue-600 dark:text-blue-400"
-                            : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
-                    }`}
-                >
-                    📊 Presentations
                 </button>
 
                 <button
@@ -647,192 +537,8 @@ function History() {
                 </div>
             )}
 
-            {activeTab === "presentations" && (
-                <div className="space-y-4">
-                    {/* Search */}
-                    <div className="flex gap-3 mb-4">
-                        <input
-                            type="text"
-                            placeholder="Search by title or filename..."
-                            value={pptSearch}
-                            onChange={(e) => setPptSearch(e.target.value)}
-                            className="flex-1 border border-gray-300 dark:border-gray-700 p-3 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                        />
-                    </div>
 
-                    {pptDebouncedSearch && !pptLoading && (
-                        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4 -mt-2">
-                            Found {pptTotal} result{pptTotal !== 1 ? "s" : ""} for "{pptDebouncedSearch}"
-                        </p>
-                    )}
 
-                    {pptLoading ? (
-                        <div className="flex items-center justify-center py-20">
-                            <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-                        </div>
-                    ) : presentations.length === 0 ? (
-                        <div className="text-center py-12 text-gray-400 dark:text-gray-500">
-                            <p className="text-4xl mb-3">📊</p>
-                            <p className="text-lg">No presentations yet</p>
-                            <p className="text-sm mt-2">Generate AI presentations from the Presentation page to view and download them here</p>
-                        </div>
-                    ) : (
-                        <>
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 mb-8">
-                                {presentations.map((p) => (
-                                    <div
-                                        key={p._id}
-                                        className="bg-white dark:bg-gray-900 rounded-2xl shadow-md p-5 border border-gray-100 dark:border-gray-800 hover:shadow-xl hover:border-indigo-500/30 transition-all duration-200 flex flex-col justify-between"
-                                    >
-                                        <div>
-                                            <div className="flex items-start justify-between mb-3">
-                                                <div className="flex items-center gap-2.5 min-w-0">
-                                                    <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-xl shrink-0">
-                                                        📊
-                                                    </div>
-                                                    <div className="min-w-0">
-                                                        <h2 className="text-base font-bold text-gray-900 dark:text-white truncate">
-                                                            {p.title || p.filename}
-                                                        </h2>
-                                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">
-                                                            {p.filename}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                                <button
-                                                    onClick={(e) => deletePresentation(e, p._id, p.title || p.filename)}
-                                                    className="text-red-400 hover:text-red-600 text-base p-1 shrink-0 transition"
-                                                    title="Delete"
-                                                >
-                                                    🗑️
-                                                </button>
-                                            </div>
-
-                                            <div className="flex gap-2 mb-4 flex-wrap">
-                                                <span className="text-xs bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-300 font-semibold px-2.5 py-1 rounded-full">
-                                                    🎞️ {p.slideCount || 0} Slides
-                                                </span>
-                                                <span className="text-xs bg-emerald-50 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-300 font-semibold px-2.5 py-1 rounded-full capitalize">
-                                                    🌐 {p.domain || "Business"}
-                                                </span>
-                                            </div>
-
-                                            <p className="text-xs text-gray-400 dark:text-gray-500 font-mono mb-4">
-                                                📅 {new Date(p.createdAt).toLocaleString()}
-                                            </p>
-                                        </div>
-
-                                        <div className="flex items-center gap-2 pt-3 border-t border-gray-100 dark:border-gray-800">
-                                            <button
-                                                onClick={() => viewPresentation(p._id)}
-                                                className="flex-1 py-2 px-3 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-800 dark:text-gray-200 font-semibold text-xs transition flex items-center justify-center gap-1.5"
-                                            >
-                                                <span>👁️</span> View Slides
-                                            </button>
-                                            <button
-                                                onClick={(e) => downloadPptx(e, p._id, p.filename)}
-                                                className="flex-1 py-2 px-3 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:opacity-95 text-white font-semibold text-xs transition shadow-sm flex items-center justify-center gap-1.5"
-                                            >
-                                                <span>⬇️</span> Download PPTX
-                                            </button>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-
-                            {pptTotalPages > 1 && (
-                                <div className="flex items-center justify-center gap-2 flex-wrap">
-                                    <button
-                                        onClick={() => setPptPage((p) => Math.max(1, p - 1))}
-                                        disabled={pptPage === 1}
-                                        className="px-3 py-2 rounded-lg text-sm font-medium bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-gray-800 transition"
-                                    >
-                                        ← Prev
-                                    </button>
-                                    <span className="text-sm text-gray-500 dark:text-gray-400 mx-2">
-                                        Page {pptPage} of {pptTotalPages} ({pptTotal} total)
-                                    </span>
-                                    <button
-                                        onClick={() => setPptPage((p) => Math.min(pptTotalPages, p + 1))}
-                                        disabled={pptPage === pptTotalPages}
-                                        className="px-3 py-2 rounded-lg text-sm font-medium bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-gray-800 transition"
-                                    >
-                                        Next →
-                                    </button>
-                                </div>
-                            )}
-                        </>
-                    )}
-                </div>
-            )}
-
-            {/* Slide Structure Viewer Modal */}
-            {selectedPpt && (
-                <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-                    <div className="bg-white dark:bg-gray-900 rounded-3xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl border border-gray-200 dark:border-gray-800">
-                        <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between bg-gray-50 dark:bg-gray-800/50">
-                            <div>
-                                <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                                    <span>📊</span> {selectedPpt.title || selectedPpt.filename}
-                                </h2>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                    {selectedPpt.filename} · {selectedPpt.slideCount} Slides · Generated {new Date(selectedPpt.createdAt).toLocaleDateString()}
-                                </p>
-                            </div>
-                            <div className="flex items-center gap-3">
-                                <button
-                                    onClick={(e) => downloadPptx(e, selectedPpt._id, selectedPpt.filename)}
-                                    className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:opacity-95 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center gap-1.5"
-                                >
-                                    <span>⬇️</span> Download PPTX
-                                </button>
-                                <button
-                                    onClick={() => setSelectedPpt(null)}
-                                    className="w-9 h-9 rounded-xl bg-gray-200 dark:bg-gray-800 hover:bg-gray-300 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 font-bold text-sm transition flex items-center justify-center"
-                                >
-                                    ✕
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="flex-1 p-6 overflow-y-auto space-y-6">
-                            {(selectedPpt.slideStructure?.slides || []).map((slide, idx) => (
-                                <div key={idx} className="bg-gray-50 dark:bg-gray-800/60 rounded-2xl p-5 border border-gray-200/80 dark:border-gray-700/80 shadow-sm">
-                                    <div className="flex items-center justify-between mb-3 border-b border-gray-200 dark:border-gray-700/60 pb-2">
-                                        <span className="text-xs font-mono font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 px-2.5 py-1 rounded-lg">
-                                            Slide {idx + 1}: {slide.slideType || 'content'}
-                                        </span>
-                                        <span className="text-[11px] text-gray-400 font-mono capitalize">
-                                            Layout: {slide.layout || 'standard'}
-                                        </span>
-                                    </div>
-                                    <h3 className="text-base font-bold text-gray-900 dark:text-white mb-1">{slide.title}</h3>
-                                    {slide.subtitle && <p className="text-xs text-indigo-500 dark:text-indigo-400 font-medium mb-3">{slide.subtitle}</p>}
-
-                                    {slide.content?.bullets && slide.content.bullets.length > 0 && (
-                                        <ul className="list-disc list-inside space-y-1.5 text-xs text-gray-700 dark:text-gray-300 mt-3">
-                                            {slide.content.bullets.map((b, bi) => (
-                                                <li key={bi}>{b}</li>
-                                            ))}
-                                        </ul>
-                                    )}
-
-                                    {slide.content?.stats && slide.content.stats.length > 0 && (
-                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-4">
-                                            {slide.content.stats.map((st, si) => (
-                                                <div key={si} className="bg-white dark:bg-gray-900 p-3 rounded-xl border border-gray-200 dark:border-gray-800 text-center">
-                                                    <p className="text-lg font-bold text-indigo-600 dark:text-indigo-400">{st.value}</p>
-                                                    <p className="text-[11px] text-gray-500 dark:text-gray-400">{st.label}</p>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            )}
 
 
 
