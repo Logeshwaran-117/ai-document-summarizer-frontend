@@ -54,6 +54,7 @@ function useProgress() {
   const [progress, setProgress] = useState({ stage: "idle", percent: 0, message: "", done: false, error: false });
   const [liveSlides, setLiveSlides] = useState([]);
   const [finalStructure, setFinalStructure] = useState(null);
+  const [historyId, setHistoryId] = useState(null);
   const esRef = useRef(null);
 
   const reset = useCallback(() => {
@@ -61,6 +62,7 @@ function useProgress() {
     setProgress({ stage: "idle", percent: 0, message: "", done: false, error: false });
     setLiveSlides([]);
     setFinalStructure(null);
+    setHistoryId(null);
   }, []);
 
   const startListening = useCallback((jobId) => {
@@ -79,6 +81,10 @@ function useProgress() {
           done: data.stage === "done",
           error: data.stage === "error"
         });
+
+        if (data.extraData?.historyId) {
+          setHistoryId(String(data.extraData.historyId));
+        }
 
         // Collect live streamed slides
         if (data.extraData?.slide) {
@@ -109,7 +115,7 @@ function useProgress() {
   }, [reset]);
 
   useEffect(() => () => { if (esRef.current) esRef.current.close(); }, []);
-  return { progress, liveSlides, finalStructure, startListening, reset };
+  return { progress, liveSlides, finalStructure, historyId, startListening, reset };
 }
 
 // ── Pipeline stages ───────────────────────────────────────────────────────────
@@ -148,7 +154,7 @@ function PipelineProgress({ progress }) {
       <div className="flex items-center gap-1">
         {STAGES.map((s, i) => {
           const done = !error && i <= idx;
-          const active = !error && i === idx;
+          const active = !error && i === idx && stage !== "done";
           const Icon = s.icon;
           return (
             <div key={s.key} className="flex items-center flex-1">
@@ -160,18 +166,18 @@ function PipelineProgress({ progress }) {
                     color: done ? "#fff" : "var(--muted)",
                   }}
                 >
-                  {active && stage !== "done" ? (
+                  {active ? (
                     <Loader2 size={13} className="animate-spin" />
                   ) : (
                     <Icon size={13} />
                   )}
                 </div>
-                <span className="text-[10px] whitespace-nowrap hidden sm:inline" style={{ color: done ? "var(--text)" : "var(--muted)" }}>
+                <span className="text-[10px] whitespace-nowrap hidden sm:inline font-medium" style={{ color: done ? "var(--text)" : "var(--muted)" }}>
                   {s.label}
                 </span>
               </div>
               {i < STAGES.length - 1 && (
-                <div className="w-full h-px mb-4" style={{ background: i < idx ? "var(--success)" : "var(--border)" }} />
+                <div className="w-full h-px mb-4" style={{ background: i < idx || (stage === "done" && i <= idx) ? "var(--success)" : "var(--border)" }} />
               )}
             </div>
           );
@@ -355,7 +361,8 @@ export default function Presentation({ user }) {
 
   const [downloadUrl, setDownloadUrl] = useState(null);
   const [downloadName, setDownloadName] = useState("");
-  const { progress, liveSlides, finalStructure, startListening, reset } = useProgress();
+  const [presHistoryId, setPresHistoryId] = useState(null);
+  const { progress, liveSlides, finalStructure, historyId, startListening, reset } = useProgress();
 
   const inputRef = useRef(null);
   const dlRef = useRef(null);
@@ -376,6 +383,7 @@ export default function Presentation({ user }) {
     setFile(f);
     setDownloadUrl(null);
     setDownloadName("");
+    setPresHistoryId(null);
     setActiveSlideIndex(0);
     reset();
   };
@@ -391,6 +399,7 @@ export default function Presentation({ user }) {
     if (!file) { toast.error("Please select a document first."); return; }
     setLoading(true);
     setDownloadUrl(null);
+    setPresHistoryId(null);
     setActiveSlideIndex(0);
     reset();
 
@@ -408,6 +417,9 @@ export default function Presentation({ user }) {
         headers: { "Content-Type": "multipart/form-data" },
         timeout: 180000,
       });
+
+      const hId = res.headers["x-presentation-id"];
+      if (hId) setPresHistoryId(String(hId));
 
       const blob = new Blob([res.data], {
         type: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
@@ -428,6 +440,49 @@ export default function Presentation({ user }) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDownloadPptx = async () => {
+    if (downloadUrl) {
+      const a = document.createElement("a");
+      a.href = downloadUrl;
+      a.download = downloadName || `${file?.name?.replace(/\.[^.]+$/, "") || "presentation"}_presentation.pptx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      toast.success("Downloading presentation PPTX...");
+      return;
+    }
+
+    const targetHistoryId = presHistoryId || historyId || finalStructure?._id;
+    if (targetHistoryId) {
+      const tid = toast.loading("Downloading presentation PPTX...");
+      try {
+        const res = await api.get(`/api/presentation/history/${targetHistoryId}/download`, {
+          responseType: "blob",
+        });
+        const blob = new Blob([res.data], {
+          type: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        });
+        const url = URL.createObjectURL(blob);
+        const name = `${file?.name?.replace(/\.[^.]+$/, "") || "presentation"}_presentation.pptx`;
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = name;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setDownloadUrl(url);
+        setDownloadName(name);
+        toast.success("PPTX downloaded successfully!", { id: tid });
+      } catch (err) {
+        console.error(err);
+        toast.error("Failed to download PPTX file. Please try again.", { id: tid });
+      }
+      return;
+    }
+
+    toast.error("Presentation is still finalizing. Please wait a moment.");
   };
 
   const handleReset = () => {
@@ -584,19 +639,13 @@ export default function Presentation({ user }) {
               </div>
 
               <div className="grid grid-cols-2 gap-3 pt-1">
-                <a
-                  ref={dlRef}
-                  href={downloadUrl || "#"}
-                  download={downloadName || "presentation.pptx"}
-                  onClick={(e) => !downloadUrl && e.preventDefault()}
-                  className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl font-bold text-xs transition shadow-md ${
-                    downloadUrl
-                      ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:opacity-95"
-                      : "bg-slate-700 text-slate-400 cursor-not-allowed"
-                  }`}
+                <button
+                  type="button"
+                  onClick={handleDownloadPptx}
+                  className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl font-bold text-xs bg-gradient-to-r from-indigo-600 to-purple-600 hover:opacity-95 text-white transition shadow-md cursor-pointer"
                 >
                   <Download size={15} /> Download PPTX
-                </a>
+                </button>
 
                 <button
                   type="button"
