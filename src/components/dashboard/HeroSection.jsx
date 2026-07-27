@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import {
   Upload, FileText, BarChart2, MessageSquare,
-  ScanLine, Table2, Landmark, History, Presentation,
+  ScanLine, Table2, Landmark, History,
   FileCheck2, Cpu, Clock, TrendingUp, CheckCircle2,
   Crown, Zap, Building2,
 } from "lucide-react";
