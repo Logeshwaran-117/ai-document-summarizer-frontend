@@ -9,7 +9,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard, Upload, Table2, Landmark, History,
   CreditCard, Settings, ShieldCheck, BarChart3,
-  ChevronRight, Sparkles, Lock,
+  ChevronRight, Sparkles, Lock, Presentation,
 } from "lucide-react";
 import UsageBadge from "./UsageBadge";
 import { useFeatureFlags } from "../hooks/useFeatureFlag";
@@ -18,6 +18,7 @@ import { hasUnreadChangelog } from "../pages/ChangelogPage";
 // Map locked routes to the plan that unlocks them
 const ROUTE_PLAN_LABEL = {
   "/upload":        null,           // free, never locked
+  "/presentation":  null,
   "/excel":         "Pro",
   "/banking":       "Pro",
 };
@@ -25,6 +26,7 @@ const ROUTE_PLAN_LABEL = {
 // Map each nav route to the feature flag that controls it
 const ROUTE_FLAGS = {
   "/upload":        "summarizer",
+  "/presentation":  "summarizer",
   "/excel":         "tableExtract",
   "/banking":       "summarizer",
 };
@@ -32,6 +34,7 @@ const ROUTE_FLAGS = {
 const USER_LINKS = [
   { to: "/",              icon: LayoutDashboard, label: "Dashboard",      sub: "Overview & stats"      },
   { to: "/upload",        icon: Upload,          label: "Doc Generator",  sub: "Upload & summarize"    },
+  { to: "/presentation",  icon: Presentation,    label: "AI Presentation",sub: "16:9 Slide Decks"      },
   { to: "/excel",         icon: Table2,          label: "Table Generator",sub: "Extract data tables"   },
   { to: "/banking",       icon: Landmark,        label: "Banking",        sub: "Financial analysis"    },
   { to: "/history",       icon: History,         label: "History",        sub: "Past summaries"        },
