@@ -3,13 +3,13 @@ import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import {
   Upload, FileText, BarChart2, MessageSquare,
-  ScanLine, Table2, Landmark, History,
+  ScanLine, Table2, Landmark, History, Presentation,
 } from "lucide-react";
 
 const ACTIONS = [
   { to: "/upload",        icon: Upload,        label: "Upload PDF",        sub: "Summarize any document",  grad: "linear-gradient(135deg,#4F46E5,#818cf8)" },
+  { to: "/presentation",  icon: Presentation,  label: "AI Presentation",   sub: "Generate PPTX decks",     grad: "linear-gradient(135deg,#10b981,#34d399)" },
   { to: "/upload",        icon: MessageSquare, label: "Ask Questions",     sub: "Chat with your docs",     grad: "linear-gradient(135deg,#f59e0b,#fcd34d)" },
-  { to: "/upload",        icon: ScanLine,      label: "OCR",               sub: "Extract text from images",grad:"linear-gradient(135deg,#ec4899,#f9a8d4)" },
   { to: "/excel",         icon: Table2,        label: "Table Generator",   sub: "Structured data export",  grad: "linear-gradient(135deg,#8b5cf6,#c4b5fd)" },
   { to: "/banking",       icon: Landmark,      label: "Banking Analysis",  sub: "Financial statement AI",  grad: "linear-gradient(135deg,#06b6d4,#67e8f9)" },
   { to: "/history",       icon: History,       label: "History",           sub: "Browse past summaries",   grad: "linear-gradient(135deg,#f97316,#fdba74)" },

@@ -22,6 +22,7 @@ const AdminPanel        = lazy(() => import("./AdminPanel"));
 const Pricing           = lazy(() => import("./Pricing"));
 const Banking           = lazy(() => import("./Banking"));
 const UsageDashboard    = lazy(() => import("./UsageDashboard"));
+const PresentationGenerator = lazy(() => import("./PresentationGenerator"));
 
 const TermsPage   = lazy(() => import("./TermsPage"));
 const PrivacyPage = lazy(() => import("./PrivacyPage"));
@@ -134,6 +135,9 @@ function Dashboard({ setIsAuthenticated, user }) {
                   </FeatureGate>
                 }
               />
+
+              {/* AI Presentation Generator */}
+              <Route path="/presentation" element={<PresentationGenerator user={user} />} />
 
 
 

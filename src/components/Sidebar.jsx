@@ -32,6 +32,7 @@ const ROUTE_FLAGS = {
 const USER_LINKS = [
   { to: "/",              icon: LayoutDashboard, label: "Dashboard",      sub: "Overview & stats"      },
   { to: "/upload",        icon: Upload,          label: "Doc Generator",  sub: "Upload & summarize"    },
+  { to: "/presentation",  icon: Sparkles,        label: "AI Presentation",sub: "Generate PPTX decks"   },
   { to: "/excel",         icon: Table2,          label: "Table Generator",sub: "Extract data tables"   },
   { to: "/banking",       icon: Landmark,        label: "Banking",        sub: "Financial analysis"    },
   { to: "/history",       icon: History,         label: "History",        sub: "Past summaries"        },
