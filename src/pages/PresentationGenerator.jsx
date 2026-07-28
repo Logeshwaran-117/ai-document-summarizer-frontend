@@ -32,11 +32,16 @@ const AUDIENCES = [
 const LANGUAGES = ["English", "Hindi", "Tamil", "Telugu", "Kannada", "Malayalam"];
 
 const SLIDE_COUNTS = [
-  { label: "Auto (AI decides)", value: "" },
-  { label: "8–10 slides", value: "9" },
-  { label: "12–15 slides", value: "13" },
-  { label: "18–22 slides", value: "20" },
-  { label: "25–30 slides", value: "27" },
+  { label: "Auto (AI decides ~16–20)", value: "" },
+  { label: "10 slides", value: "10" },
+  { label: "12 slides", value: "12" },
+  { label: "14 slides", value: "14" },
+  { label: "16 slides", value: "16" },
+  { label: "18 slides (recommended)", value: "18" },
+  { label: "20 slides", value: "20" },
+  { label: "22 slides", value: "22" },
+  { label: "25 slides", value: "25" },
+  { label: "30 slides", value: "30" },
 ];
 
 const PIPELINE_STAGES = [
@@ -184,7 +189,7 @@ export default function PresentationGenerator() {
   const [options, setOptions] = useState({
     purpose: "Executive Briefing",
     audience: "Senior Management",
-    slideCount: "",
+    slideCount: "18",
     language: "English",
     theme: "executive",
   });
@@ -384,9 +389,26 @@ export default function PresentationGenerator() {
               </div>
               <DropZone file={file} onFile={setFile} onRemove={() => setFile(null)} />
 
+              {/* Always-visible slide count control */}
+              <div className="pgen-option-field" style={{ marginTop: 16, marginBottom: 8 }}>
+                <label style={{ fontWeight: 600 }}>How many slides do you need?</label>
+                <select
+                  value={options.slideCount}
+                  onChange={e => setOptions(o => ({ ...o, slideCount: e.target.value }))}
+                  style={{ width: "100%", marginTop: 6 }}
+                >
+                  {SLIDE_COUNTS.map(s => (
+                    <option key={s.value || "auto"} value={s.value}>{s.label}</option>
+                  ))}
+                </select>
+                <p style={{ fontSize: 12, opacity: 0.7, marginTop: 4 }}>
+                  AI will target this count (±2). More slides → more charts, tables, and detail.
+                </p>
+              </div>
+
               {/* Options toggle */}
               <button className="pgen-options-toggle" onClick={() => setShowOptions(v => !v)}>
-                ⚙ Presentation Options {showOptions ? "▲" : "▼"}
+                ⚙ More Options {showOptions ? "▲" : "▼"}
               </button>
 
               {showOptions && (
