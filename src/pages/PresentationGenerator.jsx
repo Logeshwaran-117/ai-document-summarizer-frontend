@@ -66,6 +66,7 @@ const AUDIENCES = [
 const LANGUAGES = ["English", "Hindi", "Tamil", "Telugu", "Kannada", "Malayalam"];
 
 const THEMES = [
+  { id: "sharyx", label: "SharyX Brand Purple", desc: "Modern brand purple aesthetic (Light)" },
   { id: "executive", label: "Executive Navy & Gold", desc: "Classic high-level corporate look" },
   { id: "modern_dark", label: "Modern Dark & Neon", desc: "Sleek, high-contrast dark aesthetic" },
   { id: "corporate", label: "Corporate Slate & Blue", desc: "Clean professional business style" },
@@ -382,7 +383,7 @@ export default function PresentationGenerator({ user }) {
     audience: "Senior Management",
     slideCount: "18",
     language: "English",
-    theme: "executive",
+    theme: "sharyx",
     watermarkText: "",
   });
 
