@@ -66,10 +66,10 @@ function BankingAccessGate({ user }) {
               <span className="text-[var(--success)]">✓</span> Banking document analysis
             </li>
             <li className="flex items-center gap-1.5">
-              <span className="text-[var(--success)]">✓</span> 100 summaries / month
+              <span className="text-[var(--success)]">✓</span> 15 summaries / day
             </li>
             <li className="flex items-center gap-1.5">
-              <span className="text-[var(--success)]">✓</span> 50 table extractions
+              <span className="text-[var(--success)]">✓</span> 15 table extractions / day
             </li>
           </ul>
         </div>

@@ -25,7 +25,7 @@ const SECTIONS = [
     items: [
       { label: "We do not sell your data.", detail: "Your documents and personal information are never sold to third parties." },
       { label: "AI Processing", detail: "Document content is sent to our AI provider solely to generate your requested output and is not used for model training." },
-      { label: "Legal Requirements", detail: "We may disclose information if required by law, court order, or to protect the rights and safety of preciQo or its users." },
+      { label: "Legal Requirements", detail: "We may disclose information if required by law, court order, or to protect the rights and safety of SharyX OCR or its users." },
     ],
   },
   {
@@ -64,7 +64,7 @@ const SECTIONS = [
   {
     title: "8. Contact Us",
     items: [
-      { label: "Privacy enquiries", detail: "privacy@preciqo.com — we aim to respond within 5 business days." },
+      { label: "Privacy enquiries", detail: "privacy@sharyxocr.com — we aim to respond within 5 business days." },
     ],
   },
 ];
@@ -91,7 +91,7 @@ export default function PrivacyPage() {
             Privacy Policy
           </h1>
           <p className="text-xs" style={{ color: "var(--muted)" }}>
-            Last updated: July 2025 · preciQo / DocAI
+            Last updated: July 2025 · SharyX OCR
           </p>
         </div>
       </div>
@@ -104,7 +104,7 @@ export default function PrivacyPage() {
           style={{ background: "var(--card)", borderColor: "var(--border)" }}
         >
           <p className="text-sm leading-relaxed" style={{ color: "var(--muted)" }}>
-            At preciQo, your privacy matters. This policy explains what data we collect, why we
+            At SharyX OCR, your privacy matters. This policy explains what data we collect, why we
             collect it, and how we keep it safe. We will never sell your data or use your
             documents to train AI models.
           </p>
@@ -146,7 +146,7 @@ export default function PrivacyPage() {
           className="rounded-xl p-5 border text-sm text-center"
           style={{ background: "var(--secondary)", borderColor: "var(--border)", color: "var(--muted)" }}
         >
-          © {new Date().getFullYear()} preciQo. All rights reserved.
+          © {new Date().getFullYear()} SharyX OCR. All rights reserved.
         </div>
       </div>
     </div>

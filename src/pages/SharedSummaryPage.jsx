@@ -52,7 +52,7 @@ export default function SharedSummaryPage() {
           to="/"
           className="px-5 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition"
         >
-          Go to DocAI
+          Go to SharyX OCR
         </Link>
       </div>
     );
@@ -66,13 +66,13 @@ export default function SharedSummaryPage() {
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
             <FileText size={15} />
-            <span>Shared via <span className="font-semibold text-blue-600 dark:text-blue-400">DocAI</span></span>
+            <span>Shared via <span className="font-semibold text-blue-600 dark:text-blue-400">SharyX OCR</span></span>
           </div>
           <Link
             to="/"
             className="flex items-center gap-1.5 text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline"
           >
-            Try DocAI <ExternalLink size={11} />
+            Try SharyX OCR <ExternalLink size={11} />
           </Link>
         </div>
 

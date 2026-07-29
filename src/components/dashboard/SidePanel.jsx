@@ -51,7 +51,10 @@ function PlanCard({ billing }) {
   if (!billing) return null;
 
   const planIcon = billing.plan === "pro" ? "⭐" : billing.plan === "enterprise" ? "🏢" : "🆓";
-  const resetDate = new Date(billing.currentPeriodEnd).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+  const renewDate = billing.currentPeriodEnd
+    ? new Date(billing.currentPeriodEnd).toLocaleDateString("en-IN", { day: "numeric", month: "short" })
+    : null;
+  const isPaid = billing.plan && billing.plan.toLowerCase() !== "free";
 
   const usageItems = [
     { label: "Summaries", key: "summarize", color: "var(--primary)" },
@@ -68,7 +71,9 @@ function PlanCard({ billing }) {
             <p className="text-sm font-semibold capitalize" style={{ color: "var(--text)" }}>
               {billing.planName} Plan
             </p>
-            <p className="text-xs" style={{ color: "var(--muted)" }}>Resets {resetDate}</p>
+            <p className="text-xs" style={{ color: "var(--muted)" }}>
+              Limits reset daily{isPaid && renewDate ? ` · Renews ${renewDate}` : ""}
+            </p>
           </div>
         </div>
         <Link to="/pricing">

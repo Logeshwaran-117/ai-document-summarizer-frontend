@@ -1077,7 +1077,7 @@ function SecurityTab({ showToast }) {
     { id: 1, action: 'User suspended', actor: 'Admin', target: 'mike@example.com', at: new Date(Date.now()-600000), severity: 'warning' },
     { id: 2, action: 'Password reset', actor: 'Admin', target: 'jane@example.com', at: new Date(Date.now()-3600000), severity: 'info' },
     { id: 3, action: 'Role changed: user→admin', actor: 'Admin', target: 'dev@company.com', at: new Date(Date.now()-7200000), severity: 'critical' },
-    { id: 4, action: 'Admin login', actor: 'Admin', target: 'admin@docai.com', at: new Date(Date.now()-86400000), severity: 'info' },
+    { id: 4, action: 'Admin login', actor: 'Admin', target: 'admin@sharyxocr.com', at: new Date(Date.now()-86400000), severity: 'info' },
     { id: 5, action: 'Feature flag toggled', actor: 'Admin', target: 'Registration OFF', at: new Date(Date.now()-86400000*2), severity: 'warning' },
   ];
   const tabs = ['overview','failed logins','audit trail'];

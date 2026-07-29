@@ -385,7 +385,7 @@ const typeColor = t => ({
 function AnnouncementsTab({ showToast }) {
   const { announcements, publishAnnouncement, removeAnnouncement } = useAdmin();
   const [localItems, setLocalItems] = useState(announcements.length ? announcements : [
-    { id: 1, title: 'Welcome to DocAI Enterprise!', type: 'Information', target: 'All Users', display: 'Banner', status: 'active', pinned: true, views: 0, dismissed: 0, createdAt: new Date(), content: 'Explore all the new features in your enterprise plan.' },
+    { id: 1, title: 'Welcome to SharyX OCR Enterprise!', type: 'Information', target: 'All Users', display: 'Banner', status: 'active', pinned: true, views: 0, dismissed: 0, createdAt: new Date(), content: 'Explore all the new features in your enterprise plan.' },
   ]);
   const [showModal, setShowModal]  = useState(false);
   const [editing, setEditing]      = useState(null);

@@ -251,7 +251,7 @@ function Auth({ setIsAuthenticated, setUser }) {
               <span
                 style={{ fontWeight: 700, fontSize: "16px", color: "var(--primary)" }}
               >
-                DocAI
+                SharyX OCR
               </span>
             </div>
           </div>

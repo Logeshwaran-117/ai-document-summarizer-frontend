@@ -4,11 +4,11 @@ import { useNavigate } from "react-router-dom";
 const SECTIONS = [
   {
     title: "1. Acceptance of Terms",
-    body: `By accessing or using DocAI (preciQo), you agree to be bound by these Terms of Service. If you do not agree to these terms, please do not use our service.`,
+    body: `By accessing or using SharyX OCR, you agree to be bound by these Terms of Service. If you do not agree to these terms, please do not use our service.`,
   },
   {
     title: "2. Description of Service",
-    body: `DocAI provides AI-powered document summarization, table extraction, banking analysis, and presentation generation services. Features vary by subscription plan. We reserve the right to modify or discontinue any feature at any time.`,
+    body: `SharyX OCR provides AI-powered document summarization, table extraction, banking analysis, and presentation generation services. Features vary by subscription plan. We reserve the right to modify or discontinue any feature at any time.`,
   },
   {
     title: "3. User Accounts",
@@ -28,11 +28,11 @@ const SECTIONS = [
   },
   {
     title: "7. Intellectual Property",
-    body: `AI-generated summaries and outputs produced by DocAI are owned by you, the user. The DocAI platform, branding, and underlying technology remain the exclusive property of preciQo.`,
+    body: `AI-generated summaries and outputs produced by SharyX OCR are owned by you, the user. The SharyX OCR platform, branding, and underlying technology remain the exclusive property of SharyX OCR.`,
   },
   {
     title: "8. Limitation of Liability",
-    body: `DocAI is provided "as is." We make no warranties regarding accuracy of AI outputs. To the maximum extent permitted by law, preciQo shall not be liable for any indirect, incidental, or consequential damages arising from your use of the service.`,
+    body: `SharyX OCR is provided "as is." We make no warranties regarding accuracy of AI outputs. To the maximum extent permitted by law, SharyX OCR shall not be liable for any indirect, incidental, or consequential damages arising from your use of the service.`,
   },
   {
     title: "9. Changes to Terms",
@@ -40,7 +40,7 @@ const SECTIONS = [
   },
   {
     title: "10. Contact",
-    body: `For questions about these Terms, please contact us at support@preciqo.com.`,
+    body: `For questions about these Terms, please contact us at support@sharyxocr.com.`,
   },
 ];
 
@@ -72,7 +72,7 @@ export default function TermsPage() {
             Terms of Service
           </h1>
           <p className="text-xs" style={{ color: "var(--muted)" }}>
-            Last updated: July 2025 · preciQo / DocAI
+            Last updated: July 2025 · SharyX OCR
           </p>
         </div>
       </div>
@@ -88,8 +88,8 @@ export default function TermsPage() {
           }}
         >
           <p className="text-sm leading-relaxed" style={{ color: "var(--muted)" }}>
-            Please read these Terms of Service carefully before using DocAI. These terms govern
-            your access to and use of the preciQo platform and all associated services.
+            Please read these Terms of Service carefully before using SharyX OCR. These terms govern
+            your access to and use of the SharyX OCR platform and all associated services.
           </p>
         </div>
 
@@ -120,7 +120,7 @@ export default function TermsPage() {
             color: "var(--muted)",
           }}
         >
-          © {new Date().getFullYear()} preciQo. All rights reserved.
+          © {new Date().getFullYear()} SharyX OCR. All rights reserved.
         </div>
       </div>
     </div>

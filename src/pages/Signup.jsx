@@ -5,7 +5,7 @@ import googleLogo from "../assets/google.png";
 
 /* ── Plan perks shown in the left panel ── */
 const PERKS = [
-  { icon: "✦", text: "10 free AI summaries every month" },
+  { icon: "✦", text: "5 free AI summaries daily" },
   { icon: "✦", text: "PDF, DOCX, image & scanned doc support" },
   { icon: "✦", text: "Table extraction & Excel export" },
   { icon: "✦", text: "Chat with your documents" },
@@ -161,7 +161,7 @@ function Signup({ setIsAuthenticated, setUser }) {
               ✦
             </div>
             <div>
-              <p style={{ color: "#fff", fontWeight: 700, fontSize: "18px", lineHeight: 1 }}>DocAI</p>
+              <p style={{ color: "#fff", fontWeight: 700, fontSize: "18px", lineHeight: 1 }}>SharyX OCR</p>
               <p style={{ color: "rgba(255,255,255,.5)", fontSize: "12px", marginTop: "2px" }}>
                 Powered by Gemini
               </p>
@@ -245,7 +245,7 @@ function Signup({ setIsAuthenticated, setUser }) {
           }}
         >
           <p style={{ color: "rgba(255,255,255,.75)", fontSize: "13px", lineHeight: 1.6, marginBottom: "12px" }}>
-            "DocAI saved our team 6 hours a week on document review. The banking analysis feature alone paid for the subscription."
+            "SharyX OCR saved our team 6 hours a week on document review. The banking analysis feature alone paid for the subscription."
           </p>
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
             <div
@@ -298,7 +298,7 @@ function Signup({ setIsAuthenticated, setUser }) {
               }}
             >
               <span style={{ fontSize: "20px" }}>✦</span>
-              <span style={{ fontWeight: 700, fontSize: "16px", color: "var(--primary)" }}>DocAI</span>
+              <span style={{ fontWeight: 700, fontSize: "16px", color: "var(--primary)" }}>SharyX OCR</span>
             </div>
           </div>
 

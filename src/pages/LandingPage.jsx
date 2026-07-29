@@ -60,7 +60,7 @@ const PLANS = [
     cta: "Get started",
     ctaTo: "/signup",
     highlight: false,
-    perks: ["5 summaries / day", "2 table extractions / day", "PDF & DOCX support"],
+    perks: ["5 summaries / day", "5 table extractions / day", "PDF & DOCX support"],
   },
   {
     name: "Pro",
@@ -70,8 +70,8 @@ const PLANS = [
     ctaTo: "/signup",
     highlight: true,
     perks: [
-      "Unlimited summaries",
-      "Unlimited tables",
+      "15 summaries / day",
+      "15 table extractions / day",
       "Banking reports",
       "Document chat",
       "Priority support",
@@ -85,10 +85,10 @@ const PLANS = [
     ctaTo: "/signup",
     highlight: false,
     perks: [
-      "Everything in Pro",
-      "5 team seats",
+      "Unlimited summaries & tables",
+      "Bulk banking upload",
+      "Multi-account consolidation",
       "Admin dashboard",
-      "Usage analytics",
       "SLA support",
     ],
   },

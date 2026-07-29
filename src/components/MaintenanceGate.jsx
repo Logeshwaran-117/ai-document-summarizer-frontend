@@ -116,7 +116,7 @@ export default function MaintenanceGate({ user, children }) {
       {/* Bottom branding */}
       <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}
         className="absolute bottom-8 text-xs" style={{ color: '#334155' }}>
-        DocAI · Status updates at status.docai.app
+        SharyX OCR · Status updates at status.sharyxocr.com
       </motion.p>
     </div>
   );
