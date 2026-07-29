@@ -383,6 +383,7 @@ export default function PresentationGenerator({ user }) {
     slideCount: "18",
     language: "English",
     theme: "executive",
+    watermarkText: "",
   });
 
   const [status, setStatus] = useState("idle"); // idle | running | done | error
@@ -475,6 +476,7 @@ export default function PresentationGenerator({ user }) {
     form.append("slideCount", options.slideCount || "");
     form.append("language", options.language);
     form.append("theme", options.theme);
+    if (options.watermarkText) form.append("watermarkText", options.watermarkText);
 
     const ctrl = new AbortController();
     abortRef.current = ctrl;
@@ -765,6 +767,25 @@ export default function PresentationGenerator({ user }) {
                             </option>
                           ))}
                         </select>
+                      </div>
+
+                      {/* Watermark */}
+                      <div className="space-y-1.5 sm:col-span-2 lg:col-span-4">
+                        <label className="block text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>
+                          Watermark (optional)
+                        </label>
+                        <input
+                          type="text"
+                          maxLength={60}
+                          placeholder="e.g. CONFIDENTIAL · NIOS · Your Name"
+                          value={options.watermarkText || ""}
+                          onChange={(e) => setOptions((o) => ({ ...o, watermarkText: e.target.value }))}
+                          className="w-full px-3 py-2 rounded-lg text-xs font-medium border bg-[var(--card)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)] transition"
+                          style={{ borderColor: "var(--border)", color: "var(--text)" }}
+                        />
+                        <p className="text-[10px]" style={{ color: "var(--muted)" }}>
+                          Appears top-right on every slide at low opacity. Leave blank for none.
+                        </p>
                       </div>
                     </motion.div>
                   )}
