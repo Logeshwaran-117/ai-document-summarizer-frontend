@@ -217,7 +217,9 @@ function DropZone({ file, onFile, onRemove }) {
 
 // ── Pipeline Progress Component ─────────────────────────────────────────────────
 function PipelineProgress({ status, progress, message }) {
-  const activeStage = PIPELINE_STAGES.find(s => s.id === status) || PIPELINE_STAGES[0];
+  const activeStage = PIPELINE_STAGES.find(s => s.id === status || (status === "done" && s.id === "complete"))
+    || PIPELINE_STAGES.find(s => progress >= s.min && progress <= s.max)
+    || PIPELINE_STAGES[0];
   const activeIdx = PIPELINE_STAGES.indexOf(activeStage);
   const ActiveIcon = activeStage.icon;
 
@@ -401,6 +403,22 @@ export default function PresentationGenerator({ user }) {
 
   const API = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
+  // ── Smooth progress trickle effect while running ────────────────────────────
+  useEffect(() => {
+    if (status !== "running") return;
+
+    const interval = setInterval(() => {
+      setProgress((prev) => {
+        if (prev < 92) {
+          return prev + 1;
+        }
+        return prev;
+      });
+    }, 600);
+
+    return () => clearInterval(interval);
+  }, [status]);
+
   // ── SSE progress listener ──────────────────────────────────────────────────
   const connectSSE = useCallback((jobId) => {
     if (sseRef.current) sseRef.current.close();
@@ -410,11 +428,20 @@ export default function PresentationGenerator({ user }) {
     es.onmessage = (e) => {
       try {
         const data = JSON.parse(e.data);
-        setProgress(data.progress || 0);
-        setProgressMessage(data.message || "");
-        setProgressStatus(data.status || "running");
+        const percentVal = typeof data.percent === "number" ? data.percent : (typeof data.progress === "number" ? data.progress : null);
+        const stageVal = data.stage || data.status;
 
-        if (data.status === "error") {
+        if (percentVal !== null) {
+          setProgress((prev) => Math.max(prev, percentVal));
+        }
+        if (data.message) {
+          setProgressMessage(data.message);
+        }
+        if (stageVal && stageVal !== "starting" && stageVal !== "running") {
+          setProgressStatus(stageVal);
+        }
+
+        if (stageVal === "error" || data.status === "error") {
           setStatus("error");
           setError(data.message || "Generation failed");
           es.close();
@@ -430,9 +457,9 @@ export default function PresentationGenerator({ user }) {
     if (!file) return;
 
     setStatus("running");
-    setProgress(5);
+    setProgress(8);
     setProgressMessage("Initializing AI presentation pipeline…");
-    setProgressStatus("starting");
+    setProgressStatus("parsing");
     setError(null);
     setResultInfo(null);
 
@@ -559,7 +586,7 @@ export default function PresentationGenerator({ user }) {
           </div>
         </div>
 
-        <UsageBadge type="summarize" />
+        <UsageBadge type="presentation" />
       </div>
 
       {/* ── Tabs Navigation ── */}

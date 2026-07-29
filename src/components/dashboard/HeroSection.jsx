@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import {
   Upload, FileText, BarChart2, MessageSquare,
-  ScanLine, Table2, Landmark, History,
+  ScanLine, Table2, Landmark, History, Presentation,
   FileCheck2, Cpu, Clock, TrendingUp, CheckCircle2,
   Crown, Zap, Building2,
 } from "lucide-react";
@@ -160,13 +160,13 @@ function StatPill({ icon: Icon, value, label, color, delay }) {
 
 /* ── Quick action chip ── */
 const ACTIONS = [
-  { to: "/upload",  icon: Upload,        label: "Upload",    grad: "linear-gradient(135deg,#4F46E5,#818cf8)" },
-  { to: "/upload",  icon: FileText,      label: "Summarize", grad: "linear-gradient(135deg,#0ea5e9,#38bdf8)" },
-  { to: "/upload",  icon: MessageSquare, label: "Ask AI",    grad: "linear-gradient(135deg,#f59e0b,#fcd34d)" },
-  { to: "/upload",  icon: ScanLine,      label: "OCR",       grad: "linear-gradient(135deg,#ec4899,#f9a8d4)" },
-  { to: "/excel",   icon: Table2,        label: "Tables",    grad: "linear-gradient(135deg,#8b5cf6,#c4b5fd)" },
-  { to: "/banking", icon: Landmark,      label: "Banking",   grad: "linear-gradient(135deg,#06b6d4,#67e8f9)" },
-  { to: "/history", icon: History,       label: "History",   grad: "linear-gradient(135deg,#f97316,#fdba74)" },
+  { to: "/upload",       icon: Upload,        label: "Upload",         grad: "linear-gradient(135deg,#4F46E5,#818cf8)" },
+  { to: "/presentation", icon: Presentation,  label: "PPT Generation", grad: "linear-gradient(135deg,#0ea5e9,#38bdf8)" },
+  { to: "/upload",       icon: MessageSquare, label: "Ask AI",         grad: "linear-gradient(135deg,#f59e0b,#fcd34d)" },
+  { to: "/upload",       icon: ScanLine,      label: "OCR",            grad: "linear-gradient(135deg,#ec4899,#f9a8d4)" },
+  { to: "/excel",        icon: Table2,        label: "Tables",         grad: "linear-gradient(135deg,#8b5cf6,#c4b5fd)" },
+  { to: "/banking",      icon: Landmark,      label: "Banking",        grad: "linear-gradient(135deg,#06b6d4,#67e8f9)" },
+  { to: "/history",      icon: History,       label: "History",        grad: "linear-gradient(135deg,#f97316,#fdba74)" },
 ];
 
 function ActionChip({ to, icon: Icon, label, grad, delay }) {

@@ -34,7 +34,7 @@ export default function UsageBadge({ type = "summarize", className = "" }) {
   if (error || !data) return null;
 
   // Pluck the relevant usage bucket
-  const usage   = data.usage?.[type] || {};
+  const usage   = data.usage?.[type] || data.usage?.summarize || {};
   const used      = usage.used      ?? 0;
   const limit     = usage.limit     ?? null;
   const remaining = usage.remaining ?? null;
@@ -60,8 +60,13 @@ export default function UsageBadge({ type = "summarize", className = "" }) {
     : pct >= 70 ? "bg-yellow-500"
     : "bg-blue-500";
 
-  const LABELS = { summarize: "Doc Summaries", tables: "Table Extractions", banking: "Banking Analyses" };
-  const label = LABELS[type] || "API Requests";
+  const LABELS = {
+    summarize: "Doc Summaries",
+    presentation: "PPT Generation",
+    tables: "Table Extractions",
+    banking: "Banking Analyses"
+  };
+  const label = LABELS[type] || "PPT Generation";
 
   return (
     <div className={`rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm overflow-hidden ${className}`}>
