@@ -110,8 +110,49 @@ function range(n) {
   return Array.from({ length: n }, (_, i) => i);
 }
 
+const CHART_TYPE_OPTIONS = [
+  { id: "bar", label: "Bar" },
+  { id: "stackedBar", label: "Stacked Bar" },
+  { id: "horizontalBar", label: "Horizontal Bar" },
+  { id: "line", label: "Line" },
+  { id: "pie", label: "Pie" },
+  { id: "donut", label: "Donut" },
+  { id: "area", label: "Area" },
+];
+
+const NARRATIVE_STYLES = [
+  { id: "executive", label: "Executive", desc: "Concise insight bullets" },
+  { id: "detailed", label: "Detailed", desc: "Richer context per slide" },
+  { id: "data-heavy", label: "Data-heavy", desc: "Numbers, tables, charts first" },
+];
+
+const CHART_DENSITIES = [
+  { id: "minimal", label: "Minimal", desc: "1–3 essential charts only" },
+  { id: "balanced", label: "Balanced", desc: "Mix of KPIs, charts & tables" },
+  { id: "heavy", label: "Heavy", desc: "Maximise chart slides" },
+];
+
+const VISUAL_EMPHASIS = [
+  { id: "balanced", label: "Balanced" },
+  { id: "data", label: "Data / visuals" },
+  { id: "narrative", label: "Narrative / text" },
+];
+
 function buildDefaultSelection(intel) {
   if (!intel) return null;
+  const chartOverrides = {};
+  const tableOverrides = {};
+  (intel.sections || []).forEach((sec, si) => {
+    (sec.charts || []).forEach((c, ci) => {
+      chartOverrides[`${si}-${ci}`] = {
+        include: true,
+        chartType: c.chartType || "bar",
+      };
+    });
+    (sec.tables || []).forEach((t, ti) => {
+      tableOverrides[`${si}-${ti}`] = { include: true };
+    });
+  });
   return {
     includeExecutiveSummary: !!intel.executiveSummary,
     selectedSectionIndices: range(intel.sections?.length || 0),
@@ -121,6 +162,19 @@ function buildDefaultSelection(intel) {
     selectedRiskIndices: range(intel.risks?.length || 0),
     includeTables: true,
     includeCharts: true,
+    // Advanced generation prefs
+    preferredChartTypes: ["bar", "donut", "line", "stackedBar"],
+    chartDensity: "balanced",
+    narrativeStyle: "executive",
+    visualEmphasis: "balanced",
+    includeProcessSlides: true,
+    includeComparisonSlides: true,
+    includeKpiOverview: true,
+    includeAgenda: true,
+    includeSummarySlide: true,
+    includeRecommendationsSlide: true,
+    chartOverrides,
+    tableOverrides,
   };
 }
 
@@ -384,6 +438,110 @@ function ContentPreviewPanel({ intelligence, selection, setSelection, options, s
         </div>
       </div>
 
+      {/* ── Advanced PPT Generation Options ── */}
+      <div className="glass-card rounded-2xl p-5 border space-y-5">
+        <div className="flex items-center gap-2">
+          <SlidersHorizontal size={15} style={{ color: "var(--primary)" }} />
+          <h3 className="text-sm font-bold" style={{ color: "var(--text)" }}>Advanced Generation Options</h3>
+        </div>
+
+        {/* Chart types */}
+        <div className="space-y-2">
+          <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>Preferred chart types</p>
+          <p className="text-[11px]" style={{ color: "var(--muted)" }}>Select which graph styles the AI should prefer when building slides.</p>
+          <div className="flex flex-wrap gap-2">
+            {CHART_TYPE_OPTIONS.map((ct) => {
+              const on = (selection.preferredChartTypes || []).includes(ct.id);
+              return (
+                <button
+                  key={ct.id}
+                  type="button"
+                  onClick={() => setSelection((p) => {
+                    const cur = new Set(p.preferredChartTypes || []);
+                    if (cur.has(ct.id)) cur.delete(ct.id); else cur.add(ct.id);
+                    return { ...p, preferredChartTypes: Array.from(cur) };
+                  })}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${
+                    on ? "border-[var(--primary)] bg-[rgba(var(--primary-rgb),0.12)] text-[var(--primary)]" : "border-[var(--border)] text-[var(--muted)] hover:border-[var(--primary)]/40"
+                  }`}
+                >
+                  {ct.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Density / narrative / emphasis */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="space-y-1.5">
+            <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>Chart density</p>
+            <div className="space-y-1.5">
+              {CHART_DENSITIES.map((d) => (
+                <button key={d.id} type="button" onClick={() => setSelection((p) => ({ ...p, chartDensity: d.id }))}
+                  className={`w-full text-left px-3 py-2 rounded-xl border text-xs transition ${
+                    selection.chartDensity === d.id ? "border-[var(--primary)] bg-[rgba(var(--primary-rgb),0.1)]" : "border-[var(--border)] hover:border-[var(--primary)]/30"
+                  }`}>
+                  <span className="font-semibold" style={{ color: "var(--text)" }}>{d.label}</span>
+                  <span className="block mt-0.5" style={{ color: "var(--muted)" }}>{d.desc}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>Narrative style</p>
+            <div className="space-y-1.5">
+              {NARRATIVE_STYLES.map((d) => (
+                <button key={d.id} type="button" onClick={() => setSelection((p) => ({ ...p, narrativeStyle: d.id }))}
+                  className={`w-full text-left px-3 py-2 rounded-xl border text-xs transition ${
+                    selection.narrativeStyle === d.id ? "border-[var(--primary)] bg-[rgba(var(--primary-rgb),0.1)]" : "border-[var(--border)] hover:border-[var(--primary)]/30"
+                  }`}>
+                  <span className="font-semibold" style={{ color: "var(--text)" }}>{d.label}</span>
+                  <span className="block mt-0.5" style={{ color: "var(--muted)" }}>{d.desc}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>Visual emphasis</p>
+            <div className="space-y-1.5">
+              {VISUAL_EMPHASIS.map((d) => (
+                <button key={d.id} type="button" onClick={() => setSelection((p) => ({ ...p, visualEmphasis: d.id }))}
+                  className={`w-full text-left px-3 py-2 rounded-xl border text-xs transition ${
+                    selection.visualEmphasis === d.id ? "border-[var(--primary)] bg-[rgba(var(--primary-rgb),0.1)]" : "border-[var(--border)] hover:border-[var(--primary)]/30"
+                  }`}>
+                  <span className="font-semibold" style={{ color: "var(--text)" }}>{d.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Structure toggles */}
+        <div className="space-y-2">
+          <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>Slide structure</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            {[
+              { key: "includeAgenda", label: "Agenda slide", sub: "Opening roadmap of topics" },
+              { key: "includeKpiOverview", label: "KPI overview", sub: "Metric cards near the start" },
+              { key: "includeProcessSlides", label: "Process / flow slides", sub: "Root-cause or step frameworks" },
+              { key: "includeComparisonSlides", label: "Comparison slides", sub: "Side-by-side metric contrasts" },
+              { key: "includeSummarySlide", label: "Summary & takeaways", sub: "Before recommendations" },
+              { key: "includeRecommendationsSlide", label: "Recommendations", sub: "Numbered actions before Thank You" },
+            ].map((item) => (
+              <SelectRow
+                key={item.key}
+                checked={selection[item.key] !== false}
+                onChange={(v) => setSelection((p) => ({ ...p, [item.key]: v }))}
+                sub={item.sub}
+              >
+                {item.label}
+              </SelectRow>
+            ))}
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {(intelligence.sections?.length || 0) > 0 && (
           <div className="glass-card rounded-2xl p-5 border space-y-3">
@@ -456,32 +614,92 @@ function ContentPreviewPanel({ intelligence, selection, setSelection, options, s
 
       {selection.includeTables && (stats.tableCount || 0) > 0 && (
         <div className="glass-card rounded-2xl p-5 border space-y-3">
-          <div className="flex items-center gap-2"><Table2 size={15} style={{ color: "var(--primary)" }} /><h4 className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--text)" }}>Tables in selected sections</h4></div>
+          <div className="flex items-center gap-2">
+            <Table2 size={15} style={{ color: "var(--primary)" }} />
+            <h4 className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--text)" }}>Tables — include in deck</h4>
+          </div>
+          <p className="text-[11px]" style={{ color: "var(--muted)" }}>Uncheck any table you do not want as a slide.</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {(intelligence.sections || []).filter((_, i) => selection.selectedSectionIndices?.includes(i)).flatMap((sec) =>
-              (sec.tables || []).map((t, ti) => (
-                <div key={`${sec.title}-${ti}`} className="p-3 rounded-xl border text-xs" style={{ borderColor: "var(--border)", background: "var(--bg-subtle)" }}>
-                  <p className="font-semibold" style={{ color: "var(--text)" }}>{t.title}</p>
-                  <p style={{ color: "var(--muted)" }}>{(t.headers || []).slice(0, 4).join(" · ")}{t.rowCount ? ` · ${t.rowCount} rows` : ""}</p>
-                </div>
-              ))
-            )}
+            {(intelligence.sections || []).flatMap((sec, si) => {
+              if (!selection.selectedSectionIndices?.includes(si)) return [];
+              return (sec.tables || []).map((t, ti) => {
+                const key = `${si}-${ti}`;
+                const ov = selection.tableOverrides?.[key] || { include: true };
+                return (
+                  <div key={key} className={`p-3 rounded-xl border text-xs flex items-start gap-2 transition ${ov.include !== false ? "border-[var(--primary)]/30 bg-[rgba(var(--primary-rgb),0.04)]" : "border-[var(--border)] opacity-60"}`}>
+                    <button type="button" onClick={() => setSelection((p) => ({
+                      ...p,
+                      tableOverrides: {
+                        ...(p.tableOverrides || {}),
+                        [key]: { include: ov.include === false },
+                      },
+                    }))} style={{ color: ov.include !== false ? "var(--primary)" : "var(--muted)" }}>
+                      {ov.include !== false ? <CheckSquare size={16} /> : <Square size={16} />}
+                    </button>
+                    <div className="min-w-0">
+                      <p className="font-semibold" style={{ color: "var(--text)" }}>{t.title || `Table ${ti + 1}`}</p>
+                      <p style={{ color: "var(--muted)" }}>{(t.headers || []).slice(0, 4).join(" · ")}{t.rowCount ? ` · ${t.rowCount} rows` : ""}</p>
+                    </div>
+                  </div>
+                );
+              });
+            })}
           </div>
         </div>
       )}
 
       {selection.includeCharts && (stats.chartCount || 0) > 0 && (
         <div className="glass-card rounded-2xl p-5 border space-y-3">
-          <div className="flex items-center gap-2"><PieChart size={15} style={{ color: "var(--primary)" }} /><h4 className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--text)" }}>Charts in selected sections</h4></div>
+          <div className="flex items-center gap-2">
+            <PieChart size={15} style={{ color: "var(--primary)" }} />
+            <h4 className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--text)" }}>Charts — include & type</h4>
+          </div>
+          <p className="text-[11px]" style={{ color: "var(--muted)" }}>Toggle each chart and pick the graph type for that slide.</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {(intelligence.sections || []).filter((_, i) => selection.selectedSectionIndices?.includes(i)).flatMap((sec) =>
-              (sec.charts || []).map((c, ci) => (
-                <div key={`${sec.title}-c${ci}`} className="p-3 rounded-xl border text-xs" style={{ borderColor: "var(--border)", background: "var(--bg-subtle)" }}>
-                  <p className="font-semibold" style={{ color: "var(--text)" }}>{c.title}</p>
-                  <p style={{ color: "var(--muted)" }}>{c.chartType || "chart"}{c.insight ? ` · ${c.insight.slice(0, 80)}` : ""}</p>
-                </div>
-              ))
-            )}
+            {(intelligence.sections || []).flatMap((sec, si) => {
+              if (!selection.selectedSectionIndices?.includes(si)) return [];
+              return (sec.charts || []).map((c, ci) => {
+                const key = `${si}-${ci}`;
+                const ov = selection.chartOverrides?.[key] || { include: true, chartType: c.chartType || "bar" };
+                return (
+                  <div key={key} className={`p-3 rounded-xl border text-xs space-y-2 transition ${ov.include !== false ? "border-[var(--primary)]/30 bg-[rgba(var(--primary-rgb),0.04)]" : "border-[var(--border)] opacity-60"}`}>
+                    <div className="flex items-start gap-2">
+                      <button type="button" onClick={() => setSelection((p) => ({
+                        ...p,
+                        chartOverrides: {
+                          ...(p.chartOverrides || {}),
+                          [key]: { ...ov, include: ov.include === false },
+                        },
+                      }))} style={{ color: ov.include !== false ? "var(--primary)" : "var(--muted)" }}>
+                        {ov.include !== false ? <CheckSquare size={16} /> : <Square size={16} />}
+                      </button>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold" style={{ color: "var(--text)" }}>{c.title || `Chart ${ci + 1}`}</p>
+                        <p className="line-clamp-1" style={{ color: "var(--muted)" }}>{c.insight || sec.title}</p>
+                      </div>
+                    </div>
+                    {ov.include !== false && (
+                      <select
+                        value={ov.chartType || c.chartType || "bar"}
+                        onChange={(e) => setSelection((p) => ({
+                          ...p,
+                          chartOverrides: {
+                            ...(p.chartOverrides || {}),
+                            [key]: { ...ov, chartType: e.target.value, include: true },
+                          },
+                        }))}
+                        className="w-full px-2.5 py-1.5 rounded-lg text-[11px] font-medium border bg-[var(--card)]"
+                        style={{ borderColor: "var(--border)", color: "var(--text)" }}
+                      >
+                        {CHART_TYPE_OPTIONS.map((ct) => (
+                          <option key={ct.id} value={ct.id}>{ct.label}</option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                );
+              });
+            })}
           </div>
         </div>
       )}
