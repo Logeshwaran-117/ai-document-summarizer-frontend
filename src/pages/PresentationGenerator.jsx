@@ -1520,8 +1520,8 @@ function ensureSlideCount(blueprint, target, intel) {
       extra = {
         slideType: "insights",
         title: `Analysis Detail ${n}`,
-        subtitle: "Expanded to meet target slide count",
-        bullets: [String(f), "Context drawn from the selected source document.", "Cross-check figures with table slides where available."],
+        subtitle: "Detailed analysis",
+        bullets: [String(f), "Review related tables for supporting figures.", "Figures should be validated against source registers."],
         included: true,
       };
     } else if (kpis.length) {
@@ -1531,7 +1531,7 @@ function ensureSlideCount(blueprint, target, intel) {
         title: `Metric Focus: ${k.label}`,
         subtitle: k.context || "From selected KPIs",
         kpiCards: [{ label: k.label, value: String(k.value ?? ""), unit: k.unit || "", context: k.context || "" }],
-        bullets: [`${k.label}: ${k.value}${k.unit ? " " + k.unit : ""}`, k.context || "See source for full context.", "Included to reach the requested deck length."],
+        bullets: [`${k.label}: ${k.value}${k.unit ? " " + k.unit : ""}`, k.context || "See source for full context.", "Selected metric from the source analysis."],
         included: true,
       };
     } else if (sections.length) {
@@ -1540,18 +1540,18 @@ function ensureSlideCount(blueprint, target, intel) {
         slideType: "insights",
         title: sec.title || `Section Detail ${n}`,
         subtitle: "Expanded section view",
-        bullets: [sec.summary || "Additional detail from the source.", ...(sec.insights || []).slice(0, 2)].filter(Boolean).slice(0, 4),
+        bullets: [sec.summary || , ...(sec.insights || []).slice(0, 2)].filter(Boolean).slice(0, 4),
         included: true,
       };
     } else {
       extra = {
         slideType: "insights",
         title: `Supporting Point ${n}`,
-        subtitle: "Added to reach target length",
+        subtitle: "Supporting analysis",
         bullets: [
-          "Supporting context for the briefing.",
-          "Derived from the overall document analysis.",
-          "Review neighbouring slides for related metrics.",
+          ,
+          ,
+          ,
         ],
         included: true,
       };
@@ -1829,7 +1829,7 @@ function buildClientSlidePlan(intel, selection, options = {}) {
           ],
           bullets: [
             `${k.label}: ${k.value}${k.unit ? " " + k.unit : ""}`,
-            k.context || "See source data for context",
+            k.context || ,
           ],
         });
       } else if (sections.length) {
