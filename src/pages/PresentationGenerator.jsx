@@ -1540,7 +1540,7 @@ function ensureSlideCount(blueprint, target, intel) {
         slideType: "insights",
         title: sec.title || `Section Detail ${n}`,
         subtitle: "Expanded section view",
-        bullets: [sec.summary || , ...(sec.insights || []).slice(0, 2)].filter(Boolean).slice(0, 4),
+        bullets: [sec.summary, ...(sec.insights || []).slice(0, 2)].filter(Boolean).slice(0, 4),
         included: true,
       };
     } else {
@@ -1549,9 +1549,8 @@ function ensureSlideCount(blueprint, target, intel) {
         title: `Supporting Point ${n}`,
         subtitle: "Supporting analysis",
         bullets: [
-          ,
-          ,
-          ,
+          "Supporting analysis from the selected source material.",
+          "Cross-check related KPI and table slides for figures.",
         ],
         included: true,
       };
@@ -1829,7 +1828,7 @@ function buildClientSlidePlan(intel, selection, options = {}) {
           ],
           bullets: [
             `${k.label}: ${k.value}${k.unit ? " " + k.unit : ""}`,
-            k.context || ,
+            k.context || "Selected metric from source analysis",
           ],
         });
       } else if (sections.length) {
