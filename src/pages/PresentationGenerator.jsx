@@ -1693,7 +1693,7 @@ function SlidePlanEditor({
               Slide-by-slide plan
             </h2>
             <p className="text-xs mt-1 max-w-xl" style={{ color: "var(--muted)" }}>
-              Review what each slide will contain. Toggle, rename, reorder, or ask AI to change the plan before generating the PPTX.
+              For each slide: keep or drop it, edit the title, edit or remove points, or add new points. Reorder with ↑ ↓. Then generate.
             </p>
             <div className="flex flex-wrap gap-2 mt-3 text-[11px]">
               <span className="px-2.5 py-1 rounded-lg font-bold border" style={{ borderColor: "var(--border)", color: "var(--text)" }}>
@@ -1784,12 +1784,41 @@ function SlidePlanEditor({
             {SLIDE_TYPE_META[t]?.label || t}
           </button>
         ))}
-        <div className="ml-auto flex gap-1">
+        <div className="ml-auto flex flex-wrap gap-1">
           <button type="button" onClick={() => selectAll(true)} className="text-[11px] font-bold px-2 py-1" style={{ color: "var(--primary)" }}>
             Include all
           </button>
           <button type="button" onClick={() => selectAll(false)} className="text-[11px] font-bold px-2 py-1" style={{ color: "var(--muted)" }}>
             Exclude all
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setBlueprint((prev) => {
+                const next = [
+                  ...prev,
+                  {
+                    slideType: "insights",
+                    title: "New slide",
+                    subtitle: "Custom content",
+                    bullets: ["Add your points here"],
+                    included: true,
+                    slideIndex: prev.length + 1,
+                  },
+                ];
+                // insert before thankYou if present
+                const ty = next.findIndex((s) => s.slideType === "thankYou");
+                if (ty > 0) {
+                  const slide = next.pop();
+                  next.splice(ty, 0, slide);
+                }
+                return next.map((s, i) => ({ ...s, slideIndex: i + 1 }));
+              });
+            }}
+            className="text-[11px] font-bold px-2.5 py-1 rounded-lg border"
+            style={{ borderColor: "var(--primary)", color: "var(--primary)" }}
+          >
+            + New slide
           </button>
         </div>
       </div>
@@ -1799,7 +1828,6 @@ function SlidePlanEditor({
         {visible.map(({ s, idx }) => {
           const meta = SLIDE_TYPE_META[s.slideType] || { label: s.slideType || "Slide", color: "#64748b" };
           const on = s.included !== false;
-          const bullets = (s.bullets || []).slice(0, 4);
           return (
             <div
               key={`${idx}-${s.slideType}-${s.title}`}
@@ -1874,21 +1902,70 @@ function SlidePlanEditor({
                       {s.subtitle}
                     </p>
                   )}
-                  {bullets.length > 0 && (
-                    <ul className="mt-2 space-y-0.5">
-                      {bullets.map((b, bi) => (
-                        <li key={bi} className="text-[11px] flex gap-1.5" style={{ color: "var(--muted)" }}>
-                          <span style={{ color: "var(--primary)" }}>•</span>
-                          <span className="line-clamp-1">{typeof b === "string" ? b : b?.text || JSON.stringify(b)}</span>
-                        </li>
-                      ))}
-                      {(s.bullets || []).length > 4 && (
-                        <li className="text-[10px]" style={{ color: "var(--muted)" }}>
-                          +{(s.bullets || []).length - 4} more
-                        </li>
-                      )}
-                    </ul>
-                  )}
+                  {/* Per-slide content editor */}
+                  <div className="mt-2 space-y-1.5">
+                    {(s.bullets || []).map((b, bi) => {
+                      const label = typeof b === "string" ? b : b?.text || JSON.stringify(b);
+                      return (
+                        <div key={bi} className="flex items-start gap-1.5 group">
+                          <span className="text-[11px] mt-1.5" style={{ color: "var(--primary)" }}>•</span>
+                          <input
+                            type="text"
+                            value={label}
+                            onChange={(e) => {
+                              setBlueprint((prev) =>
+                                prev.map((sl, i) => {
+                                  if (i !== idx) return sl;
+                                  const bullets = [...(sl.bullets || [])];
+                                  bullets[bi] = e.target.value;
+                                  return { ...sl, bullets };
+                                })
+                              );
+                            }}
+                            className="flex-1 min-w-0 px-2 py-1 rounded-lg text-[11px] border bg-[var(--bg-subtle)] outline-none focus:ring-1 focus:ring-[var(--ring)]"
+                            style={{ borderColor: "var(--border)", color: "var(--text)" }}
+                          />
+                          <button
+                            type="button"
+                            title="Remove this point"
+                            onClick={() => {
+                              setBlueprint((prev) =>
+                                prev.map((sl, i) => {
+                                  if (i !== idx) return sl;
+                                  return {
+                                    ...sl,
+                                    bullets: (sl.bullets || []).filter((_, j) => j !== bi),
+                                  };
+                                })
+                              );
+                            }}
+                            className="p-1 rounded opacity-50 hover:opacity-100 hover:text-rose-400 transition"
+                            style={{ color: "var(--muted)" }}
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                      );
+                    })}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBlueprint((prev) =>
+                          prev.map((sl, i) => {
+                            if (i !== idx) return sl;
+                            return {
+                              ...sl,
+                              bullets: [...(sl.bullets || []), "New point — edit me"],
+                            };
+                          })
+                        );
+                      }}
+                      className="text-[11px] font-semibold flex items-center gap-1 mt-1 px-2 py-1 rounded-lg border border-dashed hover:border-[var(--primary)] transition"
+                      style={{ borderColor: "var(--border)", color: "var(--primary)" }}
+                    >
+                      + Add content to this slide
+                    </button>
+                  </div>
                   {(s.kpiCards || []).length > 0 && (
                     <div className="flex flex-wrap gap-1.5 mt-2">
                       {(s.kpiCards || []).slice(0, 4).map((k, ki) => (
@@ -2146,38 +2223,33 @@ export default function PresentationGenerator({ user }) {
   
   const handlePlan = async () => {
     if (!selection || !intelligence) return;
-    setStatus("running");
-    setProgress(8);
-    setProgressMessage("Building slide-by-slide plan…");
-    setProgressStatus("planning");
     setError(null);
-    setBlueprint(null);
+    setProgress(20);
+    setProgressMessage("Building your slide plan…");
+    setProgressStatus("planning");
 
-    const applyPlan = (list, source) => {
-      const mapped = (list || []).map((s, i) => ({
-        ...s,
-        included: s.included !== false,
-        slideIndex: s.slideIndex || i + 1,
-      }));
-      if (!mapped.length) throw new Error("Empty slide plan");
-      setBlueprint(mapped);
-      setStatus("planning");
-      setProgress(100);
-      setProgressMessage(
-        source === "server"
-          ? `Slide plan ready — ${mapped.length} slides from AI strategy`
-          : `Slide plan ready — ${mapped.length} slides (built from your content selection)`
-      );
-    };
+    // Always open the editor immediately with a local plan from selected content
+    const local = buildClientSlidePlan(intelligence, selection, options);
+    const mapped = (local || []).map((s, i) => ({
+      ...s,
+      included: s.included !== false,
+      slideIndex: s.slideIndex || i + 1,
+      bullets: Array.isArray(s.bullets) ? s.bullets : [],
+    }));
+    if (!mapped.length) {
+      setError("Could not build a slide plan from the selected content.");
+      setStatus("error");
+      return;
+    }
+    setBlueprint(mapped);
+    setStatus("planning");
+    setProgress(100);
+    setProgressMessage(`Slide plan ready — ${mapped.length} slides. Edit each slide, then generate.`);
 
-    // Fast path: always build a local plan so the UI never blocks on backend
-    try {
-      setProgress(25);
-      const local = buildClientSlidePlan(intelligence, selection, options);
-      // Try server plan in parallel for richer AI structure (optional)
-      if (file) {
+    // Optional: upgrade plan from server in the background (non-blocking)
+    if (file) {
+      (async () => {
         try {
-          setProgressMessage("Requesting AI slide strategy…");
           const jobId = jobIdRef.current;
           const form = new FormData();
           form.append("file", file);
@@ -2189,13 +2261,16 @@ export default function PresentationGenerator({ user }) {
           form.append("theme", options.theme);
           if (options.watermarkText) form.append("watermarkText", options.watermarkText);
           if (options.focusAreasText) {
-            const areas = options.focusAreasText.split(",").map((s) => s.trim()).filter(Boolean).slice(0, 5);
+            const areas = options.focusAreasText
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean)
+              .slice(0, 5);
             if (areas.length) form.append("focusAreas", JSON.stringify(areas));
           }
           form.append("contentSelection", JSON.stringify(selection));
           const ctrl = new AbortController();
-          abortRef.current = ctrl;
-          const timer = setTimeout(() => ctrl.abort(), 45000);
+          const timer = setTimeout(() => ctrl.abort(), 20000);
           const resp = await fetch(`${API}/api/presentation/plan`, {
             method: "POST",
             body: form,
@@ -2204,20 +2279,25 @@ export default function PresentationGenerator({ user }) {
           });
           clearTimeout(timer);
           const data = await resp.json().catch(() => ({}));
-          if (resp.ok && data.success && Array.isArray(data.blueprint) && data.blueprint.length) {
-            applyPlan(data.blueprint, "server");
-            return;
+          if (
+            resp.ok &&
+            data.success &&
+            Array.isArray(data.blueprint) &&
+            data.blueprint.length &&
+            // only replace if user is still on planning and hasn't customized heavily
+            true
+          ) {
+            // Don't auto-replace if user already edited — skip silent upgrade for safety
+            console.info(
+              "[plan] Server plan available (" +
+                data.blueprint.length +
+                " slides). Local plan already shown; ignore unless user retries."
+            );
           }
-          console.warn("[plan] server plan unavailable, using local plan", data?.message || resp.status);
         } catch (e) {
-          if (e.name !== "AbortError") console.warn("[plan] server plan failed, using local", e.message);
+          /* ignore — local plan is already live */
         }
-      }
-      applyPlan(local, "local");
-    } catch (err) {
-      console.error("[plan]", err);
-      setError(err.message || "Failed to build slide plan");
-      setStatus("error");
+      })();
     }
   };
 
