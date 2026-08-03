@@ -41,6 +41,10 @@ import {
   TrendingUp,
   Settings2,
   ChevronRight,
+  Pencil,
+  SkipForward,
+  MessageSquarePlus,
+  GripVertical,
   GitBranch,
 } from "lucide-react";
 import UsageBadge from "../components/UsageBadge";
@@ -1390,8 +1394,8 @@ function ContentPreviewPanel({
                 : "bg-white/10 text-white/40 cursor-not-allowed"
             }`}
           >
-            <Sparkles size={17} />
-            <span>Generate Presentation</span>
+            <SkipForward size={17} />
+            <span>Continue to slide plan</span>
             <ChevronRight size={16} />
           </button>
         </div>
@@ -1404,6 +1408,366 @@ function ContentPreviewPanel({
     </motion.div>
   );
 }
+
+
+const SLIDE_TYPE_META = {
+  cover: { label: "Cover", color: "#6366f1" },
+  agenda: { label: "Agenda", color: "#8b5cf6" },
+  kpi: { label: "KPI", color: "#06b6d4" },
+  scorecard: { label: "Scorecard", color: "#06b6d4" },
+  chart: { label: "Chart", color: "#10b981" },
+  dualChart: { label: "Dual chart", color: "#10b981" },
+  table: { label: "Table", color: "#f59e0b" },
+  insights: { label: "Insights", color: "#3b82f6" },
+  process: { label: "Process", color: "#ec4899" },
+  comparison: { label: "Comparison", color: "#a855f7" },
+  summary: { label: "Summary", color: "#14b8a6" },
+  recommendations: { label: "Recommendations", color: "#f97316" },
+  thankYou: { label: "Thank you", color: "#64748b" },
+  cards: { label: "Cards", color: "#6366f1" },
+};
+
+function SlidePlanEditor({
+  blueprint,
+  setBlueprint,
+  intelligence,
+  options,
+  onGenerate,
+  onBack,
+  onRefine,
+  refining,
+}) {
+  const [instruction, setInstruction] = useState("");
+  const [editingIdx, setEditingIdx] = useState(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [filterType, setFilterType] = useState("all");
+
+  const includedCount = useMemo(
+    () => (blueprint || []).filter((s) => s.included !== false).length,
+    [blueprint]
+  );
+
+  const types = useMemo(() => {
+    const set = new Set((blueprint || []).map((s) => s.slideType).filter(Boolean));
+    return Array.from(set);
+  }, [blueprint]);
+
+  const visible = useMemo(() => {
+    return (blueprint || [])
+      .map((s, idx) => ({ s, idx }))
+      .filter(({ s }) => filterType === "all" || s.slideType === filterType);
+  }, [blueprint, filterType]);
+
+  const toggle = (idx) => {
+    setBlueprint((prev) =>
+      prev.map((s, i) => (i === idx ? { ...s, included: s.included === false } : s))
+    );
+  };
+
+  const move = (idx, dir) => {
+    setBlueprint((prev) => {
+      const next = [...prev];
+      const j = idx + dir;
+      if (j < 0 || j >= next.length) return prev;
+      [next[idx], next[j]] = [next[j], next[idx]];
+      return next.map((s, i) => ({ ...s, slideIndex: i + 1 }));
+    });
+  };
+
+  const saveTitle = (idx) => {
+    setBlueprint((prev) =>
+      prev.map((s, i) => (i === idx ? { ...s, title: editTitle.trim() || s.title } : s))
+    );
+    setEditingIdx(null);
+  };
+
+  const remove = (idx) => {
+    setBlueprint((prev) =>
+      prev.filter((_, i) => i !== idx).map((s, i) => ({ ...s, slideIndex: i + 1 }))
+    );
+  };
+
+  const selectAll = (val) => {
+    setBlueprint((prev) => prev.map((s) => ({ ...s, included: val })));
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4 pb-28">
+      <div
+        className="rounded-2xl border p-5 sm:p-6"
+        style={{
+          background: "linear-gradient(135deg, rgba(var(--primary-rgb),0.12) 0%, transparent 70%)",
+          borderColor: "rgba(var(--primary-rgb),0.2)",
+        }}
+      >
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+          <div>
+            <h2 className="text-lg sm:text-xl font-bold" style={{ color: "var(--text)" }}>
+              Slide-by-slide plan
+            </h2>
+            <p className="text-xs mt-1 max-w-xl" style={{ color: "var(--muted)" }}>
+              Review what each slide will contain. Toggle, rename, reorder, or ask AI to change the plan before generating the PPTX.
+            </p>
+            <div className="flex flex-wrap gap-2 mt-3 text-[11px]">
+              <span className="px-2.5 py-1 rounded-lg font-bold border" style={{ borderColor: "var(--border)", color: "var(--text)" }}>
+                {intelligence?.title || "Document"}
+              </span>
+              <span className="px-2.5 py-1 rounded-lg font-semibold" style={{ background: "rgba(var(--primary-rgb),0.12)", color: "var(--primary)" }}>
+                {includedCount} / {(blueprint || []).length} slides included
+              </span>
+              <span className="px-2.5 py-1 rounded-lg" style={{ color: "var(--muted)" }}>
+                Target: {options.slideCount || "auto"}
+              </span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onBack}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-medium"
+            style={{ borderColor: "var(--border)", color: "var(--muted)" }}
+          >
+            <ArrowLeft size={14} /> Content selection
+          </button>
+        </div>
+      </div>
+
+      {/* AI refine */}
+      <div className="rounded-2xl border p-4 space-y-3" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+        <div className="flex items-center gap-2">
+          <MessageSquarePlus size={16} style={{ color: "var(--primary)" }} />
+          <h3 className="text-sm font-bold" style={{ color: "var(--text)" }}>Ask AI to change the plan</h3>
+        </div>
+        <p className="text-[11px]" style={{ color: "var(--muted)" }}>
+          Examples: “Merge slides 4 and 5”, “Add a risk slide after KPIs”, “Make slide 3 focus on Anaicut only”, “Drop all raw table dump slides”
+        </p>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <input
+            type="text"
+            value={instruction}
+            onChange={(e) => setInstruction(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && instruction.trim() && !refining) onRefine(instruction);
+            }}
+            placeholder="Describe the change you want…"
+            className="flex-1 px-3 py-2.5 rounded-xl text-sm border bg-[var(--bg-subtle)] outline-none focus:ring-2 focus:ring-[var(--ring)]"
+            style={{ borderColor: "var(--border)", color: "var(--text)" }}
+            disabled={refining}
+          />
+          <button
+            type="button"
+            disabled={!instruction.trim() || refining}
+            onClick={() => onRefine(instruction)}
+            className={`px-4 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 ${
+              instruction.trim() && !refining ? "btn-gradient text-white" : "opacity-50 cursor-not-allowed"
+            }`}
+            style={!instruction.trim() || refining ? { background: "var(--bg-subtle)", color: "var(--muted)" } : undefined}
+          >
+            {refining ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+            {refining ? "Updating…" : "Apply"}
+          </button>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setFilterType("all")}
+          className="px-3 py-1.5 rounded-full text-[11px] font-bold border"
+          style={
+            filterType === "all"
+              ? { background: "var(--primary)", borderColor: "var(--primary)", color: "#fff" }
+              : { background: "var(--card)", borderColor: "var(--border)", color: "var(--muted)" }
+          }
+        >
+          All types
+        </button>
+        {types.map((t) => (
+          <button
+            key={t}
+            type="button"
+            onClick={() => setFilterType(t)}
+            className="px-3 py-1.5 rounded-full text-[11px] font-bold border"
+            style={
+              filterType === t
+                ? { background: "var(--primary)", borderColor: "var(--primary)", color: "#fff" }
+                : { background: "var(--card)", borderColor: "var(--border)", color: "var(--muted)" }
+            }
+          >
+            {SLIDE_TYPE_META[t]?.label || t}
+          </button>
+        ))}
+        <div className="ml-auto flex gap-1">
+          <button type="button" onClick={() => selectAll(true)} className="text-[11px] font-bold px-2 py-1" style={{ color: "var(--primary)" }}>
+            Include all
+          </button>
+          <button type="button" onClick={() => selectAll(false)} className="text-[11px] font-bold px-2 py-1" style={{ color: "var(--muted)" }}>
+            Exclude all
+          </button>
+        </div>
+      </div>
+
+      {/* Slide list */}
+      <div className="space-y-2">
+        {visible.map(({ s, idx }) => {
+          const meta = SLIDE_TYPE_META[s.slideType] || { label: s.slideType || "Slide", color: "#64748b" };
+          const on = s.included !== false;
+          const bullets = (s.bullets || []).slice(0, 4);
+          return (
+            <div
+              key={`${idx}-${s.slideType}-${s.title}`}
+              className={`rounded-xl border p-3.5 transition-all ${on ? "" : "opacity-55"}`}
+              style={{
+                borderColor: on ? "rgba(var(--primary-rgb),0.35)" : "var(--border)",
+                background: on ? "rgba(var(--primary-rgb),0.05)" : "var(--card)",
+              }}
+            >
+              <div className="flex items-start gap-3">
+                <button
+                  type="button"
+                  onClick={() => toggle(idx)}
+                  className="mt-0.5 w-5 h-5 rounded-md flex items-center justify-center border shrink-0"
+                  style={
+                    on
+                      ? { background: "var(--primary)", borderColor: "var(--primary)", color: "#fff" }
+                      : { borderColor: "var(--border)" }
+                  }
+                >
+                  {on && <CheckSquare size={12} strokeWidth={3} />}
+                </button>
+
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span
+                      className="text-[10px] font-black px-2 py-0.5 rounded-md text-white"
+                      style={{ background: meta.color }}
+                    >
+                      {String(s.slideIndex || idx + 1).padStart(2, "0")}
+                    </span>
+                    <span
+                      className="text-[10px] font-bold px-2 py-0.5 rounded-md"
+                      style={{ background: `${meta.color}22`, color: meta.color }}
+                    >
+                      {meta.label}
+                    </span>
+                    {editingIdx === idx ? (
+                      <div className="flex items-center gap-1 flex-1 min-w-[140px]">
+                        <input
+                          autoFocus
+                          value={editTitle}
+                          onChange={(e) => setEditTitle(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") saveTitle(idx);
+                            if (e.key === "Escape") setEditingIdx(null);
+                          }}
+                          className="flex-1 px-2 py-1 rounded-lg text-sm border bg-[var(--bg-subtle)]"
+                          style={{ borderColor: "var(--border)", color: "var(--text)" }}
+                        />
+                        <button type="button" onClick={() => saveTitle(idx)} className="text-[11px] font-bold px-2" style={{ color: "var(--primary)" }}>
+                          Save
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        className="text-sm font-semibold text-left hover:underline"
+                        style={{ color: "var(--text)" }}
+                        onClick={() => {
+                          setEditingIdx(idx);
+                          setEditTitle(s.title || "");
+                        }}
+                        title="Click to rename"
+                      >
+                        {s.title || "Untitled slide"}
+                      </button>
+                    )}
+                  </div>
+                  {s.subtitle && (
+                    <p className="text-[11px] mt-1 line-clamp-1" style={{ color: "var(--muted)" }}>
+                      {s.subtitle}
+                    </p>
+                  )}
+                  {bullets.length > 0 && (
+                    <ul className="mt-2 space-y-0.5">
+                      {bullets.map((b, bi) => (
+                        <li key={bi} className="text-[11px] flex gap-1.5" style={{ color: "var(--muted)" }}>
+                          <span style={{ color: "var(--primary)" }}>•</span>
+                          <span className="line-clamp-1">{typeof b === "string" ? b : b?.text || JSON.stringify(b)}</span>
+                        </li>
+                      ))}
+                      {(s.bullets || []).length > 4 && (
+                        <li className="text-[10px]" style={{ color: "var(--muted)" }}>
+                          +{(s.bullets || []).length - 4} more
+                        </li>
+                      )}
+                    </ul>
+                  )}
+                  {(s.kpiCards || []).length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {(s.kpiCards || []).slice(0, 4).map((k, ki) => (
+                        <span
+                          key={ki}
+                          className="text-[10px] font-semibold px-2 py-0.5 rounded-md"
+                          style={{ background: "var(--bg-subtle)", color: "var(--text)" }}
+                        >
+                          {k.label}: <b>{k.value}{k.unit ? ` ${k.unit}` : ""}</b>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex flex-wrap gap-2 mt-2 text-[10px]" style={{ color: "var(--muted)" }}>
+                    {(s.chart || s.charts) && <span>📈 Chart data</span>}
+                    {(s.table || s.tables) && <span>📋 Table data</span>}
+                    {s.insightHeadline && <span className="line-clamp-1">💡 {s.insightHeadline}</span>}
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-1 shrink-0">
+                  <button type="button" onClick={() => move(idx, -1)} className="p-1.5 rounded-lg border text-[10px]" style={{ borderColor: "var(--border)", color: "var(--muted)" }} title="Move up">
+                    ↑
+                  </button>
+                  <button type="button" onClick={() => move(idx, 1)} className="p-1.5 rounded-lg border text-[10px]" style={{ borderColor: "var(--border)", color: "var(--muted)" }} title="Move down">
+                    ↓
+                  </button>
+                  <button type="button" onClick={() => remove(idx)} className="p-1.5 rounded-lg border text-[10px] hover:text-rose-500" style={{ borderColor: "var(--border)", color: "var(--muted)" }} title="Remove">
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Sticky bar */}
+      <div
+        className="fixed bottom-0 left-0 right-0 z-40 border-t backdrop-blur-xl"
+        style={{ background: "rgba(10, 15, 30, 0.88)", borderColor: "rgba(255,255,255,0.08)", paddingBottom: "env(safe-area-inset-bottom)" }}
+      >
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          <div className="text-xs" style={{ color: "#94a3b8" }}>
+            <span className="font-bold text-white">{includedCount}</span> slides will be generated
+            <span className="mx-1">·</span>
+            {(blueprint || []).length - includedCount} excluded
+          </div>
+          <button
+            type="button"
+            disabled={includedCount === 0}
+            onClick={onGenerate}
+            className={`sm:ml-auto sm:w-auto w-full py-3 px-6 rounded-xl font-bold text-sm flex items-center justify-center gap-2 ${
+              includedCount > 0 ? "btn-gradient text-white shadow-lg" : "bg-white/10 text-white/40 cursor-not-allowed"
+            }`}
+          >
+            <Sparkles size={17} />
+            Generate {includedCount} slides
+            <ChevronRight size={16} />
+          </button>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
 
 export default function PresentationGenerator({ user }) {
   const [file, setFile] = useState(null);
@@ -1419,6 +1783,8 @@ export default function PresentationGenerator({ user }) {
   const [error, setError] = useState(null);
   const [intelligence, setIntelligence] = useState(null);
   const [selection, setSelection] = useState(null);
+  const [blueprint, setBlueprint] = useState(null);
+  const [refining, setRefining] = useState(false);
   const [activeTab, setActiveTab] = useState("generate");
   const [history, setHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -1521,6 +1887,9 @@ export default function PresentationGenerator({ user }) {
       if (areas.length) form.append("focusAreas", JSON.stringify(areas));
     }
     form.append("contentSelection", JSON.stringify(selection));
+    if (blueprint && blueprint.length) {
+      form.append("customBlueprint", JSON.stringify(blueprint));
+    }
     const ctrl = new AbortController();
     abortRef.current = ctrl;
     try {
@@ -1587,7 +1956,86 @@ export default function PresentationGenerator({ user }) {
     setHistory((prev) => prev.filter((p) => p._id !== id));
   };
 
-  const handleReset = () => {
+  
+  const handlePlan = async () => {
+    if (!file || !selection) return;
+    setStatus("running");
+    setProgress(5);
+    setProgressMessage("Building slide-by-slide plan…");
+    setProgressStatus("planning");
+    setError(null);
+    setBlueprint(null);
+    const jobId = jobIdRef.current;
+    const form = new FormData();
+    form.append("file", file);
+    form.append("jobId", jobId);
+    form.append("purpose", options.purpose);
+    form.append("audience", options.audience);
+    form.append("slideCount", options.slideCount || "");
+    form.append("language", options.language);
+    form.append("theme", options.theme);
+    if (options.watermarkText) form.append("watermarkText", options.watermarkText);
+    if (options.focusAreasText) {
+      const areas = options.focusAreasText.split(",").map((s) => s.trim()).filter(Boolean).slice(0, 5);
+      if (areas.length) form.append("focusAreas", JSON.stringify(areas));
+    }
+    form.append("contentSelection", JSON.stringify(selection));
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    try {
+      const resp = await fetch(`${API}/api/presentation/plan`, {
+        method: "POST",
+        body: form,
+        credentials: "include",
+        signal: ctrl.signal,
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok || !data.success) {
+        throw new Error(data.message || `Plan failed (${resp.status})`);
+      }
+      setBlueprint((data.blueprint || []).map((s, i) => ({ ...s, included: s.included !== false, slideIndex: s.slideIndex || i + 1 })));
+      setStatus("planning");
+      setProgress(100);
+      setProgressMessage("Slide plan ready — review each slide");
+    } catch (err) {
+      if (err.name === "AbortError") return;
+      setError(err.message || "Failed to build slide plan");
+      setStatus("preview");
+    }
+  };
+
+  const handleRefine = async (instruction) => {
+    if (!blueprint?.length || !instruction?.trim()) return;
+    setRefining(true);
+    setError(null);
+    try {
+      const resp = await fetch(`${API}/api/presentation/refine-plan`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          blueprint,
+          instruction: instruction.trim(),
+          context: {
+            title: intelligence?.title,
+            documentType: intelligence?.documentType,
+            organization: intelligence?.organization,
+          },
+        }),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok || !data.success) {
+        throw new Error(data.message || "Refine failed");
+      }
+      setBlueprint((data.blueprint || []).map((s, i) => ({ ...s, included: s.included !== false, slideIndex: s.slideIndex || i + 1 })));
+    } catch (err) {
+      setError(err.message || "Could not apply AI change");
+    } finally {
+      setRefining(false);
+    }
+  };
+
+const handleReset = () => {
     setStatus("idle");
     setFile(null);
     setProgress(0);
@@ -1602,6 +2050,7 @@ export default function PresentationGenerator({ user }) {
     setStatus("idle");
     setIntelligence(null);
     setSelection(null);
+    setBlueprint(null);
     setProgress(0);
     setError(null);
   };
@@ -1663,7 +2112,20 @@ export default function PresentationGenerator({ user }) {
           {status === "preview" && intelligence && selection && (
             <ContentPreviewPanel intelligence={intelligence} selection={selection} setSelection={setSelection}
               options={options} setOptions={setOptions} showOptions={showOptions} setShowOptions={setShowOptions}
-              onGenerate={handleGenerate} onBack={handleBackToUpload} />
+              onGenerate={handlePlan} onBack={handleBackToUpload} />
+          )}
+
+          {status === "planning" && blueprint && (
+            <SlidePlanEditor
+              blueprint={blueprint}
+              setBlueprint={setBlueprint}
+              intelligence={intelligence}
+              options={options}
+              onGenerate={handleGenerate}
+              onBack={() => { setStatus("preview"); setBlueprint(null); }}
+              onRefine={handleRefine}
+              refining={refining}
+            />
           )}
 
           {status === "running" && (
