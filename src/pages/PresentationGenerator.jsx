@@ -7,9 +7,6 @@ import {
   Clock,
   Download,
   Trash2,
-  SlidersHorizontal,
-  ChevronDown,
-  ChevronUp,
   X,
   CheckCircle2,
   AlertTriangle,
@@ -37,6 +34,14 @@ import {
   Lightbulb,
   AlertOctagon,
   ArrowLeft,
+  Search,
+  Zap,
+  Briefcase,
+  FileStack,
+  TrendingUp,
+  Settings2,
+  ChevronRight,
+  GitBranch,
 } from "lucide-react";
 import UsageBadge from "../components/UsageBadge";
 
@@ -163,7 +168,7 @@ function buildDefaultSelection(intel) {
     includeTables: true,
     includeCharts: true,
     // Advanced generation prefs
-    preferredChartTypes: ["bar", "donut", "line", "stackedBar"],
+    preferredChartTypes: ["bar", "donut", "line", "stacked"],
     chartDensity: "balanced",
     narrativeStyle: "executive",
     visualEmphasis: "balanced",
@@ -173,6 +178,8 @@ function buildDefaultSelection(intel) {
     includeAgenda: true,
     includeSummarySlide: true,
     includeRecommendationsSlide: true,
+    maxBulletsPerSlide: 6,
+    tableStyle: "compact",
     chartOverrides,
     tableOverrides,
   };
@@ -324,447 +331,1075 @@ function HistoryPanel({ history, onDownload, onDelete }) {
   );
 }
 
-function SelectRow({ checked, onChange, children, sub }) {
+function SelectChip({ active, onClick, children, count }) {
   return (
-    <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition ${
-      checked ? "border-[var(--primary)]/40 bg-[rgba(var(--primary-rgb),0.06)]" : "border-[var(--border)] bg-[var(--card)] hover:border-[var(--primary)]/25"
-    }`}>
-      <button type="button" onClick={(e) => { e.preventDefault(); onChange(!checked); }} className="mt-0.5 shrink-0" style={{ color: checked ? "var(--primary)" : "var(--muted)" }}>
-        {checked ? <CheckSquare size={18} /> : <Square size={18} />}
-      </button>
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold border transition-all ${
+        active
+          ? "text-white shadow-sm"
+          : "hover:border-[var(--primary)]/40"
+      }`}
+      style={
+        active
+          ? { background: "var(--primary)", borderColor: "var(--primary)" }
+          : { background: "var(--card)", borderColor: "var(--border)", color: "var(--muted)" }
+      }
+    >
+      {children}
+      {count != null && (
+        <span
+          className="px-1.5 py-0.5 rounded-full text-[10px] font-bold tabular-nums"
+          style={
+            active
+              ? { background: "rgba(255,255,255,0.25)", color: "#fff" }
+              : { background: "var(--bg-subtle)", color: "var(--text)" }
+          }
+        >
+          {count}
+        </span>
+      )}
+    </button>
+  );
+}
+
+function ContentItem({ checked, onChange, title, sub, badge, badgeColor }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(!checked)}
+      className={`w-full text-left flex items-start gap-3 p-3.5 rounded-xl border transition-all ${
+        checked
+          ? "border-[var(--primary)]/50 shadow-sm"
+          : "border-[var(--border)] hover:border-[var(--primary)]/30"
+      }`}
+      style={{
+        background: checked ? "rgba(var(--primary-rgb), 0.08)" : "var(--card)",
+      }}
+    >
+      <span
+        className="mt-0.5 shrink-0 w-5 h-5 rounded-md flex items-center justify-center border transition-all"
+        style={
+          checked
+            ? { background: "var(--primary)", borderColor: "var(--primary)", color: "#fff" }
+            : { background: "var(--bg-subtle)", borderColor: "var(--border)", color: "transparent" }
+        }
+      >
+        {checked && <CheckSquare size={12} strokeWidth={3} />}
+      </span>
       <div className="min-w-0 flex-1">
-        <div className="text-sm font-medium" style={{ color: "var(--text)" }}>{children}</div>
-        {sub && <p className="text-[11px] mt-0.5 line-clamp-2" style={{ color: "var(--muted)" }}>{sub}</p>}
+        <div className="flex items-start justify-between gap-2">
+          <p className="text-sm font-semibold leading-snug" style={{ color: "var(--text)" }}>
+            {title}
+          </p>
+          {badge && (
+            <span
+              className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full"
+              style={{
+                background: badgeColor || "rgba(var(--primary-rgb),0.12)",
+                color: badgeColor ? "#fff" : "var(--primary)",
+              }}
+            >
+              {badge}
+            </span>
+          )}
+        </div>
+        {sub && (
+          <p className="text-[11px] mt-1 leading-relaxed line-clamp-2" style={{ color: "var(--muted)" }}>
+            {sub}
+          </p>
+        )}
       </div>
-    </label>
+    </button>
   );
 }
 
-function SectionHeader({ icon: Icon, title, count, selectedCount, onSelectAll, onClear }) {
-  return (
-    <div className="flex items-center justify-between gap-3 mb-2">
-      <div className="flex items-center gap-2">
-        <Icon size={15} style={{ color: "var(--primary)" }} />
-        <h4 className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--text)" }}>{title}</h4>
-        <span className="text-[10px] px-2 py-0.5 rounded-full border font-semibold" style={{ borderColor: "var(--border)", color: "var(--muted)" }}>{selectedCount}/{count}</span>
-      </div>
-      <div className="flex items-center gap-1.5">
-        <button type="button" onClick={onSelectAll} className="text-[11px] font-semibold px-2 py-1 rounded-lg hover:bg-[var(--bg-subtle)]" style={{ color: "var(--primary)" }}>All</button>
-        <button type="button" onClick={onClear} className="text-[11px] font-semibold px-2 py-1 rounded-lg hover:bg-[var(--bg-subtle)]" style={{ color: "var(--muted)" }}>None</button>
-      </div>
-    </div>
-  );
-}
-
-function ContentPreviewPanel({ intelligence, selection, setSelection, options, setOptions, showOptions, setShowOptions, onGenerate, onBack }) {
+function ContentPreviewPanel({
+  intelligence,
+  selection,
+  setSelection,
+  options,
+  setOptions,
+  showOptions,
+  setShowOptions,
+  onGenerate,
+  onBack,
+}) {
   const stats = intelligence?.stats || {};
+  const [tab, setTab] = useState("sections");
+  const [query, setQuery] = useState("");
+  const q = query.trim().toLowerCase();
+
   const toggleIndex = (key, idx) => {
     setSelection((prev) => {
       const arr = new Set(prev[key] || []);
-      if (arr.has(idx)) arr.delete(idx); else arr.add(idx);
+      if (arr.has(idx)) arr.delete(idx);
+      else arr.add(idx);
       return { ...prev, [key]: Array.from(arr).sort((a, b) => a - b) };
     });
   };
   const selectAll = (key, total) => setSelection((prev) => ({ ...prev, [key]: range(total) }));
   const clearAll = (key) => setSelection((prev) => ({ ...prev, [key]: [] }));
+
+  const applyPreset = (preset) => {
+    const base = buildDefaultSelection(intelligence) || {};
+    const nSec = intelligence.sections?.length || 0;
+    const nKpi = intelligence.kpis?.length || 0;
+    const nFind = intelligence.keyFindings?.length || 0;
+    const nRec = intelligence.recommendations?.length || 0;
+    const nRisk = intelligence.risks?.length || 0;
+    if (preset === "all") {
+      setSelection(base);
+    } else if (preset === "executive") {
+      setSelection({
+        ...base,
+        includeExecutiveSummary: true,
+        selectedSectionIndices: range(Math.min(4, nSec)),
+        selectedKpiIndices: range(Math.min(6, nKpi)),
+        selectedFindingIndices: range(Math.min(4, nFind)),
+        selectedRecommendationIndices: range(nRec),
+        selectedRiskIndices: range(Math.min(3, nRisk)),
+        includeTables: true,
+        includeCharts: true,
+        chartDensity: "minimal",
+        narrativeStyle: "executive",
+        visualEmphasis: "narrative",
+        includeProcessSlides: false,
+        includeComparisonSlides: false,
+        includeKpiOverview: true,
+        includeAgenda: true,
+        includeSummarySlide: true,
+        includeRecommendationsSlide: true,
+      });
+    } else if (preset === "data") {
+      setSelection({
+        ...base,
+        includeExecutiveSummary: false,
+        selectedSectionIndices: range(nSec),
+        selectedKpiIndices: range(nKpi),
+        selectedFindingIndices: [],
+        selectedRecommendationIndices: range(nRec),
+        selectedRiskIndices: [],
+        includeTables: true,
+        includeCharts: true,
+        chartDensity: "dense",
+        narrativeStyle: "technical",
+        visualEmphasis: "data",
+        preferredChartTypes: ["bar", "horizontal", "donut", "stacked", "line"],
+        includeProcessSlides: true,
+        includeComparisonSlides: true,
+        includeKpiOverview: true,
+        includeAgenda: false,
+        includeSummarySlide: true,
+        includeRecommendationsSlide: true,
+      });
+    } else if (preset === "actions") {
+      setSelection({
+        ...base,
+        includeExecutiveSummary: true,
+        selectedSectionIndices: [],
+        selectedKpiIndices: range(Math.min(4, nKpi)),
+        selectedFindingIndices: range(nFind),
+        selectedRecommendationIndices: range(nRec),
+        selectedRiskIndices: range(nRisk),
+        includeTables: false,
+        includeCharts: false,
+        chartDensity: "minimal",
+        narrativeStyle: "executive",
+        visualEmphasis: "narrative",
+        includeProcessSlides: false,
+        includeComparisonSlides: false,
+        includeKpiOverview: false,
+        includeAgenda: false,
+        includeSummarySlide: true,
+        includeRecommendationsSlide: true,
+      });
+    } else if (preset === "visual") {
+      setSelection({
+        ...base,
+        includeExecutiveSummary: true,
+        selectedSectionIndices: range(nSec),
+        selectedKpiIndices: range(nKpi),
+        selectedFindingIndices: range(Math.min(3, nFind)),
+        selectedRecommendationIndices: range(nRec),
+        selectedRiskIndices: [],
+        includeTables: true,
+        includeCharts: true,
+        chartDensity: "dense",
+        narrativeStyle: "storytelling",
+        visualEmphasis: "data",
+        preferredChartTypes: ["donut", "bar", "area", "line"],
+        includeProcessSlides: true,
+        includeComparisonSlides: true,
+        includeKpiOverview: true,
+        includeAgenda: true,
+        includeSummarySlide: true,
+        includeRecommendationsSlide: true,
+      });
+    }
+  };
+
+  const [contentFilter, setContentFilter] = useState("all"); // all | hasVisuals | longOnly
+  const [sortBy, setSortBy] = useState("order"); // order | alpha | visuals
+
+
   const selectedTotal = useMemo(() => {
     if (!selection) return 0;
-    return (selection.includeExecutiveSummary ? 1 : 0)
-      + (selection.selectedSectionIndices?.length || 0)
-      + (selection.selectedKpiIndices?.length || 0)
-      + (selection.selectedFindingIndices?.length || 0)
-      + (selection.selectedRecommendationIndices?.length || 0)
-      + (selection.selectedRiskIndices?.length || 0);
+    return (
+      (selection.includeExecutiveSummary ? 1 : 0) +
+      (selection.selectedSectionIndices?.length || 0) +
+      (selection.selectedKpiIndices?.length || 0) +
+      (selection.selectedFindingIndices?.length || 0) +
+      (selection.selectedRecommendationIndices?.length || 0) +
+      (selection.selectedRiskIndices?.length || 0)
+    );
   }, [selection]);
+
+  const totalAvailable = useMemo(() => {
+    return (
+      (intelligence.executiveSummary ? 1 : 0) +
+      (intelligence.sections?.length || 0) +
+      (intelligence.kpis?.length || 0) +
+      (intelligence.keyFindings?.length || 0) +
+      (intelligence.recommendations?.length || 0) +
+      (intelligence.risks?.length || 0)
+    );
+  }, [intelligence]);
+
+  const pct = totalAvailable > 0 ? Math.round((selectedTotal / totalAvailable) * 100) : 0;
   const hasContent = selectedTotal > 0;
 
+  const estSlides = useMemo(() => {
+    const base = 2; // cover + thank you
+    const rec = (selection.selectedRecommendationIndices?.length || 0) > 0 ? 1 : 0;
+    const summary = selection.includeExecutiveSummary ? 1 : 0;
+    const secs = selection.selectedSectionIndices?.length || 0;
+    const kpis = Math.ceil((selection.selectedKpiIndices?.length || 0) / 4);
+    const findings = Math.ceil((selection.selectedFindingIndices?.length || 0) / 5);
+    const tables = selection.includeTables
+      ? (intelligence.sections || [])
+          .filter((_, i) => selection.selectedSectionIndices?.includes(i))
+          .reduce((n, s) => n + (s.tableCount || 0), 0)
+      : 0;
+    const charts = selection.includeCharts
+      ? (intelligence.sections || [])
+          .filter((_, i) => selection.selectedSectionIndices?.includes(i))
+          .reduce((n, s) => n + (s.chartCount || 0), 0)
+      : 0;
+    return Math.max(6, base + rec + summary + secs + kpis + findings + Math.min(tables, 4) + Math.min(charts, 4));
+  }, [selection, intelligence]);
+
+  const tabs = [
+    { id: "sections", label: "Sections", icon: Layers, count: selection.selectedSectionIndices?.length || 0, total: intelligence.sections?.length || 0 },
+    { id: "kpis", label: "KPIs", icon: BarChart3, count: selection.selectedKpiIndices?.length || 0, total: intelligence.kpis?.length || 0 },
+    { id: "findings", label: "Findings", icon: Lightbulb, count: selection.selectedFindingIndices?.length || 0, total: intelligence.keyFindings?.length || 0 },
+    { id: "recs", label: "Actions", icon: ListChecks, count: selection.selectedRecommendationIndices?.length || 0, total: intelligence.recommendations?.length || 0 },
+    { id: "risks", label: "Risks", icon: AlertOctagon, count: selection.selectedRiskIndices?.length || 0, total: intelligence.risks?.length || 0 },
+  ].filter((t) => t.total > 0);
+
+  const match = (text) => !q || String(text || "").toLowerCase().includes(q);
+
   return (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-      <div className="glass-card rounded-2xl p-5 sm:p-6 border space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4 pb-28">
+      {/* ── Hero header ── */}
+      <div
+        className="rounded-2xl border overflow-hidden"
+        style={{
+          background: "linear-gradient(135deg, rgba(var(--primary-rgb),0.12) 0%, rgba(var(--primary-rgb),0.03) 50%, transparent 100%)",
+          borderColor: "rgba(var(--primary-rgb),0.2)",
+        }}
+      >
+        <div className="p-5 sm:p-6 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
           <div className="flex items-start gap-3.5 min-w-0">
-            <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shrink-0"><Eye size={22} /></div>
+            <div className="p-3 rounded-2xl shrink-0" style={{ background: "rgba(var(--primary-rgb),0.15)", color: "var(--primary)" }}>
+              <Filter size={22} />
+            </div>
             <div className="min-w-0">
-              <h2 className="text-lg font-bold" style={{ color: "var(--text)" }}>Content Preview &amp; Selection</h2>
-              <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>
-                Choose what from the source document should appear in your presentation. Only selected items will be used.
+              <h2 className="text-lg sm:text-xl font-bold tracking-tight" style={{ color: "var(--text)" }}>
+                Shape your presentation
+              </h2>
+              <p className="text-xs mt-1 max-w-lg" style={{ color: "var(--muted)" }}>
+                Pick what from the source document goes into the deck. Unselected content is excluded from generation.
               </p>
-              <div className="flex flex-wrap gap-2 mt-2">
-                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold border" style={{ borderColor: "var(--border)", color: "var(--text)" }}>{intelligence.title || "Document"}</span>
-                {intelligence.documentType && <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">{intelligence.documentType}</span>}
-                {intelligence.organization && <span className="px-2.5 py-0.5 rounded-full text-[11px]" style={{ color: "var(--muted)" }}>{intelligence.organization}</span>}
-                {intelligence.period && <span className="px-2.5 py-0.5 rounded-full text-[11px]" style={{ color: "var(--muted)" }}>{intelligence.period}</span>}
+              <div className="flex flex-wrap items-center gap-2 mt-3">
+                <span className="px-2.5 py-1 rounded-lg text-[11px] font-bold border truncate max-w-[220px]" style={{ borderColor: "var(--border)", color: "var(--text)", background: "var(--card)" }}>
+                  {intelligence.title || "Document"}
+                </span>
+                {intelligence.documentType && (
+                  <span className="px-2.5 py-1 rounded-lg text-[11px] font-semibold" style={{ background: "rgba(var(--primary-rgb),0.12)", color: "var(--primary)" }}>
+                    {intelligence.documentType}
+                  </span>
+                )}
+                {intelligence.organization && (
+                  <span className="text-[11px]" style={{ color: "var(--muted)" }}>{intelligence.organization}</span>
+                )}
+                {intelligence.period && (
+                  <span className="text-[11px]" style={{ color: "var(--muted)" }}>· {intelligence.period}</span>
+                )}
               </div>
             </div>
           </div>
-          <button type="button" onClick={onBack} className="flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-medium hover:bg-[var(--bg-subtle)] transition shrink-0" style={{ borderColor: "var(--border)", color: "var(--muted)" }}>
-            <ArrowLeft size={14} /> Change file
-          </button>
+
+          <div className="flex items-center gap-3 shrink-0">
+            {/* Selection ring */}
+            <div className="flex flex-col items-center">
+              <div className="relative w-14 h-14">
+                <svg className="w-14 h-14 -rotate-90" viewBox="0 0 56 56">
+                  <circle cx="28" cy="28" r="24" fill="none" stroke="var(--border)" strokeWidth="4" />
+                  <circle
+                    cx="28" cy="28" r="24" fill="none"
+                    stroke="var(--primary)" strokeWidth="4" strokeLinecap="round"
+                    strokeDasharray={`${(pct / 100) * 150.8} 150.8`}
+                  />
+                </svg>
+                <span className="absolute inset-0 flex items-center justify-center text-xs font-black" style={{ color: "var(--primary)" }}>
+                  {pct}%
+                </span>
+              </div>
+              <span className="text-[10px] mt-1 font-medium" style={{ color: "var(--muted)" }}>{selectedTotal}/{totalAvailable}</span>
+            </div>
+            <button
+              type="button"
+              onClick={onBack}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-medium hover:bg-[var(--bg-subtle)] transition"
+              style={{ borderColor: "var(--border)", color: "var(--muted)" }}
+            >
+              <ArrowLeft size={14} /> Change file
+            </button>
+          </div>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+
+        {/* Stats strip */}
+        <div className="grid grid-cols-4 sm:grid-cols-7 gap-px border-t" style={{ borderColor: "var(--border)", background: "var(--border)" }}>
           {[
-            { label: "Sections", value: stats.sectionCount || 0 },
-            { label: "KPIs", value: stats.kpiCount || 0 },
-            { label: "Findings", value: stats.findingCount || 0 },
-            { label: "Actions", value: stats.recommendationCount || 0 },
-            { label: "Risks", value: stats.riskCount || 0 },
-            { label: "Tables", value: stats.tableCount || 0 },
-            { label: "Charts", value: stats.chartCount || 0 },
+            { label: "Sections", value: stats.sectionCount || 0, icon: Layers },
+            { label: "KPIs", value: stats.kpiCount || 0, icon: BarChart3 },
+            { label: "Findings", value: stats.findingCount || 0, icon: Lightbulb },
+            { label: "Actions", value: stats.recommendationCount || 0, icon: ListChecks },
+            { label: "Risks", value: stats.riskCount || 0, icon: AlertOctagon },
+            { label: "Tables", value: stats.tableCount || 0, icon: Table2 },
+            { label: "Charts", value: stats.chartCount || 0, icon: PieChart },
           ].map((s) => (
-            <div key={s.label} className="rounded-xl p-2.5 text-center border" style={{ borderColor: "var(--border)", background: "var(--bg-subtle)" }}>
-              <p className="text-base font-bold tabular-nums" style={{ color: "var(--text)" }}>{s.value}</p>
-              <p className="text-[10px] font-medium uppercase tracking-wide" style={{ color: "var(--muted)" }}>{s.label}</p>
+            <div key={s.label} className="flex flex-col items-center justify-center py-3 px-1" style={{ background: "var(--card)" }}>
+              <s.icon size={13} style={{ color: "var(--primary)", opacity: 0.7 }} className="mb-1" />
+              <p className="text-sm font-bold tabular-nums" style={{ color: "var(--text)" }}>{s.value}</p>
+              <p className="text-[9px] font-semibold uppercase tracking-wide" style={{ color: "var(--muted)" }}>{s.label}</p>
             </div>
           ))}
         </div>
       </div>
 
-      <div className="glass-card rounded-2xl p-5 border space-y-3">
-        <div className="flex items-center gap-2 mb-1">
-          <Filter size={15} style={{ color: "var(--primary)" }} />
-          <h3 className="text-sm font-bold" style={{ color: "var(--text)" }}>Content Filters</h3>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-          <SelectRow checked={!!selection.includeExecutiveSummary} onChange={(v) => setSelection((p) => ({ ...p, includeExecutiveSummary: v }))}
-            sub={intelligence.executiveSummary ? intelligence.executiveSummary.slice(0, 120) + (intelligence.executiveSummary.length > 120 ? "…" : "") : "No executive summary"}>
-            Executive Summary
-          </SelectRow>
-          <SelectRow checked={!!selection.includeTables} onChange={(v) => setSelection((p) => ({ ...p, includeTables: v }))} sub={`${stats.tableCount || 0} tables found`}>
-            Include Tables
-          </SelectRow>
-          <SelectRow checked={!!selection.includeCharts} onChange={(v) => setSelection((p) => ({ ...p, includeCharts: v }))} sub={`${stats.chartCount || 0} charts synthesised`}>
-            Include Charts
-          </SelectRow>
+      {/* ── Presets ── */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[11px] font-bold uppercase tracking-wider mr-1" style={{ color: "var(--muted)" }}>Presets</span>
+        <SelectChip active={false} onClick={() => applyPreset("all")}>
+          <FileStack size={12} /> Everything
+        </SelectChip>
+        <SelectChip active={false} onClick={() => applyPreset("executive")}>
+          <Briefcase size={12} /> Executive brief
+        </SelectChip>
+        <SelectChip active={false} onClick={() => applyPreset("data")}>
+          <TrendingUp size={12} /> Data & charts
+        </SelectChip>
+        <SelectChip active={false} onClick={() => applyPreset("actions")}>
+          <Zap size={12} /> Actions only
+        </SelectChip>
+        <SelectChip active={false} onClick={() => applyPreset("visual")}>
+          <PieChart size={12} /> Visual heavy
+        </SelectChip>
+        <div className="ml-auto flex items-center gap-2 text-[11px]" style={{ color: "var(--muted)" }}>
+          <span className="font-semibold">~{estSlides} slides est.</span>
+          {options.slideCount && <span>· target {options.slideCount}</span>}
         </div>
       </div>
 
-      {/* ── Advanced PPT Generation Options ── */}
-      <div className="glass-card rounded-2xl p-5 border space-y-5">
-        <div className="flex items-center gap-2">
-          <SlidersHorizontal size={15} style={{ color: "var(--primary)" }} />
-          <h3 className="text-sm font-bold" style={{ color: "var(--text)" }}>Advanced Generation Options</h3>
-        </div>
+      {/* ── Global toggles ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        {[
+          {
+            key: "includeExecutiveSummary",
+            label: "Executive Summary",
+            sub: intelligence.executiveSummary
+              ? intelligence.executiveSummary.slice(0, 90) + (intelligence.executiveSummary.length > 90 ? "…" : "")
+              : "Not extracted",
+            icon: FileText,
+          },
+          {
+            key: "includeTables",
+            label: "Include Tables",
+            sub: `${stats.tableCount || 0} tables in selected sections`,
+            icon: Table2,
+          },
+          {
+            key: "includeCharts",
+            label: "Include Charts",
+            sub: `${stats.chartCount || 0} charts synthesised from data`,
+            icon: PieChart,
+          },
+        ].map((g) => {
+          const on = !!selection[g.key];
+          const Icon = g.icon;
+          return (
+            <button
+              key={g.key}
+              type="button"
+              onClick={() => setSelection((p) => ({ ...p, [g.key]: !p[g.key] }))}
+              className={`flex items-start gap-3 p-3.5 rounded-xl border text-left transition-all ${
+                on ? "border-[var(--primary)]/40" : "border-[var(--border)]"
+              }`}
+              style={{ background: on ? "rgba(var(--primary-rgb),0.07)" : "var(--card)" }}
+            >
+              <span
+                className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+                style={{ background: on ? "rgba(var(--primary-rgb),0.15)" : "var(--bg-subtle)", color: on ? "var(--primary)" : "var(--muted)" }}
+              >
+                <Icon size={16} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-semibold" style={{ color: "var(--text)" }}>{g.label}</p>
+                  <span
+                    className="w-8 h-4.5 rounded-full relative transition-all"
+                    style={{ background: on ? "var(--primary)" : "var(--border)", width: 32, height: 18 }}
+                  >
+                    <span
+                      className="absolute top-0.5 w-3.5 h-3.5 rounded-full bg-white shadow transition-all"
+                      style={{ left: on ? 14 : 2 }}
+                    />
+                  </span>
+                </div>
+                <p className="text-[11px] mt-0.5 line-clamp-2" style={{ color: "var(--muted)" }}>{g.sub}</p>
+              </div>
+            </button>
+          );
+        })}
+      </div>
 
-        {/* Chart types */}
-        <div className="space-y-2">
-          <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>Preferred chart types</p>
-          <p className="text-[11px]" style={{ color: "var(--muted)" }}>Select which graph styles the AI should prefer when building slides.</p>
-          <div className="flex flex-wrap gap-2">
-            {CHART_TYPE_OPTIONS.map((ct) => {
-              const on = (selection.preferredChartTypes || []).includes(ct.id);
+      {/* ── Category tabs + search ── */}
+      <div className="rounded-2xl border overflow-hidden" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 p-3 border-b" style={{ borderColor: "var(--border)" }}>
+          <div className="flex flex-wrap gap-1.5 flex-1">
+            {tabs.map((t) => {
+              const Icon = t.icon;
+              const active = tab === t.id;
               return (
                 <button
-                  key={ct.id}
+                  key={t.id}
                   type="button"
-                  onClick={() => setSelection((p) => {
-                    const cur = new Set(p.preferredChartTypes || []);
-                    if (cur.has(ct.id)) cur.delete(ct.id); else cur.add(ct.id);
-                    return { ...p, preferredChartTypes: Array.from(cur) };
-                  })}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${
-                    on ? "border-[var(--primary)] bg-[rgba(var(--primary-rgb),0.12)] text-[var(--primary)]" : "border-[var(--border)] text-[var(--muted)] hover:border-[var(--primary)]/40"
+                  onClick={() => setTab(t.id)}
+                  className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all ${
+                    active ? "text-white shadow-sm" : "hover:bg-[var(--bg-subtle)]"
                   }`}
+                  style={
+                    active
+                      ? { background: "var(--primary)" }
+                      : { color: "var(--muted)" }
+                  }
                 >
-                  {ct.label}
+                  <Icon size={13} />
+                  {t.label}
+                  <span
+                    className="text-[10px] font-bold tabular-nums px-1.5 py-0.5 rounded-md"
+                    style={
+                      active
+                        ? { background: "rgba(255,255,255,0.2)" }
+                        : { background: "var(--bg-subtle)", color: "var(--text)" }
+                    }
+                  >
+                    {t.count}/{t.total}
+                  </span>
                 </button>
               );
             })}
           </div>
-        </div>
-
-        {/* Density / narrative / emphasis */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="space-y-1.5">
-            <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>Chart density</p>
-            <div className="space-y-1.5">
-              {CHART_DENSITIES.map((d) => (
-                <button key={d.id} type="button" onClick={() => setSelection((p) => ({ ...p, chartDensity: d.id }))}
-                  className={`w-full text-left px-3 py-2 rounded-xl border text-xs transition ${
-                    selection.chartDensity === d.id ? "border-[var(--primary)] bg-[rgba(var(--primary-rgb),0.1)]" : "border-[var(--border)] hover:border-[var(--primary)]/30"
-                  }`}>
-                  <span className="font-semibold" style={{ color: "var(--text)" }}>{d.label}</span>
-                  <span className="block mt-0.5" style={{ color: "var(--muted)" }}>{d.desc}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>Narrative style</p>
-            <div className="space-y-1.5">
-              {NARRATIVE_STYLES.map((d) => (
-                <button key={d.id} type="button" onClick={() => setSelection((p) => ({ ...p, narrativeStyle: d.id }))}
-                  className={`w-full text-left px-3 py-2 rounded-xl border text-xs transition ${
-                    selection.narrativeStyle === d.id ? "border-[var(--primary)] bg-[rgba(var(--primary-rgb),0.1)]" : "border-[var(--border)] hover:border-[var(--primary)]/30"
-                  }`}>
-                  <span className="font-semibold" style={{ color: "var(--text)" }}>{d.label}</span>
-                  <span className="block mt-0.5" style={{ color: "var(--muted)" }}>{d.desc}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>Visual emphasis</p>
-            <div className="space-y-1.5">
-              {VISUAL_EMPHASIS.map((d) => (
-                <button key={d.id} type="button" onClick={() => setSelection((p) => ({ ...p, visualEmphasis: d.id }))}
-                  className={`w-full text-left px-3 py-2 rounded-xl border text-xs transition ${
-                    selection.visualEmphasis === d.id ? "border-[var(--primary)] bg-[rgba(var(--primary-rgb),0.1)]" : "border-[var(--border)] hover:border-[var(--primary)]/30"
-                  }`}>
-                  <span className="font-semibold" style={{ color: "var(--text)" }}>{d.label}</span>
-                </button>
-              ))}
-            </div>
+          <div className="relative w-full sm:w-56">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--muted)" }} />
+            <input
+              type="search"
+              placeholder="Search items…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              className="w-full pl-9 pr-3 py-2 rounded-xl text-xs border outline-none focus:ring-2 focus:ring-[var(--ring)]"
+              style={{ background: "var(--bg-subtle)", borderColor: "var(--border)", color: "var(--text)" }}
+            />
           </div>
         </div>
 
-        {/* Structure toggles */}
-        <div className="space-y-2">
-          <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>Slide structure</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-            {[
-              { key: "includeAgenda", label: "Agenda slide", sub: "Opening roadmap of topics" },
-              { key: "includeKpiOverview", label: "KPI overview", sub: "Metric cards near the start" },
-              { key: "includeProcessSlides", label: "Process / flow slides", sub: "Root-cause or step frameworks" },
-              { key: "includeComparisonSlides", label: "Comparison slides", sub: "Side-by-side metric contrasts" },
-              { key: "includeSummarySlide", label: "Summary & takeaways", sub: "Before recommendations" },
-              { key: "includeRecommendationsSlide", label: "Recommendations", sub: "Numbered actions before Thank You" },
-            ].map((item) => (
-              <SelectRow
-                key={item.key}
-                checked={selection[item.key] !== false}
-                onChange={(v) => setSelection((p) => ({ ...p, [item.key]: v }))}
-                sub={item.sub}
-              >
-                {item.label}
-              </SelectRow>
-            ))}
+        {/* Tab toolbar */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-4 py-2 border-b" style={{ borderColor: "var(--border)", background: "var(--bg-subtle)" }}>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <p className="text-[11px] font-medium mr-1" style={{ color: "var(--muted)" }}>
+              {tab === "sections" && "Sections → content slides"}
+              {tab === "kpis" && "KPIs → scorecards"}
+              {tab === "findings" && "Findings → insight bullets"}
+              {tab === "recs" && "Actions → Recommendations (before Thank You)"}
+              {tab === "risks" && "Risks → risk / insight slides"}
+            </p>
+            {tab === "sections" && (
+              <>
+                {[
+                  { id: "all", label: "All" },
+                  { id: "hasVisuals", label: "Has tables/charts" },
+                  { id: "longOnly", label: "Longer sections" },
+                ].map((f) => (
+                  <button
+                    key={f.id}
+                    type="button"
+                    onClick={() => setContentFilter(f.id)}
+                    className="px-2 py-0.5 rounded-md text-[10px] font-bold border transition"
+                    style={
+                      contentFilter === f.id
+                        ? { background: "var(--primary)", borderColor: "var(--primary)", color: "#fff" }
+                        : { background: "var(--card)", borderColor: "var(--border)", color: "var(--muted)" }
+                    }
+                  >
+                    {f.label}
+                  </button>
+                ))}
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="ml-1 px-2 py-0.5 rounded-md text-[10px] font-bold border bg-[var(--card)]"
+                  style={{ borderColor: "var(--border)", color: "var(--muted)" }}
+                >
+                  <option value="order">Original order</option>
+                  <option value="alpha">A → Z</option>
+                  <option value="visuals">Most visuals first</option>
+                </select>
+              </>
+            )}
           </div>
+          <div className="flex gap-1">
+            <button
+              type="button"
+              className="text-[11px] font-bold px-2.5 py-1 rounded-lg hover:bg-[var(--card)] transition"
+              style={{ color: "var(--primary)" }}
+              onClick={() => {
+                if (tab === "sections") selectAll("selectedSectionIndices", intelligence.sections?.length || 0);
+                if (tab === "kpis") selectAll("selectedKpiIndices", intelligence.kpis?.length || 0);
+                if (tab === "findings") selectAll("selectedFindingIndices", intelligence.keyFindings?.length || 0);
+                if (tab === "recs") selectAll("selectedRecommendationIndices", intelligence.recommendations?.length || 0);
+                if (tab === "risks") selectAll("selectedRiskIndices", intelligence.risks?.length || 0);
+              }}
+            >
+              Select all
+            </button>
+            <button
+              type="button"
+              className="text-[11px] font-bold px-2.5 py-1 rounded-lg hover:bg-[var(--card)] transition"
+              style={{ color: "var(--muted)" }}
+              onClick={() => {
+                if (tab === "sections") clearAll("selectedSectionIndices");
+                if (tab === "kpis") clearAll("selectedKpiIndices");
+                if (tab === "findings") clearAll("selectedFindingIndices");
+                if (tab === "recs") clearAll("selectedRecommendationIndices");
+                if (tab === "risks") clearAll("selectedRiskIndices");
+              }}
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+
+        {/* Tab content */}
+        <div className="p-3 sm:p-4 max-h-[420px] overflow-y-auto space-y-2">
+          {tab === "sections" &&
+            (intelligence.sections || [])
+              .map((sec, idx) => ({ sec, idx }))
+              .filter(({ sec }) => {
+                if (!(match(sec.title) || match(sec.summary))) return false;
+                if (contentFilter === "hasVisuals") return (sec.tableCount || 0) + (sec.chartCount || 0) > 0;
+                if (contentFilter === "longOnly") return (sec.summary || "").length > 80;
+                return true;
+              })
+              .sort((a, b) => {
+                if (sortBy === "alpha") return (a.sec.title || "").localeCompare(b.sec.title || "");
+                if (sortBy === "visuals") {
+                  const av = (a.sec.tableCount || 0) + (a.sec.chartCount || 0);
+                  const bv = (b.sec.tableCount || 0) + (b.sec.chartCount || 0);
+                  return bv - av;
+                }
+                return a.idx - b.idx;
+              })
+              .map(({ sec, idx }) => (
+                <ContentItem
+                  key={idx}
+                  checked={selection.selectedSectionIndices?.includes(idx)}
+                  onChange={() => toggleIndex("selectedSectionIndices", idx)}
+                  title={sec.title}
+                  sub={[
+                    sec.summary?.slice(0, 120),
+                    sec.tableCount ? `${sec.tableCount} table(s)` : null,
+                    sec.chartCount ? `${sec.chartCount} chart(s)` : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                  badge={
+                    (sec.tableCount || 0) + (sec.chartCount || 0) > 0
+                      ? `${(sec.tableCount || 0) + (sec.chartCount || 0)} visuals`
+                      : null
+                  }
+                />
+              ))}
+
+          {tab === "kpis" &&
+            (intelligence.kpis || [])
+              .map((k, idx) => ({ k, idx }))
+              .filter(({ k }) => match(k.label) || match(k.context) || match(k.value))
+              .map(({ k, idx }) => (
+                <ContentItem
+                  key={idx}
+                  checked={selection.selectedKpiIndices?.includes(idx)}
+                  onChange={() => toggleIndex("selectedKpiIndices", idx)}
+                  title={k.label}
+                  sub={k.context || k.trend || undefined}
+                  badge={`${k.value}${k.unit ? " " + k.unit : ""}`}
+                />
+              ))}
+
+          {tab === "findings" &&
+            (intelligence.keyFindings || [])
+              .map((f, idx) => ({ f, idx }))
+              .filter(({ f }) => match(f))
+              .map(({ f, idx }) => (
+                <ContentItem
+                  key={idx}
+                  checked={selection.selectedFindingIndices?.includes(idx)}
+                  onChange={() => toggleIndex("selectedFindingIndices", idx)}
+                  title={f}
+                />
+              ))}
+
+          {tab === "recs" &&
+            (intelligence.recommendations || [])
+              .map((r, idx) => ({ r, idx }))
+              .filter(({ r }) => match(r))
+              .map(({ r, idx }) => (
+                <ContentItem
+                  key={idx}
+                  checked={selection.selectedRecommendationIndices?.includes(idx)}
+                  onChange={() => toggleIndex("selectedRecommendationIndices", idx)}
+                  title={r}
+                  badge={`#${idx + 1}`}
+                />
+              ))}
+
+          {tab === "risks" &&
+            (intelligence.risks || [])
+              .map((r, idx) => ({ r, idx }))
+              .filter(({ r }) => match(r))
+              .map(({ r, idx }) => (
+                <ContentItem
+                  key={idx}
+                  checked={selection.selectedRiskIndices?.includes(idx)}
+                  onChange={() => toggleIndex("selectedRiskIndices", idx)}
+                  title={r}
+                />
+              ))}
+
+          {/* empty search state */}
+          {q && (
+            <p className="text-center text-xs py-8" style={{ color: "var(--muted)" }}>
+              No matching items for “{query}”
+            </p>
+          )}
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        {(intelligence.sections?.length || 0) > 0 && (
-          <div className="glass-card rounded-2xl p-5 border space-y-3">
-            <SectionHeader icon={Layers} title="Sections" count={intelligence.sections.length} selectedCount={selection.selectedSectionIndices?.length || 0}
-              onSelectAll={() => selectAll("selectedSectionIndices", intelligence.sections.length)} onClear={() => clearAll("selectedSectionIndices")} />
-            <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-              {intelligence.sections.map((sec, idx) => (
-                <SelectRow key={idx} checked={selection.selectedSectionIndices?.includes(idx)} onChange={() => toggleIndex("selectedSectionIndices", idx)}
-                  sub={[sec.summary?.slice(0, 100), sec.tableCount ? `${sec.tableCount} table(s)` : null, sec.chartCount ? `${sec.chartCount} chart(s)` : null].filter(Boolean).join(" · ")}>
-                  {sec.title}
-                </SelectRow>
-              ))}
+      {/* ── Advanced Generation Options ── */}
+      <div className="rounded-2xl border overflow-hidden" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+        <div className="flex items-center justify-between px-4 sm:px-5 py-3.5 border-b" style={{ borderColor: "var(--border)" }}>
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(var(--primary-rgb),0.12)", color: "var(--primary)" }}>
+              <Settings2 size={15} />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold" style={{ color: "var(--text)" }}>Advanced generation options</h3>
+              <p className="text-[10px]" style={{ color: "var(--muted)" }}>Charts, density, deck structure & narrative</p>
             </div>
           </div>
-        )}
-        {(intelligence.kpis?.length || 0) > 0 && (
-          <div className="glass-card rounded-2xl p-5 border space-y-3">
-            <SectionHeader icon={BarChart3} title="KPIs / Metrics" count={intelligence.kpis.length} selectedCount={selection.selectedKpiIndices?.length || 0}
-              onSelectAll={() => selectAll("selectedKpiIndices", intelligence.kpis.length)} onClear={() => clearAll("selectedKpiIndices")} />
-            <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-              {intelligence.kpis.map((k, idx) => (
-                <SelectRow key={idx} checked={selection.selectedKpiIndices?.includes(idx)} onChange={() => toggleIndex("selectedKpiIndices", idx)} sub={k.context || k.trend || undefined}>
-                  <span className="font-semibold">{k.label}</span>
-                  <span className="ml-2 text-[var(--primary)] font-mono text-xs">{k.value}{k.unit ? ` ${k.unit}` : ""}</span>
-                </SelectRow>
-              ))}
-            </div>
-          </div>
-        )}
-        {(intelligence.keyFindings?.length || 0) > 0 && (
-          <div className="glass-card rounded-2xl p-5 border space-y-3">
-            <SectionHeader icon={Lightbulb} title="Key Findings" count={intelligence.keyFindings.length} selectedCount={selection.selectedFindingIndices?.length || 0}
-              onSelectAll={() => selectAll("selectedFindingIndices", intelligence.keyFindings.length)} onClear={() => clearAll("selectedFindingIndices")} />
-            <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-              {intelligence.keyFindings.map((f, idx) => (
-                <SelectRow key={idx} checked={selection.selectedFindingIndices?.includes(idx)} onChange={() => toggleIndex("selectedFindingIndices", idx)}>
-                  <span className="text-xs leading-relaxed">{f}</span>
-                </SelectRow>
-              ))}
-            </div>
-          </div>
-        )}
-        {(intelligence.recommendations?.length || 0) > 0 && (
-          <div className="glass-card rounded-2xl p-5 border space-y-3">
-            <SectionHeader icon={ListChecks} title="Recommendations" count={intelligence.recommendations.length} selectedCount={selection.selectedRecommendationIndices?.length || 0}
-              onSelectAll={() => selectAll("selectedRecommendationIndices", intelligence.recommendations.length)} onClear={() => clearAll("selectedRecommendationIndices")} />
-            <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-              {intelligence.recommendations.map((r, idx) => (
-                <SelectRow key={idx} checked={selection.selectedRecommendationIndices?.includes(idx)} onChange={() => toggleIndex("selectedRecommendationIndices", idx)}>
-                  <span className="text-xs leading-relaxed">{r}</span>
-                </SelectRow>
-              ))}
-            </div>
-          </div>
-        )}
-        {(intelligence.risks?.length || 0) > 0 && (
-          <div className="glass-card rounded-2xl p-5 border space-y-3 lg:col-span-2">
-            <SectionHeader icon={AlertOctagon} title="Risks" count={intelligence.risks.length} selectedCount={selection.selectedRiskIndices?.length || 0}
-              onSelectAll={() => selectAll("selectedRiskIndices", intelligence.risks.length)} onClear={() => clearAll("selectedRiskIndices")} />
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
-              {intelligence.risks.map((r, idx) => (
-                <SelectRow key={idx} checked={selection.selectedRiskIndices?.includes(idx)} onChange={() => toggleIndex("selectedRiskIndices", idx)}>
-                  <span className="text-xs leading-relaxed">{r}</span>
-                </SelectRow>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {selection.includeTables && (stats.tableCount || 0) > 0 && (
-        <div className="glass-card rounded-2xl p-5 border space-y-3">
-          <div className="flex items-center gap-2">
-            <Table2 size={15} style={{ color: "var(--primary)" }} />
-            <h4 className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--text)" }}>Tables — include in deck</h4>
-          </div>
-          <p className="text-[11px]" style={{ color: "var(--muted)" }}>Uncheck any table you do not want as a slide.</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {(intelligence.sections || []).flatMap((sec, si) => {
-              if (!selection.selectedSectionIndices?.includes(si)) return [];
-              return (sec.tables || []).map((t, ti) => {
-                const key = `${si}-${ti}`;
-                const ov = selection.tableOverrides?.[key] || { include: true };
-                return (
-                  <div key={key} className={`p-3 rounded-xl border text-xs flex items-start gap-2 transition ${ov.include !== false ? "border-[var(--primary)]/30 bg-[rgba(var(--primary-rgb),0.04)]" : "border-[var(--border)] opacity-60"}`}>
-                    <button type="button" onClick={() => setSelection((p) => ({
-                      ...p,
-                      tableOverrides: {
-                        ...(p.tableOverrides || {}),
-                        [key]: { include: ov.include === false },
-                      },
-                    }))} style={{ color: ov.include !== false ? "var(--primary)" : "var(--muted)" }}>
-                      {ov.include !== false ? <CheckSquare size={16} /> : <Square size={16} />}
-                    </button>
-                    <div className="min-w-0">
-                      <p className="font-semibold" style={{ color: "var(--text)" }}>{t.title || `Table ${ti + 1}`}</p>
-                      <p style={{ color: "var(--muted)" }}>{(t.headers || []).slice(0, 4).join(" · ")}{t.rowCount ? ` · ${t.rowCount} rows` : ""}</p>
-                    </div>
-                  </div>
-                );
-              });
-            })}
-          </div>
-        </div>
-      )}
-
-      {selection.includeCharts && (stats.chartCount || 0) > 0 && (
-        <div className="glass-card rounded-2xl p-5 border space-y-3">
-          <div className="flex items-center gap-2">
-            <PieChart size={15} style={{ color: "var(--primary)" }} />
-            <h4 className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--text)" }}>Charts — include & type</h4>
-          </div>
-          <p className="text-[11px]" style={{ color: "var(--muted)" }}>Toggle each chart and pick the graph type for that slide.</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {(intelligence.sections || []).flatMap((sec, si) => {
-              if (!selection.selectedSectionIndices?.includes(si)) return [];
-              return (sec.charts || []).map((c, ci) => {
-                const key = `${si}-${ci}`;
-                const ov = selection.chartOverrides?.[key] || { include: true, chartType: c.chartType || "bar" };
-                return (
-                  <div key={key} className={`p-3 rounded-xl border text-xs space-y-2 transition ${ov.include !== false ? "border-[var(--primary)]/30 bg-[rgba(var(--primary-rgb),0.04)]" : "border-[var(--border)] opacity-60"}`}>
-                    <div className="flex items-start gap-2">
-                      <button type="button" onClick={() => setSelection((p) => ({
-                        ...p,
-                        chartOverrides: {
-                          ...(p.chartOverrides || {}),
-                          [key]: { ...ov, include: ov.include === false },
-                        },
-                      }))} style={{ color: ov.include !== false ? "var(--primary)" : "var(--muted)" }}>
-                        {ov.include !== false ? <CheckSquare size={16} /> : <Square size={16} />}
-                      </button>
-                      <div className="min-w-0 flex-1">
-                        <p className="font-semibold" style={{ color: "var(--text)" }}>{c.title || `Chart ${ci + 1}`}</p>
-                        <p className="line-clamp-1" style={{ color: "var(--muted)" }}>{c.insight || sec.title}</p>
-                      </div>
-                    </div>
-                    {ov.include !== false && (
-                      <select
-                        value={ov.chartType || c.chartType || "bar"}
-                        onChange={(e) => setSelection((p) => ({
-                          ...p,
-                          chartOverrides: {
-                            ...(p.chartOverrides || {}),
-                            [key]: { ...ov, chartType: e.target.value, include: true },
-                          },
-                        }))}
-                        className="w-full px-2.5 py-1.5 rounded-lg text-[11px] font-medium border bg-[var(--card)]"
-                        style={{ borderColor: "var(--border)", color: "var(--text)" }}
-                      >
-                        {CHART_TYPE_OPTIONS.map((ct) => (
-                          <option key={ct.id} value={ct.id}>{ct.label}</option>
-                        ))}
-                      </select>
-                    )}
-                  </div>
-                );
-              });
-            })}
-          </div>
-        </div>
-      )}
-
-      <div className="glass-card rounded-2xl p-5 sm:p-6 border space-y-5">
-        <div className="space-y-2">
-          <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>Desired Slide Count</label>
-          <select value={options.slideCount} onChange={(e) => setOptions((o) => ({ ...o, slideCount: e.target.value }))}
-            className="w-full sm:w-72 px-4 py-2.5 rounded-xl text-sm font-medium border bg-[var(--card)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)] transition"
-            style={{ borderColor: "var(--border)", color: "var(--text)" }}>
-            {SLIDE_COUNTS.map((s) => <option key={s.value || "auto"} value={s.value}>{s.label}</option>)}
-          </select>
-        </div>
-        <div className="border-t pt-3" style={{ borderColor: "var(--border)" }}>
-          <button type="button" onClick={() => setShowOptions((v) => !v)} className="flex items-center gap-2 text-xs font-semibold py-2 transition" style={{ color: "var(--primary)" }}>
-            <SlidersHorizontal size={15} />
-            <span>{showOptions ? "Hide Advanced Options" : "Show Advanced Options (Theme, Audience, Purpose, Language)"}</span>
-            {showOptions ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+          <button
+            type="button"
+            onClick={() => setShowOptions((v) => !v)}
+            className="text-[11px] font-semibold flex items-center gap-1 px-2.5 py-1.5 rounded-lg border transition"
+            style={{ borderColor: "var(--border)", color: "var(--primary)" }}
+          >
+            {showOptions ? "Collapse" : "Expand"}
+            <ChevronRight size={13} className={`transition ${showOptions ? "rotate-90" : ""}`} />
           </button>
+        </div>
+
+        {/* Always-visible core controls */}
+        <div className="p-4 sm:p-5 space-y-5">
+          {/* Slide count + theme */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: "var(--muted)" }}>Slide count</label>
+              <select
+                value={options.slideCount}
+                onChange={(e) => setOptions((o) => ({ ...o, slideCount: e.target.value }))}
+                className="w-full px-3 py-2.5 rounded-xl text-sm font-medium border bg-[var(--bg-subtle)]"
+                style={{ borderColor: "var(--border)", color: "var(--text)" }}
+              >
+                {SLIDE_COUNTS.map((s) => (
+                  <option key={s.value || "auto"} value={s.value}>{s.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: "var(--muted)" }}>Visual theme</label>
+              <select
+                value={options.theme}
+                onChange={(e) => setOptions((o) => ({ ...o, theme: e.target.value }))}
+                className="w-full px-3 py-2.5 rounded-xl text-sm font-medium border bg-[var(--bg-subtle)]"
+                style={{ borderColor: "var(--border)", color: "var(--text)" }}
+              >
+                {THEMES.map((t) => (
+                  <option key={t.id} value={t.id}>{t.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Preferred chart types */}
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: "var(--muted)" }}>
+              Preferred chart types
+            </label>
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                { id: "bar", label: "Bar" },
+                { id: "horizontal", label: "Horizontal bar" },
+                { id: "donut", label: "Donut" },
+                { id: "pie", label: "Pie" },
+                { id: "line", label: "Line" },
+                { id: "area", label: "Area" },
+                { id: "stacked", label: "Stacked" },
+              ].map((c) => {
+                const active = (selection.preferredChartTypes || []).includes(c.id);
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() =>
+                      setSelection((prev) => {
+                        const cur = new Set(prev.preferredChartTypes || []);
+                        if (cur.has(c.id)) cur.delete(c.id);
+                        else cur.add(c.id);
+                        return { ...prev, preferredChartTypes: Array.from(cur) };
+                      })
+                    }
+                    className={`px-3 py-1.5 rounded-full text-[11px] font-semibold border transition-all ${
+                      active ? "text-white shadow-sm" : "hover:border-[var(--primary)]/40"
+                    }`}
+                    style={
+                      active
+                        ? { background: "var(--primary)", borderColor: "var(--primary)" }
+                        : { background: "var(--bg-subtle)", borderColor: "var(--border)", color: "var(--muted)" }
+                    }
+                  >
+                    {c.label}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-[10px] mt-1.5" style={{ color: "var(--muted)" }}>
+              AI will prefer these shapes when synthesising charts from tables.
+            </p>
+          </div>
+
+          {/* Density + narrative + emphasis */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: "var(--muted)" }}>Chart density</label>
+              <div className="flex gap-1 p-1 rounded-xl" style={{ background: "var(--bg-subtle)" }}>
+                {[
+                  { id: "minimal", label: "Minimal" },
+                  { id: "balanced", label: "Balanced" },
+                  { id: "dense", label: "Dense" },
+                ].map((d) => (
+                  <button
+                    key={d.id}
+                    type="button"
+                    onClick={() => setSelection((p) => ({ ...p, chartDensity: d.id }))}
+                    className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold transition ${
+                      selection.chartDensity === d.id ? "text-white shadow" : ""
+                    }`}
+                    style={
+                      selection.chartDensity === d.id
+                        ? { background: "var(--primary)" }
+                        : { color: "var(--muted)" }
+                    }
+                  >
+                    {d.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: "var(--muted)" }}>Narrative style</label>
+              <div className="flex gap-1 p-1 rounded-xl" style={{ background: "var(--bg-subtle)" }}>
+                {[
+                  { id: "executive", label: "Exec" },
+                  { id: "technical", label: "Tech" },
+                  { id: "storytelling", label: "Story" },
+                ].map((d) => (
+                  <button
+                    key={d.id}
+                    type="button"
+                    onClick={() => setSelection((p) => ({ ...p, narrativeStyle: d.id }))}
+                    className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold transition ${
+                      selection.narrativeStyle === d.id ? "text-white shadow" : ""
+                    }`}
+                    style={
+                      selection.narrativeStyle === d.id
+                        ? { background: "var(--primary)" }
+                        : { color: "var(--muted)" }
+                    }
+                  >
+                    {d.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: "var(--muted)" }}>Visual emphasis</label>
+              <div className="flex gap-1 p-1 rounded-xl" style={{ background: "var(--bg-subtle)" }}>
+                {[
+                  { id: "data", label: "Data" },
+                  { id: "balanced", label: "Balance" },
+                  { id: "narrative", label: "Story" },
+                ].map((d) => (
+                  <button
+                    key={d.id}
+                    type="button"
+                    onClick={() => setSelection((p) => ({ ...p, visualEmphasis: d.id }))}
+                    className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold transition ${
+                      selection.visualEmphasis === d.id ? "text-white shadow" : ""
+                    }`}
+                    style={
+                      selection.visualEmphasis === d.id
+                        ? { background: "var(--primary)" }
+                        : { color: "var(--muted)" }
+                    }
+                  >
+                    {d.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Deck structure toggles */}
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: "var(--muted)" }}>
+              Deck structure
+            </label>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {[
+                { key: "includeAgenda", label: "Agenda slide", sub: "Opening roadmap" },
+                { key: "includeKpiOverview", label: "KPI overview", sub: "Scorecard slide" },
+                { key: "includeProcessSlides", label: "Process / flow", sub: "Step sequences" },
+                { key: "includeComparisonSlides", label: "Comparisons", sub: "Side-by-side" },
+                { key: "includeSummarySlide", label: "Summary & takeaways", sub: "Before recommendations" },
+                { key: "includeRecommendationsSlide", label: "Recommendations", sub: "Before Thank You" },
+              ].map((item) => {
+                const on = selection[item.key] !== false;
+                return (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => setSelection((p) => ({ ...p, [item.key]: !on }))}
+                    className={`flex items-start gap-2.5 p-3 rounded-xl border text-left transition-all ${
+                      on ? "border-[var(--primary)]/40" : "border-[var(--border)] opacity-70"
+                    }`}
+                    style={{ background: on ? "rgba(var(--primary-rgb),0.07)" : "var(--bg-subtle)" }}
+                  >
+                    <span
+                      className="mt-0.5 w-4 h-4 rounded flex items-center justify-center shrink-0 border"
+                      style={
+                        on
+                          ? { background: "var(--primary)", borderColor: "var(--primary)", color: "#fff" }
+                          : { borderColor: "var(--border)" }
+                      }
+                    >
+                      {on && <CheckSquare size={10} strokeWidth={3} />}
+                    </span>
+                    <div>
+                      <p className="text-xs font-semibold" style={{ color: "var(--text)" }}>{item.label}</p>
+                      <p className="text-[10px]" style={{ color: "var(--muted)" }}>{item.sub}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Expandable: purpose / audience / language / watermark / table style */}
           <AnimatePresence>
             {showOptions && (
-              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
-                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-4 overflow-hidden">
-                <div className="space-y-1.5">
-                  <label className="block text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>Visual Theme</label>
-                  <select value={options.theme} onChange={(e) => setOptions((o) => ({ ...o, theme: e.target.value }))} className="w-full px-3 py-2 rounded-lg text-xs font-medium border bg-[var(--card)]" style={{ borderColor: "var(--border)", color: "var(--text)" }}>
-                    {THEMES.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
-                  </select>
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="overflow-hidden space-y-4 pt-1"
+              >
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: "var(--muted)" }}>Purpose</label>
+                    <select value={options.purpose} onChange={(e) => setOptions((o) => ({ ...o, purpose: e.target.value }))}
+                      className="w-full px-3 py-2 rounded-xl text-xs font-medium border bg-[var(--bg-subtle)]" style={{ borderColor: "var(--border)", color: "var(--text)" }}>
+                      {PURPOSES.map((p) => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: "var(--muted)" }}>Audience</label>
+                    <select value={options.audience} onChange={(e) => setOptions((o) => ({ ...o, audience: e.target.value }))}
+                      className="w-full px-3 py-2 rounded-xl text-xs font-medium border bg-[var(--bg-subtle)]" style={{ borderColor: "var(--border)", color: "var(--text)" }}>
+                      {AUDIENCES.map((a) => <option key={a} value={a}>{a}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: "var(--muted)" }}>Language</label>
+                    <select value={options.language} onChange={(e) => setOptions((o) => ({ ...o, language: e.target.value }))}
+                      className="w-full px-3 py-2 rounded-xl text-xs font-medium border bg-[var(--bg-subtle)]" style={{ borderColor: "var(--border)", color: "var(--text)" }}>
+                      {LANGUAGES.map((l) => <option key={l} value={l}>{l}</option>)}
+                    </select>
+                  </div>
                 </div>
-                <div className="space-y-1.5">
-                  <label className="block text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>Purpose</label>
-                  <select value={options.purpose} onChange={(e) => setOptions((o) => ({ ...o, purpose: e.target.value }))} className="w-full px-3 py-2 rounded-lg text-xs font-medium border bg-[var(--card)]" style={{ borderColor: "var(--border)", color: "var(--text)" }}>
-                    {PURPOSES.map((p) => <option key={p} value={p}>{p}</option>)}
-                  </select>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: "var(--muted)" }}>Table style</label>
+                    <div className="flex gap-1 p-1 rounded-xl" style={{ background: "var(--bg-subtle)" }}>
+                      {[
+                        { id: "compact", label: "Compact" },
+                        { id: "detailed", label: "Detailed" },
+                        { id: "highlight", label: "Highlight key rows" },
+                      ].map((d) => (
+                        <button
+                          key={d.id}
+                          type="button"
+                          onClick={() => setSelection((p) => ({ ...p, tableStyle: d.id }))}
+                          className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold transition ${
+                            (selection.tableStyle || "compact") === d.id ? "text-white shadow" : ""
+                          }`}
+                          style={
+                            (selection.tableStyle || "compact") === d.id
+                              ? { background: "var(--primary)" }
+                              : { color: "var(--muted)" }
+                          }
+                        >
+                          {d.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: "var(--muted)" }}>Max bullets / slide</label>
+                    <div className="flex gap-1 p-1 rounded-xl" style={{ background: "var(--bg-subtle)" }}>
+                      {[4, 5, 6, 7].map((n) => (
+                        <button
+                          key={n}
+                          type="button"
+                          onClick={() => setSelection((p) => ({ ...p, maxBulletsPerSlide: n }))}
+                          className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold transition ${
+                            (selection.maxBulletsPerSlide || 6) === n ? "text-white shadow" : ""
+                          }`}
+                          style={
+                            (selection.maxBulletsPerSlide || 6) === n
+                              ? { background: "var(--primary)" }
+                              : { color: "var(--muted)" }
+                          }
+                        >
+                          {n}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
-                <div className="space-y-1.5">
-                  <label className="block text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>Audience</label>
-                  <select value={options.audience} onChange={(e) => setOptions((o) => ({ ...o, audience: e.target.value }))} className="w-full px-3 py-2 rounded-lg text-xs font-medium border bg-[var(--card)]" style={{ borderColor: "var(--border)", color: "var(--text)" }}>
-                    {AUDIENCES.map((a) => <option key={a} value={a}>{a}</option>)}
-                  </select>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="block text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>Language</label>
-                  <select value={options.language} onChange={(e) => setOptions((o) => ({ ...o, language: e.target.value }))} className="w-full px-3 py-2 rounded-lg text-xs font-medium border bg-[var(--card)]" style={{ borderColor: "var(--border)", color: "var(--text)" }}>
-                    {LANGUAGES.map((l) => <option key={l} value={l}>{l}</option>)}
-                  </select>
-                </div>
-                <div className="space-y-1.5 sm:col-span-2 lg:col-span-4">
-                  <label className="block text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>Watermark (optional)</label>
-                  <input type="text" maxLength={60} placeholder="e.g. CONFIDENTIAL · Your Org" value={options.watermarkText || ""}
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: "var(--muted)" }}>Watermark (optional)</label>
+                  <input
+                    type="text"
+                    maxLength={60}
+                    placeholder="e.g. CONFIDENTIAL · Your Org"
+                    value={options.watermarkText || ""}
                     onChange={(e) => setOptions((o) => ({ ...o, watermarkText: e.target.value }))}
-                    className="w-full px-3 py-2 rounded-lg text-xs font-medium border bg-[var(--card)]" style={{ borderColor: "var(--border)", color: "var(--text)" }} />
+                    className="w-full px-3 py-2 rounded-xl text-xs font-medium border bg-[var(--bg-subtle)]"
+                    style={{ borderColor: "var(--border)", color: "var(--text)" }}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: "var(--muted)" }}>
+                    Focus areas (optional — guide the AI)
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={200}
+                    placeholder="e.g. maternal anemia, RDS protocols, referral transport"
+                    value={options.focusAreasText || ""}
+                    onChange={(e) => setOptions((o) => ({ ...o, focusAreasText: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-xl text-xs font-medium border bg-[var(--bg-subtle)]"
+                    style={{ borderColor: "var(--border)", color: "var(--text)" }}
+                  />
+                  <p className="text-[10px] mt-1" style={{ color: "var(--muted)" }}>
+                    Comma-separated topics the AI should prioritise when building slides.
+                  </p>
                 </div>
               </motion.div>
             )}
           </AnimatePresence>
         </div>
-        <button type="button" disabled={!hasContent} onClick={onGenerate}
-          className={`w-full py-3.5 px-6 rounded-xl font-bold text-sm sm:text-base flex items-center justify-center gap-2 transition-all ${
-            hasContent ? "btn-gradient text-white shadow-lg cursor-pointer" : "bg-[var(--secondary)] text-[var(--muted)] opacity-60 cursor-not-allowed border border-[var(--border)]"
-          }`}>
-          <Sparkles size={18} />
-          <span>Generate Presentation ({selectedTotal} content item{selectedTotal === 1 ? "" : "s"})</span>
-        </button>
-        {!hasContent && <p className="text-xs text-center text-rose-500 font-medium">Select at least one content item to continue.</p>}
+      </div>
+
+      {/* ── Sticky generate bar ── */}
+      <div
+        className="fixed bottom-0 left-0 right-0 z-40 border-t backdrop-blur-xl"
+        style={{
+          background: "rgba(10, 15, 30, 0.88)",
+          borderColor: "rgba(255,255,255,0.08)",
+          paddingBottom: "env(safe-area-inset-bottom)",
+        }}
+      >
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <div className="hidden sm:flex flex-wrap items-center gap-2 text-xs" style={{ color: "#94a3b8" }}>
+              <span className="font-bold text-white tabular-nums">{selectedTotal}</span> items
+              <span>·</span>
+              <span>~{estSlides} slides</span>
+              <span>·</span>
+              <span className="truncate">{selection.chartDensity || "balanced"} charts</span>
+              <span>·</span>
+              <span className="truncate">{THEMES.find((t) => t.id === options.theme)?.label || options.theme}</span>
+            </div>
+            <div className="sm:hidden text-xs" style={{ color: "#94a3b8" }}>
+              <span className="font-bold text-white">{selectedTotal}</span> selected · ~{estSlides} slides
+            </div>
+          </div>
+          <button
+            type="button"
+            disabled={!hasContent}
+            onClick={onGenerate}
+            className={`sm:w-auto w-full py-3 px-6 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all ${
+              hasContent
+                ? "btn-gradient text-white shadow-lg cursor-pointer"
+                : "bg-white/10 text-white/40 cursor-not-allowed"
+            }`}
+          >
+            <Sparkles size={17} />
+            <span>Generate Presentation</span>
+            <ChevronRight size={16} />
+          </button>
+        </div>
+        {!hasContent && (
+          <p className="text-center text-[11px] text-rose-400 pb-2 font-medium">
+            Select at least one content item to continue
+          </p>
+        )}
       </div>
     </motion.div>
   );
@@ -881,6 +1516,10 @@ export default function PresentationGenerator({ user }) {
     form.append("language", options.language);
     form.append("theme", options.theme);
     if (options.watermarkText) form.append("watermarkText", options.watermarkText);
+    if (options.focusAreasText) {
+      const areas = options.focusAreasText.split(",").map((s) => s.trim()).filter(Boolean).slice(0, 5);
+      if (areas.length) form.append("focusAreas", JSON.stringify(areas));
+    }
     form.append("contentSelection", JSON.stringify(selection));
     const ctrl = new AbortController();
     abortRef.current = ctrl;
