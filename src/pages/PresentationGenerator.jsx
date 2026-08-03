@@ -106,11 +106,17 @@ const SLIDE_COUNTS = [
   { label: "30 slides", value: "30" },
 ];
 
-const PIPELINE_STAGES = [
-  { id: "parsing",    label: "Document Parsing",        icon: FileText,     min: 5,  max: 25 },
-  { id: "analyzing",  label: "AI Document Intelligence", icon: BrainCircuit, min: 25, max: 45 },
-  { id: "planning",   label: "Presentation Strategy",    icon: Target,       min: 45, max: 65 },
-  { id: "validating", label: "Quality Validation",       icon: ShieldCheck,  min: 62, max: 70 },
+const ANALYZE_STAGES = [
+  { id: "parsing",    label: "Document Parsing",        icon: FileText,     min: 5,  max: 40 },
+  { id: "analyzing",  label: "AI Document Intelligence", icon: BrainCircuit, min: 40, max: 95 },
+  { id: "complete",   label: "Analysis Ready",           icon: CheckCircle2, min: 100,max: 100 },
+];
+
+const GENERATE_STAGES = [
+  { id: "parsing",    label: "Document Parsing",        icon: FileText,     min: 5,  max: 15 },
+  { id: "analyzing",  label: "AI Document Intelligence", icon: BrainCircuit, min: 15, max: 40 },
+  { id: "planning",   label: "Presentation Strategy",    icon: Target,       min: 40, max: 60 },
+  { id: "validating", label: "Quality Validation",       icon: ShieldCheck,  min: 60, max: 70 },
   { id: "layouting",  label: "Layout Engine",            icon: LayoutGrid,   min: 70, max: 80 },
   { id: "rendering",  label: "PPTX Rendering",           icon: Sparkles,     min: 80, max: 98 },
   { id: "complete",   label: "Complete Deck",            icon: CheckCircle2, min: 100,max: 100 },
@@ -268,11 +274,13 @@ function DropZone({ file, onFile, onRemove }) {
   );
 }
 
-function PipelineProgress({ status, progress, message }) {
-  const activeStage = PIPELINE_STAGES.find(s => s.id === status || (status === "done" && s.id === "complete"))
-    || PIPELINE_STAGES.find(s => progress >= s.min && progress <= s.max) || PIPELINE_STAGES[0];
-  const activeIdx = PIPELINE_STAGES.indexOf(activeStage);
+function PipelineProgress({ stages = GENERATE_STAGES, status, progress, message }) {
+  const activeStage = stages.find(s => s.id === status || (status === "done" && s.id === "complete"))
+    || stages.find(s => progress >= s.min && progress <= s.max) || stages[0];
+  const activeIdx = stages.indexOf(activeStage);
   const ActiveIcon = activeStage.icon;
+  const gridColsClass = stages.length === 3 ? "grid-cols-3" : "grid-cols-2 sm:grid-cols-5";
+
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
@@ -290,8 +298,8 @@ function PipelineProgress({ status, progress, message }) {
       <div className="w-full h-3 rounded-full overflow-hidden" style={{ background: "var(--secondary)" }}>
         <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.max(5, progress)}%`, background: "linear-gradient(90deg, var(--primary), #06B6D4)" }} />
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 pt-2">
-        {PIPELINE_STAGES.map((stage, idx) => {
+      <div className={`grid ${gridColsClass} gap-2 pt-2`}>
+        {stages.map((stage, idx) => {
           const isDone = idx < activeIdx || progress === 100;
           const isActive = idx === activeIdx && progress < 100;
           const StageIcon = stage.icon;
@@ -2385,9 +2393,23 @@ export default function PresentationGenerator({ user }) {
 
   useEffect(() => {
     if (status !== "running" && status !== "analyzing") return;
-    const interval = setInterval(() => setProgress((prev) => (prev < 92 ? prev + 1 : prev)), 600);
+
+    // Use smart limits to prevent progress bar from running ahead of server stage
+    const stages = status === "analyzing" ? ANALYZE_STAGES : GENERATE_STAGES;
+    const activeStage = stages.find((s) => s.id === progressStatus) || stages[0];
+    const maxLimit = activeStage ? activeStage.max : 90;
+
+    const interval = setInterval(() => {
+      setProgress((prev) => {
+        if (prev < maxLimit - 2) {
+          return prev + 1;
+        }
+        return prev;
+      });
+    }, 800);
+
     return () => clearInterval(interval);
-  }, [status]);
+  }, [status, progressStatus]);
 
   const connectSSE = useCallback((jobId) => {
     if (sseRef.current) sseRef.current.close();
@@ -2805,7 +2827,7 @@ export default function PresentationGenerator({ user }) {
                 </div>
                 <button onClick={handleCancel} className="px-3 py-1.5 rounded-lg border border-[var(--border)] text-xs font-medium text-rose-500 hover:bg-rose-500/10 transition">Cancel</button>
               </div>
-              <PipelineProgress status={progressStatus} progress={progress} message={progressMessage} />
+              <PipelineProgress stages={ANALYZE_STAGES} status={progressStatus} progress={progress} message={progressMessage} />
             </motion.div>
           )}
 
@@ -2849,7 +2871,7 @@ export default function PresentationGenerator({ user }) {
                 </div>
                 <button onClick={handleCancel} className="px-3 py-1.5 rounded-lg border border-[var(--border)] text-xs font-medium text-rose-500 hover:bg-rose-500/10 transition">Cancel</button>
               </div>
-              <PipelineProgress status={progressStatus} progress={progress} message={progressMessage} />
+              <PipelineProgress stages={GENERATE_STAGES} status={progressStatus} progress={progress} message={progressMessage} />
             </motion.div>
           )}
 
