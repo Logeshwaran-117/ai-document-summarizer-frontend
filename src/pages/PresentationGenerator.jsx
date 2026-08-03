@@ -1395,7 +1395,7 @@ function ContentPreviewPanel({
             }`}
           >
             <SkipForward size={17} />
-            <span>Continue to slide plan</span>
+            <span>Continue → review each slide</span>
             <ChevronRight size={16} />
           </button>
         </div>
@@ -1407,6 +1407,193 @@ function ContentPreviewPanel({
       </div>
     </motion.div>
   );
+}
+
+
+
+/**
+ * Build a usable slide-by-slide plan on the client from intelligence + selection.
+ * Used when /api/presentation/plan is unavailable or fails — keeps the UI working.
+ */
+function buildClientSlidePlan(intel, selection, options = {}) {
+  if (!intel) return [];
+  const slides = [];
+  const push = (s) => slides.push({ ...s, included: true, slideIndex: slides.length + 1 });
+
+  const title = intel.title || "Presentation";
+  const org = intel.organization || "";
+  const period = intel.period || "";
+
+  push({
+    slideType: "cover",
+    title,
+    subtitle: [org, period].filter(Boolean).join(" · ") || intel.subtitle || "Executive Briefing",
+    bullets: [],
+  });
+
+  if (selection?.includeAgenda !== false) {
+    push({
+      slideType: "agenda",
+      title: "Briefing Agenda & Roadmap",
+      subtitle: "Structured overview of this deck",
+      bullets: [],
+    });
+  }
+
+  // KPIs
+  const kpiIdx = selection?.selectedKpiIndices || [];
+  const kpis = (intel.kpis || []).filter((_, i) => kpiIdx.includes(i));
+  if (kpis.length && selection?.includeKpiOverview !== false) {
+    const chunk = 4;
+    for (let i = 0; i < kpis.length; i += chunk) {
+      const group = kpis.slice(i, i + chunk);
+      push({
+        slideType: "kpi",
+        title: i === 0 ? "Key Performance Indicators" : `Key Metrics (${i / chunk + 1})`,
+        subtitle: "Selected indicators from source data",
+        kpiCards: group.map((k) => ({
+          label: k.label,
+          value: String(k.value ?? ""),
+          unit: k.unit || "",
+          context: k.context || k.trend || "",
+        })),
+        bullets: group.map((k) => `${k.label}: ${k.value}${k.unit ? " " + k.unit : ""}${k.context ? " — " + k.context : ""}`),
+      });
+    }
+  }
+
+  // Sections
+  const secIdx = selection?.selectedSectionIndices || [];
+  const sections = (intel.sections || []).filter((_, i) => secIdx.includes(i));
+  sections.forEach((sec) => {
+    const hasTable = selection?.includeTables !== false && ((sec.tableCount || 0) > 0 || (sec.tables || []).length > 0);
+    const hasChart = selection?.includeCharts !== false && ((sec.chartCount || 0) > 0 || (sec.charts || []).length > 0);
+
+    if (hasTable) {
+      push({
+        slideType: "table",
+        title: sec.title || "Data Table",
+        subtitle: sec.summary || "From source document",
+        bullets: (sec.insights || []).slice(0, 4),
+        table: (sec.tables || [])[0] || null,
+        tables: sec.tables || [],
+      });
+    }
+    if (hasChart) {
+      push({
+        slideType: "chart",
+        title: sec.title ? `${sec.title} — Visual` : "Chart Analysis",
+        subtitle: sec.summary || "",
+        bullets: (sec.insights || []).slice(0, 4),
+        chart: (sec.charts || [])[0] || null,
+        charts: sec.charts || [],
+      });
+    }
+    if (!hasTable && !hasChart) {
+      push({
+        slideType: "insights",
+        title: sec.title || "Section Insights",
+        subtitle: sec.summary || "",
+        bullets: [
+          ...(sec.insights || []).slice(0, 6),
+          ...(sec.summary ? [sec.summary] : []),
+        ].filter(Boolean).slice(0, 6),
+      });
+    }
+  });
+
+  // Findings
+  const findIdx = selection?.selectedFindingIndices || [];
+  const findings = (intel.keyFindings || []).filter((_, i) => findIdx.includes(i));
+  if (findings.length) {
+    const chunk = 5;
+    for (let i = 0; i < findings.length; i += chunk) {
+      push({
+        slideType: "insights",
+        title: i === 0 ? "Key Findings" : `Additional Findings (${i / chunk + 1})`,
+        subtitle: "Evidence from source analysis",
+        bullets: findings.slice(i, i + chunk),
+      });
+    }
+  }
+
+  // Risks
+  const riskIdx = selection?.selectedRiskIndices || [];
+  const risks = (intel.risks || []).filter((_, i) => riskIdx.includes(i));
+  if (risks.length) {
+    push({
+      slideType: "insights",
+      title: "Risk & Impact Assessment",
+      subtitle: "Risks identified in source analysis",
+      bullets: risks.slice(0, 6),
+    });
+  }
+
+  // Summary
+  if (selection?.includeSummarySlide !== false && (selection?.includeExecutiveSummary || findings.length)) {
+    push({
+      slideType: "summary",
+      title: "Executive Summary & Takeaways",
+      subtitle: title,
+      bullets: [
+        ...(selection?.includeExecutiveSummary && intel.executiveSummary
+          ? [intel.executiveSummary.slice(0, 160)]
+          : []),
+        ...findings.slice(0, 4),
+        ...kpis.slice(0, 2).map((k) => `${k.label}: ${k.value}${k.unit ? " " + k.unit : ""}`),
+      ].filter(Boolean).slice(0, 6),
+      kpiCards: kpis.slice(0, 4).map((k) => ({
+        label: k.label,
+        value: String(k.value ?? ""),
+        unit: k.unit || "",
+      })),
+    });
+  }
+
+  // Recommendations
+  const recIdx = selection?.selectedRecommendationIndices || [];
+  const recs = (intel.recommendations || []).filter((_, i) => recIdx.includes(i));
+  if (recs.length && selection?.includeRecommendationsSlide !== false) {
+    push({
+      slideType: "recommendations",
+      title: "Recommendations",
+      subtitle: "Summary & Next Steps",
+      bullets: recs.slice(0, 8),
+    });
+  }
+
+  push({
+    slideType: "thankYou",
+    title: "Thank You",
+    subtitle: "Questions & Discussion",
+    bullets: recs.slice(0, 1),
+  });
+
+  // Fill agenda bullets from real slide titles (excluding cover/agenda/thankYou)
+  const agenda = slides.find((s) => s.slideType === "agenda");
+  if (agenda) {
+    agenda.bullets = slides
+      .filter((s) => !["cover", "agenda", "thankYou"].includes(s.slideType) && s.included !== false)
+      .map((s) => s.title)
+      .slice(0, 10);
+  }
+
+  // Trim to target slide count if set (keep cover + thank you + recommendations)
+  const target = parseInt(options.slideCount, 10);
+  if (!isNaN(target) && target >= 6 && slides.length > target) {
+    const mustKeep = new Set(["cover", "thankYou", "recommendations", "summary"]);
+    const kept = [];
+    for (const s of slides) {
+      if (mustKeep.has(s.slideType) || kept.length < target - 2) kept.push(s);
+    }
+    // ensure thank you last
+    const ty = kept.filter((s) => s.slideType === "thankYou");
+    const rest = kept.filter((s) => s.slideType !== "thankYou");
+    const final = [...rest, ...ty].slice(0, target);
+    return final.map((s, i) => ({ ...s, slideIndex: i + 1 }));
+  }
+
+  return slides.map((s, i) => ({ ...s, slideIndex: i + 1 }));
 }
 
 
@@ -1958,49 +2145,79 @@ export default function PresentationGenerator({ user }) {
 
   
   const handlePlan = async () => {
-    if (!file || !selection) return;
+    if (!selection || !intelligence) return;
     setStatus("running");
-    setProgress(5);
+    setProgress(8);
     setProgressMessage("Building slide-by-slide plan…");
     setProgressStatus("planning");
     setError(null);
     setBlueprint(null);
-    const jobId = jobIdRef.current;
-    const form = new FormData();
-    form.append("file", file);
-    form.append("jobId", jobId);
-    form.append("purpose", options.purpose);
-    form.append("audience", options.audience);
-    form.append("slideCount", options.slideCount || "");
-    form.append("language", options.language);
-    form.append("theme", options.theme);
-    if (options.watermarkText) form.append("watermarkText", options.watermarkText);
-    if (options.focusAreasText) {
-      const areas = options.focusAreasText.split(",").map((s) => s.trim()).filter(Boolean).slice(0, 5);
-      if (areas.length) form.append("focusAreas", JSON.stringify(areas));
-    }
-    form.append("contentSelection", JSON.stringify(selection));
-    const ctrl = new AbortController();
-    abortRef.current = ctrl;
-    try {
-      const resp = await fetch(`${API}/api/presentation/plan`, {
-        method: "POST",
-        body: form,
-        credentials: "include",
-        signal: ctrl.signal,
-      });
-      const data = await resp.json().catch(() => ({}));
-      if (!resp.ok || !data.success) {
-        throw new Error(data.message || `Plan failed (${resp.status})`);
-      }
-      setBlueprint((data.blueprint || []).map((s, i) => ({ ...s, included: s.included !== false, slideIndex: s.slideIndex || i + 1 })));
+
+    const applyPlan = (list, source) => {
+      const mapped = (list || []).map((s, i) => ({
+        ...s,
+        included: s.included !== false,
+        slideIndex: s.slideIndex || i + 1,
+      }));
+      if (!mapped.length) throw new Error("Empty slide plan");
+      setBlueprint(mapped);
       setStatus("planning");
       setProgress(100);
-      setProgressMessage("Slide plan ready — review each slide");
+      setProgressMessage(
+        source === "server"
+          ? `Slide plan ready — ${mapped.length} slides from AI strategy`
+          : `Slide plan ready — ${mapped.length} slides (built from your content selection)`
+      );
+    };
+
+    // Fast path: always build a local plan so the UI never blocks on backend
+    try {
+      setProgress(25);
+      const local = buildClientSlidePlan(intelligence, selection, options);
+      // Try server plan in parallel for richer AI structure (optional)
+      if (file) {
+        try {
+          setProgressMessage("Requesting AI slide strategy…");
+          const jobId = jobIdRef.current;
+          const form = new FormData();
+          form.append("file", file);
+          form.append("jobId", jobId);
+          form.append("purpose", options.purpose);
+          form.append("audience", options.audience);
+          form.append("slideCount", options.slideCount || "");
+          form.append("language", options.language);
+          form.append("theme", options.theme);
+          if (options.watermarkText) form.append("watermarkText", options.watermarkText);
+          if (options.focusAreasText) {
+            const areas = options.focusAreasText.split(",").map((s) => s.trim()).filter(Boolean).slice(0, 5);
+            if (areas.length) form.append("focusAreas", JSON.stringify(areas));
+          }
+          form.append("contentSelection", JSON.stringify(selection));
+          const ctrl = new AbortController();
+          abortRef.current = ctrl;
+          const timer = setTimeout(() => ctrl.abort(), 45000);
+          const resp = await fetch(`${API}/api/presentation/plan`, {
+            method: "POST",
+            body: form,
+            credentials: "include",
+            signal: ctrl.signal,
+          });
+          clearTimeout(timer);
+          const data = await resp.json().catch(() => ({}));
+          if (resp.ok && data.success && Array.isArray(data.blueprint) && data.blueprint.length) {
+            applyPlan(data.blueprint, "server");
+            return;
+          }
+          console.warn("[plan] server plan unavailable, using local plan", data?.message || resp.status);
+        } catch (e) {
+          if (e.name !== "AbortError") console.warn("[plan] server plan failed, using local", e.message);
+        }
+      }
+      applyPlan(local, "local");
     } catch (err) {
-      if (err.name === "AbortError") return;
+      console.error("[plan]", err);
       setError(err.message || "Failed to build slide plan");
-      setStatus("preview");
+      setStatus("error");
     }
   };
 
@@ -2008,6 +2225,7 @@ export default function PresentationGenerator({ user }) {
     if (!blueprint?.length || !instruction?.trim()) return;
     setRefining(true);
     setError(null);
+    const textIn = instruction.trim();
     try {
       const resp = await fetch(`${API}/api/presentation/refine-plan`, {
         method: "POST",
@@ -2015,7 +2233,7 @@ export default function PresentationGenerator({ user }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           blueprint,
-          instruction: instruction.trim(),
+          instruction: textIn,
           context: {
             title: intelligence?.title,
             documentType: intelligence?.documentType,
@@ -2024,18 +2242,53 @@ export default function PresentationGenerator({ user }) {
         }),
       });
       const data = await resp.json().catch(() => ({}));
-      if (!resp.ok || !data.success) {
-        throw new Error(data.message || "Refine failed");
+      if (resp.ok && data.success && Array.isArray(data.blueprint)) {
+        setBlueprint(
+          data.blueprint.map((s, i) => ({
+            ...s,
+            included: s.included !== false,
+            slideIndex: s.slideIndex || i + 1,
+          }))
+        );
+        return;
       }
-      setBlueprint((data.blueprint || []).map((s, i) => ({ ...s, included: s.included !== false, slideIndex: s.slideIndex || i + 1 })));
+      throw new Error(data.message || "Refine API unavailable");
     } catch (err) {
-      setError(err.message || "Could not apply AI change");
+      const lower = textIn.toLowerCase();
+      let next = blueprint.map((s) => ({ ...s }));
+      let applied = false;
+      if (/exclude all table|remove all table|drop all table/.test(lower)) {
+        next = next.map((s) => (s.slideType === "table" ? { ...s, included: false } : s));
+        applied = true;
+      } else if (/exclude all chart|remove all chart|drop all chart/.test(lower)) {
+        next = next.map((s) =>
+          ["chart", "dualChart"].includes(s.slideType) ? { ...s, included: false } : s
+        );
+        applied = true;
+      } else if (/include all/.test(lower)) {
+        next = next.map((s) => ({ ...s, included: true }));
+        applied = true;
+      } else if (/(?:remove|exclude) slide (\d+)/.test(lower)) {
+        const m = lower.match(/(?:remove|exclude) slide (\d+)/);
+        const n = m ? parseInt(m[1], 10) : -1;
+        next = next.map((s, i) =>
+          (s.slideIndex || i + 1) === n ? { ...s, included: false } : s
+        );
+        applied = n > 0;
+      }
+      if (applied) {
+        setBlueprint(next.map((s, i) => ({ ...s, slideIndex: i + 1 })));
+      } else {
+        setError(
+          "AI refine needs the backend route. You can still toggle, rename, reorder, or remove slides manually."
+        );
+      }
     } finally {
       setRefining(false);
     }
   };
 
-const handleReset = () => {
+  const handleReset = () => {
     setStatus("idle");
     setFile(null);
     setProgress(0);
@@ -2080,11 +2333,37 @@ const handleReset = () => {
 
       {activeTab === "generate" && (
         <div className="space-y-6">
+          {/* Flow steps */}
+          <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto pb-1">
+            {[
+              { id: "idle", label: "1. Upload", active: status === "idle" || status === "analyzing" },
+              { id: "preview", label: "2. Choose content", active: status === "preview" },
+              { id: "planning", label: "3. Slide plan", active: status === "planning" || (status === "running" && progressStatus === "planning") },
+              { id: "done", label: "4. PPTX", active: status === "done" || (status === "running" && progressStatus !== "planning") },
+            ].map((step, i, arr) => (
+              <div key={step.id} className="flex items-center gap-1 sm:gap-2 shrink-0">
+                <span
+                  className="px-2.5 sm:px-3 py-1.5 rounded-full text-[10px] sm:text-[11px] font-bold border whitespace-nowrap"
+                  style={
+                    step.active
+                      ? { background: "var(--primary)", borderColor: "var(--primary)", color: "#fff" }
+                      : { background: "var(--card)", borderColor: "var(--border)", color: "var(--muted)" }
+                  }
+                >
+                  {step.label}
+                </span>
+                {i < arr.length - 1 && (
+                  <span className="text-[10px]" style={{ color: "var(--muted)" }}>→</span>
+                )}
+              </div>
+            ))}
+          </div>
+
           {status === "idle" && (
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="glass-card rounded-2xl p-6 sm:p-8 space-y-6">
               <div>
                 <h2 className="text-lg font-bold" style={{ color: "var(--text)" }}>Upload Source Document</h2>
-                <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>Step 1 of 2 — AI extracts sections, KPIs, findings, and recommendations so you can choose what goes into the slides.</p>
+                <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>Step 1 of 4 — Upload a document. Next you will choose content, then review each planned slide, then generate PPTX.</p>
               </div>
               <DropZone file={file} onFile={(f) => { setFile(f); setIntelligence(null); setSelection(null); }} onRemove={() => { setFile(null); setIntelligence(null); setSelection(null); }} />
               <button disabled={!file} onClick={handleAnalyze}
@@ -2110,9 +2389,21 @@ const handleReset = () => {
           )}
 
           {status === "preview" && intelligence && selection && (
-            <ContentPreviewPanel intelligence={intelligence} selection={selection} setSelection={setSelection}
-              options={options} setOptions={setOptions} showOptions={showOptions} setShowOptions={setShowOptions}
-              onGenerate={handlePlan} onBack={handleBackToUpload} />
+            <>
+              {error && (
+                <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-300 flex items-start gap-2">
+                  <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="font-semibold">Could not open slide plan</p>
+                    <p className="text-xs opacity-90 mt-0.5 break-words">{error}</p>
+                  </div>
+                  <button type="button" onClick={() => setError(null)} className="ml-auto text-xs opacity-70 hover:opacity-100">Dismiss</button>
+                </div>
+              )}
+              <ContentPreviewPanel intelligence={intelligence} selection={selection} setSelection={setSelection}
+                options={options} setOptions={setOptions} showOptions={showOptions} setShowOptions={setShowOptions}
+                onGenerate={handlePlan} onBack={handleBackToUpload} />
+            </>
           )}
 
           {status === "planning" && blueprint && (
@@ -2166,13 +2457,20 @@ const handleReset = () => {
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="rounded-2xl p-8 text-center space-y-4 border bg-rose-500/5 dark:bg-rose-950/20 border-rose-500/30">
               <div className="w-14 h-14 rounded-full bg-rose-500/10 text-rose-500 flex items-center justify-center mx-auto"><AlertTriangle size={30} /></div>
               <div>
-                <h2 className="text-xl font-bold text-rose-600 dark:text-rose-400">{intelligence ? "Generation Failed" : "Analysis Failed"}</h2>
-                <p className="text-xs sm:text-sm mt-1 max-w-md mx-auto" style={{ color: "var(--muted)" }}>{error || "An unexpected error occurred."}</p>
+                <h2 className="text-xl font-bold text-rose-600 dark:text-rose-400">
+                  {intelligence ? "Could not continue" : "Analysis Failed"}
+                </h2>
+                <p className="text-xs sm:text-sm mt-1 max-w-lg mx-auto" style={{ color: "var(--muted)" }}>{error || "An unexpected error occurred."}</p>
               </div>
               <div className="flex flex-wrap justify-center gap-3">
-                {intelligence
-                  ? <button onClick={() => setStatus("preview")} className="px-5 py-2.5 rounded-xl font-bold text-sm bg-rose-600 text-white hover:bg-rose-700 transition shadow-md">Back to Selection</button>
-                  : <button onClick={handleReset} className="px-5 py-2.5 rounded-xl font-bold text-sm bg-rose-600 text-white hover:bg-rose-700 transition shadow-md">Try Again</button>}
+                {intelligence ? (
+                  <>
+                    <button onClick={() => { setStatus("preview"); setError(null); }} className="px-5 py-2.5 rounded-xl font-bold text-sm bg-rose-600 text-white hover:bg-rose-700 transition shadow-md">Back to content selection</button>
+                    <button onClick={handlePlan} className="px-5 py-2.5 rounded-xl font-bold text-sm border bg-[var(--card)] hover:bg-[var(--bg-subtle)] transition" style={{ borderColor: "var(--border)", color: "var(--text)" }}>Retry slide plan</button>
+                  </>
+                ) : (
+                  <button onClick={handleReset} className="px-5 py-2.5 rounded-xl font-bold text-sm bg-rose-600 text-white hover:bg-rose-700 transition shadow-md">Try Again</button>
+                )}
               </div>
             </motion.div>
           )}
