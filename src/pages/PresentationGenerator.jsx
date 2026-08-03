@@ -67,13 +67,30 @@ const AUDIENCES = [
 const LANGUAGES = ["English", "Hindi", "Tamil", "Telugu", "Kannada", "Malayalam"];
 
 const THEMES = [
-  { id: "sharyx", label: "SharyX Brand Purple" },
-  { id: "executive", label: "Executive Navy & Gold" },
-  { id: "modern_dark", label: "Modern Dark & Neon" },
-  { id: "corporate", label: "Corporate Slate & Blue" },
-  { id: "clean_light", label: "Clean Minimal Light" },
-  { id: "vibrant_tech", label: "Vibrant Tech Gradient" },
-  { id: "pitch_deck", label: "Investor Pitch Deck" },
+  {
+    id: "sharyx",
+    label: "SharyX Brand",
+    blurb: "Purple brand · modern SaaS · geometric sans",
+    swatches: ["#7C3AED", "#0B0F1A", "#06B6D4", "#A78BFA"],
+  },
+  {
+    id: "executive",
+    label: "Executive Boardroom",
+    blurb: "Deep navy · gold accents · formal Calibri · spacious",
+    swatches: ["#C9A227", "#071018", "#3B82F6", "#152536"],
+  },
+  {
+    id: "aurora",
+    label: "Aurora Light",
+    blurb: "White canvas · sky blue · Georgia titles · airy",
+    swatches: ["#0284C7", "#F8FAFC", "#0F2744", "#0EA5E9"],
+  },
+  {
+    id: "carbon",
+    label: "Carbon Tech",
+    blurb: "Near-black · cyan neon · dense data charts",
+    swatches: ["#22D3EE", "#05070D", "#A78BFA", "#4ADE80"],
+  },
 ];
 
 const SLIDE_COUNTS = [
@@ -1051,19 +1068,58 @@ function ContentPreviewPanel({
                 ))}
               </select>
             </div>
-            <div>
-              <label className="block text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: "var(--muted)" }}>Visual theme</label>
-              <select
-                value={options.theme}
-                onChange={(e) => setOptions((o) => ({ ...o, theme: e.target.value }))}
-                className="w-full px-3 py-2.5 rounded-xl text-sm font-medium border bg-[var(--bg-subtle)]"
-                style={{ borderColor: "var(--border)", color: "var(--text)" }}
-              >
-                {THEMES.map((t) => (
-                  <option key={t.id} value={t.id}>{t.label}</option>
-                ))}
-              </select>
+          </div>
+
+          {/* Template picker — 4 distinct visual systems */}
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: "var(--muted)" }}>
+              Presentation template
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {THEMES.map((t) => {
+                const active = options.theme === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setOptions((o) => ({ ...o, theme: t.id }))}
+                    className={`text-left p-3 rounded-xl border transition-all ${
+                      active ? "ring-2 ring-[var(--primary)]" : "hover:border-[var(--primary)]/40"
+                    }`}
+                    style={{
+                      borderColor: active ? "var(--primary)" : "var(--border)",
+                      background: active ? "rgba(var(--primary-rgb),0.08)" : "var(--bg-subtle)",
+                    }}
+                  >
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <div className="flex -space-x-1">
+                        {(t.swatches || []).map((c) => (
+                          <span
+                            key={c}
+                            className="w-4 h-4 rounded-full border border-white/20"
+                            style={{ background: c }}
+                          />
+                        ))}
+                      </div>
+                      <span className="text-sm font-bold" style={{ color: "var(--text)" }}>
+                        {t.label}
+                      </span>
+                      {active && (
+                        <span className="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ background: "var(--primary)", color: "#fff" }}>
+                          Active
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] leading-snug" style={{ color: "var(--muted)" }}>
+                      {t.blurb}
+                    </p>
+                  </button>
+                );
+              })}
             </div>
+            <p className="text-[10px] mt-1.5" style={{ color: "var(--muted)" }}>
+              Each template changes colors, fonts, chart palette, spacing, and overall style of the whole deck.
+            </p>
           </div>
 
           {/* Preferred chart types */}
