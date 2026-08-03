@@ -1471,41 +1471,129 @@ function ContentPreviewPanel({
  * Build a usable slide-by-slide plan on the client from intelligence + selection.
  * Used when /api/presentation/plan is unavailable or fails — keeps the UI working.
  */
+
+/** Guarantee blueprint length === target by inserting insight fillers before closing slides. */
+function ensureSlideCount(blueprint, target, intel) {
+  const t = parseInt(target, 10);
+  if (!Array.isArray(blueprint) || isNaN(t) || t < 6) return blueprint || [];
+  let slides = blueprint.map((s, i) => ({ ...s, slideIndex: i + 1 }));
+  if (slides.length === t) return slides;
+
+  const isClosing = (s) =>
+    ["thankyou", "thank_you", "closing", "recommendations", "summary"].includes(
+      String(s.slideType || "").toLowerCase()
+    );
+
+  // Trim middle if over
+  if (slides.length > t) {
+    const head = [];
+    const mid = [];
+    const tail = [];
+    slides.forEach((s) => {
+      const ty = String(s.slideType || "").toLowerCase();
+      if (ty === "cover" || ty === "agenda") head.push(s);
+      else if (isClosing(s)) tail.push(s);
+      else mid.push(s);
+    });
+    const needMid = Math.max(0, t - head.length - tail.length);
+    slides = [...head, ...mid.slice(0, needMid), ...tail].slice(0, t);
+  }
+
+  // Expand if under — insert before closing block
+  let guard = 0;
+  const findings = intel?.keyFindings || [];
+  const kpis = intel?.kpis || [];
+  const sections = intel?.sections || [];
+  while (slides.length < t && guard < 50) {
+    guard += 1;
+    let insertAt = slides.length;
+    for (let i = slides.length - 1; i >= 0; i--) {
+      if (isClosing(slides[i])) insertAt = i;
+      else break;
+    }
+    if (insertAt < 1) insertAt = Math.max(1, slides.length - 1);
+
+    const n = slides.length + 1;
+    let extra;
+    if (findings.length) {
+      const f = findings[(n - 1) % findings.length];
+      extra = {
+        slideType: "insights",
+        title: `Analysis Detail ${n}`,
+        subtitle: "Expanded to meet target slide count",
+        bullets: [String(f), "Context drawn from the selected source document.", "Cross-check figures with table slides where available."],
+        included: true,
+      };
+    } else if (kpis.length) {
+      const k = kpis[(n - 1) % kpis.length];
+      extra = {
+        slideType: "kpi",
+        title: `Metric Focus: ${k.label}`,
+        subtitle: k.context || "From selected KPIs",
+        kpiCards: [{ label: k.label, value: String(k.value ?? ""), unit: k.unit || "", context: k.context || "" }],
+        bullets: [`${k.label}: ${k.value}${k.unit ? " " + k.unit : ""}`, k.context || "See source for full context.", "Included to reach the requested deck length."],
+        included: true,
+      };
+    } else if (sections.length) {
+      const sec = sections[(n - 1) % sections.length];
+      extra = {
+        slideType: "insights",
+        title: sec.title || `Section Detail ${n}`,
+        subtitle: "Expanded section view",
+        bullets: [sec.summary || "Additional detail from the source.", ...(sec.insights || []).slice(0, 2)].filter(Boolean).slice(0, 4),
+        included: true,
+      };
+    } else {
+      extra = {
+        slideType: "insights",
+        title: `Supporting Point ${n}`,
+        subtitle: "Added to reach target length",
+        bullets: [
+          "Supporting context for the briefing.",
+          "Derived from the overall document analysis.",
+          "Review neighbouring slides for related metrics.",
+        ],
+        included: true,
+      };
+    }
+    slides.splice(insertAt, 0, extra);
+  }
+
+  return slides.map((s, i) => ({ ...s, slideIndex: i + 1, included: s.included !== false }));
+}
+
 function buildClientSlidePlan(intel, selection, options = {}) {
   if (!intel) return [];
-  const slides = [];
-  const push = (s) => slides.push({ ...s, included: true, slideIndex: slides.length + 1 });
+
+  const targetRaw = parseInt(options.slideCount, 10);
+  const target = !isNaN(targetRaw) && targetRaw >= 6 ? Math.min(35, targetRaw) : 18;
 
   const title = intel.title || "Presentation";
   const org = intel.organization || "";
   const period = intel.period || "";
 
-  push({
-    slideType: "cover",
-    title,
-    subtitle: [org, period].filter(Boolean).join(" · ") || intel.subtitle || "Executive Briefing",
-    bullets: [],
-  });
-
-  if (selection?.includeAgenda !== false) {
-    push({
-      slideType: "agenda",
-      title: "Briefing Agenda & Roadmap",
-      subtitle: "Structured overview of this deck",
-      bullets: [],
-    });
-  }
-
-  // KPIs
   const kpiIdx = selection?.selectedKpiIndices || [];
   const kpis = (intel.kpis || []).filter((_, i) => kpiIdx.includes(i));
+  const secIdx = selection?.selectedSectionIndices || [];
+  const sections = (intel.sections || []).filter((_, i) => secIdx.includes(i));
+  const findIdx = selection?.selectedFindingIndices || [];
+  const findings = (intel.keyFindings || []).filter((_, i) => findIdx.includes(i));
+  const riskIdx = selection?.selectedRiskIndices || [];
+  const risks = (intel.risks || []).filter((_, i) => riskIdx.includes(i));
+  const recIdx = selection?.selectedRecommendationIndices || [];
+  const recs = (intel.recommendations || []).filter((_, i) => recIdx.includes(i));
+
+  // Build a pool of content slides (no cover/agenda/summary/recs/thankYou yet)
+  const contentPool = [];
+
+  // KPI slides — smaller chunks so we can fill higher targets
   if (kpis.length && selection?.includeKpiOverview !== false) {
-    const chunk = 4;
+    const chunk = 3;
     for (let i = 0; i < kpis.length; i += chunk) {
       const group = kpis.slice(i, i + chunk);
-      push({
+      contentPool.push({
         slideType: "kpi",
-        title: i === 0 ? "Key Performance Indicators" : `Key Metrics (${i / chunk + 1})`,
+        title: i === 0 ? "Key Performance Indicators" : `Key Metrics (${Math.floor(i / chunk) + 1})`,
         subtitle: "Selected indicators from source data",
         kpiCards: group.map((k) => ({
           label: k.label,
@@ -1513,60 +1601,94 @@ function buildClientSlidePlan(intel, selection, options = {}) {
           unit: k.unit || "",
           context: k.context || k.trend || "",
         })),
-        bullets: group.map((k) => `${k.label}: ${k.value}${k.unit ? " " + k.unit : ""}${k.context ? " — " + k.context : ""}`),
+        bullets: group.map(
+          (k) =>
+            `${k.label}: ${k.value}${k.unit ? " " + k.unit : ""}${k.context ? " — " + k.context : ""}`
+        ),
       });
     }
   }
 
-  // Sections
-  const secIdx = selection?.selectedSectionIndices || [];
-  const sections = (intel.sections || []).filter((_, i) => secIdx.includes(i));
+  // Sections → separate table / chart / insights slides
   sections.forEach((sec) => {
-    const hasTable = selection?.includeTables !== false && ((sec.tableCount || 0) > 0 || (sec.tables || []).length > 0);
-    const hasChart = selection?.includeCharts !== false && ((sec.chartCount || 0) > 0 || (sec.charts || []).length > 0);
+    const hasTable =
+      selection?.includeTables !== false &&
+      ((sec.tableCount || 0) > 0 || (sec.tables || []).length > 0);
+    const hasChart =
+      selection?.includeCharts !== false &&
+      ((sec.chartCount || 0) > 0 || (sec.charts || []).length > 0);
+    const insights = (sec.insights || []).filter(Boolean);
 
     if (hasTable) {
-      push({
-        slideType: "table",
-        title: sec.title || "Data Table",
-        subtitle: sec.summary || "From source document",
-        bullets: (sec.insights || []).slice(0, 4),
-        table: (sec.tables || [])[0] || null,
-        tables: sec.tables || [],
-      });
+      const tables = sec.tables || [];
+      if (tables.length > 1) {
+        tables.forEach((t, ti) => {
+          contentPool.push({
+            slideType: "table",
+            title: t.title || `${sec.title || "Data"} (Table ${ti + 1})`,
+            subtitle: sec.summary || "From source document",
+            bullets: insights.slice(0, 3),
+            table: t,
+            tables: [t],
+          });
+        });
+      } else {
+        contentPool.push({
+          slideType: "table",
+          title: sec.title || "Data Table",
+          subtitle: sec.summary || "From source document",
+          bullets: insights.slice(0, 4),
+          table: tables[0] || null,
+          tables,
+        });
+      }
     }
+
     if (hasChart) {
-      push({
-        slideType: "chart",
-        title: sec.title ? `${sec.title} — Visual` : "Chart Analysis",
-        subtitle: sec.summary || "",
-        bullets: (sec.insights || []).slice(0, 4),
-        chart: (sec.charts || [])[0] || null,
-        charts: sec.charts || [],
-      });
+      const charts = sec.charts || [];
+      if (charts.length > 1) {
+        charts.forEach((c, ci) => {
+          contentPool.push({
+            slideType: "chart",
+            title: c.title || `${sec.title || "Chart"} (${ci + 1})`,
+            subtitle: c.insight || sec.summary || "",
+            bullets: insights.slice(0, 3),
+            chart: c,
+            charts: [c],
+          });
+        });
+      } else {
+        contentPool.push({
+          slideType: "chart",
+          title: sec.title ? `${sec.title} — Visual` : "Chart Analysis",
+          subtitle: sec.summary || "",
+          bullets: insights.slice(0, 4),
+          chart: charts[0] || null,
+          charts,
+        });
+      }
     }
-    if (!hasTable && !hasChart) {
-      push({
+
+    // Always add an insights slide for the section when it has text
+    if (insights.length || sec.summary) {
+      contentPool.push({
         slideType: "insights",
         title: sec.title || "Section Insights",
         subtitle: sec.summary || "",
-        bullets: [
-          ...(sec.insights || []).slice(0, 6),
-          ...(sec.summary ? [sec.summary] : []),
-        ].filter(Boolean).slice(0, 6),
+        bullets: [...insights.slice(0, 8), ...(sec.summary ? [sec.summary] : [])]
+          .filter(Boolean)
+          .slice(0, 6),
       });
     }
   });
 
-  // Findings
-  const findIdx = selection?.selectedFindingIndices || [];
-  const findings = (intel.keyFindings || []).filter((_, i) => findIdx.includes(i));
+  // Findings — 3 per slide for expandability
   if (findings.length) {
-    const chunk = 5;
+    const chunk = 3;
     for (let i = 0; i < findings.length; i += chunk) {
-      push({
+      contentPool.push({
         slideType: "insights",
-        title: i === 0 ? "Key Findings" : `Additional Findings (${i / chunk + 1})`,
+        title: i === 0 ? "Key Findings" : `Findings (${Math.floor(i / chunk) + 1})`,
         subtitle: "Evidence from source analysis",
         bullets: findings.slice(i, i + chunk),
       });
@@ -1574,30 +1696,60 @@ function buildClientSlidePlan(intel, selection, options = {}) {
   }
 
   // Risks
-  const riskIdx = selection?.selectedRiskIndices || [];
-  const risks = (intel.risks || []).filter((_, i) => riskIdx.includes(i));
   if (risks.length) {
-    push({
-      slideType: "insights",
-      title: "Risk & Impact Assessment",
-      subtitle: "Risks identified in source analysis",
-      bullets: risks.slice(0, 6),
+    const chunk = 3;
+    for (let i = 0; i < risks.length; i += chunk) {
+      contentPool.push({
+        slideType: "insights",
+        title: i === 0 ? "Risk & Impact Assessment" : `Additional Risks (${Math.floor(i / chunk) + 1})`,
+        subtitle: "Risks identified in source analysis",
+        bullets: risks.slice(i, i + chunk),
+      });
+    }
+  }
+
+  // Process slide from recommendations context if enabled
+  if (selection?.includeProcessSlides !== false && recs.length >= 3) {
+    contentPool.push({
+      slideType: "process",
+      title: "Action Pathway",
+      subtitle: "Sequenced next steps from the analysis",
+      bullets: recs.slice(0, 5).map((r, i) => `Step ${i + 1}: ${r}`),
     });
   }
 
-  // Summary
-  if (selection?.includeSummarySlide !== false && (selection?.includeExecutiveSummary || findings.length)) {
-    push({
+  // Fixed frame slides
+  const frameStart = [];
+  frameStart.push({
+    slideType: "cover",
+    title,
+    subtitle: [org, period].filter(Boolean).join(" · ") || intel.subtitle || "Executive Briefing",
+    bullets: [],
+  });
+  if (selection?.includeAgenda !== false) {
+    frameStart.push({
+      slideType: "agenda",
+      title: "Briefing Agenda & Roadmap",
+      subtitle: "Structured overview of this deck",
+      bullets: [], // filled later
+    });
+  }
+
+  const frameEnd = [];
+  if (selection?.includeSummarySlide !== false) {
+    frameEnd.push({
       slideType: "summary",
       title: "Executive Summary & Takeaways",
       subtitle: title,
       bullets: [
         ...(selection?.includeExecutiveSummary && intel.executiveSummary
-          ? [intel.executiveSummary.slice(0, 160)]
+          ? [String(intel.executiveSummary).slice(0, 180)]
           : []),
         ...findings.slice(0, 4),
         ...kpis.slice(0, 2).map((k) => `${k.label}: ${k.value}${k.unit ? " " + k.unit : ""}`),
-      ].filter(Boolean).slice(0, 6),
+      ]
+        .filter(Boolean)
+        .slice(0, 6),
       kpiCards: kpis.slice(0, 4).map((k) => ({
         label: k.label,
         value: String(k.value ?? ""),
@@ -1605,51 +1757,145 @@ function buildClientSlidePlan(intel, selection, options = {}) {
       })),
     });
   }
-
-  // Recommendations
-  const recIdx = selection?.selectedRecommendationIndices || [];
-  const recs = (intel.recommendations || []).filter((_, i) => recIdx.includes(i));
   if (recs.length && selection?.includeRecommendationsSlide !== false) {
-    push({
+    frameEnd.push({
       slideType: "recommendations",
       title: "Recommendations",
       subtitle: "Summary & Next Steps",
       bullets: recs.slice(0, 8),
     });
   }
-
-  push({
+  frameEnd.push({
     slideType: "thankYou",
     title: "Thank You",
     subtitle: "Questions & Discussion",
     bullets: recs.slice(0, 1),
   });
 
-  // Fill agenda bullets from real slide titles (excluding cover/agenda/thankYou)
+  const fixedCount = frameStart.length + frameEnd.length;
+  let contentSlots = Math.max(1, target - fixedCount);
+
+  // Expand content pool if too short: split multi-bullet slides
+  let pool = [...contentPool];
+  let guard = 0;
+  while (pool.length < contentSlots && guard < 40) {
+    guard += 1;
+    // Find a slide with enough bullets to split
+    let split = false;
+    for (let i = 0; i < pool.length; i++) {
+      const s = pool[i];
+      const bullets = s.bullets || [];
+      if (bullets.length >= 4) {
+        const mid = Math.ceil(bullets.length / 2);
+        const a = { ...s, bullets: bullets.slice(0, mid), title: s.title };
+        const b = {
+          ...s,
+          bullets: bullets.slice(mid),
+          title: `${s.title} (cont.)`,
+          kpiCards: undefined,
+          table: undefined,
+          tables: undefined,
+          chart: undefined,
+          charts: undefined,
+        };
+        pool.splice(i, 1, a, b);
+        split = true;
+        break;
+      }
+    }
+    if (!split) {
+      // Duplicate a findings/kpi style filler from remaining intel
+      if (findings.length) {
+        const f = findings[pool.length % findings.length];
+        pool.push({
+          slideType: "insights",
+          title: "Deep Dive Finding",
+          subtitle: "Expanded from source analysis",
+          bullets: [f],
+        });
+      } else if (kpis.length) {
+        const k = kpis[pool.length % kpis.length];
+        pool.push({
+          slideType: "kpi",
+          title: `Focus Metric: ${k.label}`,
+          subtitle: k.context || "From selected KPIs",
+          kpiCards: [
+            {
+              label: k.label,
+              value: String(k.value ?? ""),
+              unit: k.unit || "",
+              context: k.context || "",
+            },
+          ],
+          bullets: [
+            `${k.label}: ${k.value}${k.unit ? " " + k.unit : ""}`,
+            k.context || "See source data for context",
+          ],
+        });
+      } else if (sections.length) {
+        const sec = sections[pool.length % sections.length];
+        pool.push({
+          slideType: "insights",
+          title: sec.title || "Additional Context",
+          subtitle: "Expanded section view",
+          bullets: [sec.summary || "Additional detail from the source document."].filter(Boolean),
+        });
+      } else {
+        pool.push({
+          slideType: "insights",
+          title: "Additional Notes",
+          subtitle: "Supporting context",
+          bullets: ["Review source document for supplementary detail."],
+        });
+      }
+    }
+  }
+
+  // Trim content if too long
+  if (pool.length > contentSlots) {
+    pool = pool.slice(0, contentSlots);
+  }
+
+  // Assemble
+  let slides = [...frameStart, ...pool, ...frameEnd];
+
+  // Fill agenda from real titles
   const agenda = slides.find((s) => s.slideType === "agenda");
   if (agenda) {
     agenda.bullets = slides
-      .filter((s) => !["cover", "agenda", "thankYou"].includes(s.slideType) && s.included !== false)
+      .filter((s) => !["cover", "agenda", "thankYou"].includes(s.slideType))
       .map((s) => s.title)
-      .slice(0, 10);
+      .slice(0, 12);
   }
 
-  // Trim to target slide count if set (keep cover + thank you + recommendations)
-  const target = parseInt(options.slideCount, 10);
-  if (!isNaN(target) && target >= 6 && slides.length > target) {
-    const mustKeep = new Set(["cover", "thankYou", "recommendations", "summary"]);
-    const kept = [];
-    for (const s of slides) {
-      if (mustKeep.has(s.slideType) || kept.length < target - 2) kept.push(s);
-    }
-    // ensure thank you last
-    const ty = kept.filter((s) => s.slideType === "thankYou");
-    const rest = kept.filter((s) => s.slideType !== "thankYou");
-    const final = [...rest, ...ty].slice(0, target);
-    return final.map((s, i) => ({ ...s, slideIndex: i + 1 }));
+  // Final pad if still short of target (rare)
+  while (slides.length < target) {
+    const insertAt = Math.max(1, slides.length - frameEnd.length);
+    slides.splice(insertAt, 0, {
+      slideType: "insights",
+      title: `Supporting Detail ${slides.length - fixedCount + 1}`,
+      subtitle: "Added to meet target slide count",
+      bullets: findings.slice(0, 2).length
+        ? findings.slice(0, 2)
+        : ["Additional context from the selected source material."],
+      included: true,
+    });
   }
 
-  return slides.map((s, i) => ({ ...s, slideIndex: i + 1 }));
+  // If slightly over (frame math), trim middle content only
+  if (slides.length > target) {
+    const overflow = slides.length - target;
+    const middle = slides.slice(frameStart.length, slides.length - frameEnd.length);
+    const keptMiddle = middle.slice(0, Math.max(0, middle.length - overflow));
+    slides = [...frameStart, ...keptMiddle, ...frameEnd];
+  }
+
+  return slides.map((s, i) => ({
+    ...s,
+    included: s.included !== false,
+    slideIndex: i + 1,
+    bullets: Array.isArray(s.bullets) ? s.bullets : [],
+  }));
 }
 
 
@@ -1862,8 +2108,7 @@ function SlidePlanEditor({
                     slideIndex: prev.length + 1,
                   },
                 ];
-                // insert before thankYou if present
-                const ty = next.findIndex((s) => s.slideType === "thankYou");
+                const ty = next.findIndex((s) => String(s.slideType).toLowerCase() === "thankyou" || s.slideType === "thankYou");
                 if (ty > 0) {
                   const slide = next.pop();
                   next.splice(ty, 0, slide);
@@ -1875,6 +2120,18 @@ function SlidePlanEditor({
             style={{ borderColor: "var(--primary)", color: "var(--primary)" }}
           >
             + New slide
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const target = parseInt(options.slideCount, 10) || 18;
+              setBlueprint((prev) => ensureSlideCount(prev, target, intelligence));
+            }}
+            className="text-[11px] font-bold px-2.5 py-1 rounded-lg border"
+            style={{ borderColor: "var(--border)", color: "var(--text)" }}
+            title="Pad or trim the plan to match the target slide count"
+          >
+            Match target ({options.slideCount || 18})
           </button>
         </div>
       </div>
@@ -2285,7 +2542,9 @@ export default function PresentationGenerator({ user }) {
     setProgressStatus("planning");
 
     // Always open the editor immediately with a local plan from selected content
-    const local = buildClientSlidePlan(intelligence, selection, options);
+    const target = parseInt(options.slideCount, 10) || 18;
+    let local = buildClientSlidePlan(intelligence, selection, options);
+    local = ensureSlideCount(local, target, intelligence);
     const mapped = (local || []).map((s, i) => ({
       ...s,
       included: s.included !== false,
@@ -2300,7 +2559,7 @@ export default function PresentationGenerator({ user }) {
     setBlueprint(mapped);
     setStatus("planning");
     setProgress(100);
-    setProgressMessage(`Slide plan ready — ${mapped.length} slides. Edit each slide, then generate.`);
+    setProgressMessage(`Slide plan ready — ${mapped.length} slides (target ${target}). Edit each slide, then generate.`);
 
     // Optional: upgrade plan from server in the background (non-blocking)
     if (file) {
