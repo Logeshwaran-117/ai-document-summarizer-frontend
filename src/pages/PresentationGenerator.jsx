@@ -2464,7 +2464,21 @@ export default function PresentationGenerator({ user }) {
     }
     form.append("contentSelection", JSON.stringify(selection));
     if (blueprint && blueprint.length) {
-      form.append("customBlueprint", JSON.stringify(blueprint));
+      const cleanPlan = blueprint
+        .filter((s) => s && s.included !== false)
+        .filter((s) => {
+          const title = String(s.title || "").trim();
+          const bullets = (s.bullets || []).map((b) => String(b || "").trim());
+          // Drop empty client placeholders
+          if (/^new slide$/i.test(title) && bullets.every((b) => !b || /add your points|edit me|custom content/i.test(b))) {
+            return false;
+          }
+          return true;
+        })
+        .map((s, i) => ({ ...s, slideIndex: i + 1, included: undefined }));
+      if (cleanPlan.length) {
+        form.append("customBlueprint", JSON.stringify(cleanPlan));
+      }
     }
     const ctrl = new AbortController();
     abortRef.current = ctrl;
