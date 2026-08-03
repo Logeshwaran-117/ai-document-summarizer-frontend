@@ -106,17 +106,11 @@ const SLIDE_COUNTS = [
   { label: "30 slides", value: "30" },
 ];
 
-const ANALYZE_STAGES = [
-  { id: "parsing",    label: "Document Parsing",        icon: FileText,     min: 5,  max: 40 },
-  { id: "analyzing",  label: "AI Document Intelligence", icon: BrainCircuit, min: 40, max: 95 },
-  { id: "complete",   label: "Analysis Ready",           icon: CheckCircle2, min: 100,max: 100 },
-];
-
-const GENERATE_STAGES = [
-  { id: "parsing",    label: "Document Parsing",        icon: FileText,     min: 5,  max: 15 },
-  { id: "analyzing",  label: "AI Document Intelligence", icon: BrainCircuit, min: 15, max: 40 },
-  { id: "planning",   label: "Presentation Strategy",    icon: Target,       min: 40, max: 60 },
-  { id: "validating", label: "Quality Validation",       icon: ShieldCheck,  min: 60, max: 70 },
+const PIPELINE_STAGES = [
+  { id: "parsing",    label: "Document Parsing",        icon: FileText,     min: 5,  max: 25 },
+  { id: "analyzing",  label: "AI Document Intelligence", icon: BrainCircuit, min: 25, max: 45 },
+  { id: "planning",   label: "Presentation Strategy",    icon: Target,       min: 45, max: 65 },
+  { id: "validating", label: "Quality Validation",       icon: ShieldCheck,  min: 62, max: 70 },
   { id: "layouting",  label: "Layout Engine",            icon: LayoutGrid,   min: 70, max: 80 },
   { id: "rendering",  label: "PPTX Rendering",           icon: Sparkles,     min: 80, max: 98 },
   { id: "complete",   label: "Complete Deck",            icon: CheckCircle2, min: 100,max: 100 },
@@ -274,13 +268,11 @@ function DropZone({ file, onFile, onRemove }) {
   );
 }
 
-function PipelineProgress({ stages = GENERATE_STAGES, status, progress, message }) {
-  const activeStage = stages.find(s => s.id === status || (status === "done" && s.id === "complete"))
-    || stages.find(s => progress >= s.min && progress <= s.max) || stages[0];
-  const activeIdx = stages.indexOf(activeStage);
+function PipelineProgress({ status, progress, message }) {
+  const activeStage = PIPELINE_STAGES.find(s => s.id === status || (status === "done" && s.id === "complete"))
+    || PIPELINE_STAGES.find(s => progress >= s.min && progress <= s.max) || PIPELINE_STAGES[0];
+  const activeIdx = PIPELINE_STAGES.indexOf(activeStage);
   const ActiveIcon = activeStage.icon;
-  const gridColsClass = stages.length === 3 ? "grid-cols-3" : "grid-cols-2 sm:grid-cols-5";
-
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
@@ -298,8 +290,8 @@ function PipelineProgress({ stages = GENERATE_STAGES, status, progress, message 
       <div className="w-full h-3 rounded-full overflow-hidden" style={{ background: "var(--secondary)" }}>
         <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.max(5, progress)}%`, background: "linear-gradient(90deg, var(--primary), #06B6D4)" }} />
       </div>
-      <div className={`grid ${gridColsClass} gap-2 pt-2`}>
-        {stages.map((stage, idx) => {
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 pt-2">
+        {PIPELINE_STAGES.map((stage, idx) => {
           const isDone = idx < activeIdx || progress === 100;
           const isActive = idx === activeIdx && progress < 100;
           const StageIcon = stage.icon;
@@ -1811,62 +1803,47 @@ function buildClientSlidePlan(intel, selection, options = {}) {
       }
     }
     if (!split) {
-      // Duplicate a findings/kpi style filler from remaining intel
-      if (findings.length && pool.length < findings.length + 6) {
-        // Use each finding at most once when expanding
-        const used = new Set(pool.flatMap((s) => s.bullets || []).map(String));
-        const f = findings.find((x) => !used.has(String(x)));
-        if (f) {
-          pool.push({
-            slideType: "insights",
-            title: "Key Finding Detail",
-            subtitle: "From source analysis",
-            bullets: [f],
-          });
-        } else if (kpis.length) {
-          const k = kpis[pool.length % kpis.length];
+      // Prefer quality over hitting target count — never spam Focus Metric / empty sections
+      const focusCount = pool.filter((s) => /^Focus Metric:/i.test(String(s.title || ""))).length;
+      const usedFindings = new Set(pool.flatMap((s) => s.bullets || []).map(String));
+      const nextFinding = findings.find((x) => !usedFindings.has(String(x)));
+      if (nextFinding) {
+        pool.push({
+          slideType: "insights",
+          title: "Key Finding Detail",
+          subtitle: "From source analysis",
+          bullets: [nextFinding],
+        });
+      } else if (kpis.length && focusCount < 2) {
+        // At most 2 single-metric focus slides; pick unused KPI labels
+        const usedLabels = new Set(
+          pool.filter((s) => /^Focus Metric:/i.test(String(s.title || ""))).map((s) => s.title)
+        );
+        const k = kpis.find((x) => !usedLabels.has(`Focus Metric: ${x.label}`));
+        if (k) {
           pool.push({
             slideType: "kpi",
             title: `Focus Metric: ${k.label}`,
             subtitle: k.context || "From selected KPIs",
-            kpiCards: [{ label: k.label, value: String(k.value ?? ""), unit: k.unit || "" }],
-            bullets: [`${k.label}: ${k.value}${k.unit ? " " + k.unit : ""}`],
+            kpiCards: [
+              {
+                label: k.label,
+                value: String(k.value ?? ""),
+                unit: k.unit || "",
+                context: k.context || "",
+              },
+            ],
+            bullets: [
+              `${k.label}: ${k.value}${k.unit ? " " + k.unit : ""}`,
+              k.context || "Selected metric from source analysis",
+            ],
           });
+        } else {
+          break; // nothing meaningful left
         }
-      } else if (kpis.length) {
-        const k = kpis[pool.length % kpis.length];
-        pool.push({
-          slideType: "kpi",
-          title: `Focus Metric: ${k.label}`,
-          subtitle: k.context || "From selected KPIs",
-          kpiCards: [
-            {
-              label: k.label,
-              value: String(k.value ?? ""),
-              unit: k.unit || "",
-              context: k.context || "",
-            },
-          ],
-          bullets: [
-            `${k.label}: ${k.value}${k.unit ? " " + k.unit : ""}`,
-            k.context || "Selected metric from source analysis",
-          ],
-        });
-      } else if (sections.length) {
-        const sec = sections[pool.length % sections.length];
-        pool.push({
-          slideType: "insights",
-          title: sec.title || "Additional Context",
-          subtitle: "Expanded section view",
-          bullets: [sec.summary || "Additional detail from the source document."].filter(Boolean),
-        });
       } else {
-        pool.push({
-          slideType: "insights",
-          title: "Additional Notes",
-          subtitle: "Supporting context",
-          bullets: ["Review source document for supplementary detail."],
-        });
+        // Stop padding — better fewer good slides than 18 empty ones
+        break;
       }
     }
   }
@@ -2393,23 +2370,9 @@ export default function PresentationGenerator({ user }) {
 
   useEffect(() => {
     if (status !== "running" && status !== "analyzing") return;
-
-    // Use smart limits to prevent progress bar from running ahead of server stage
-    const stages = status === "analyzing" ? ANALYZE_STAGES : GENERATE_STAGES;
-    const activeStage = stages.find((s) => s.id === progressStatus) || stages[0];
-    const maxLimit = activeStage ? activeStage.max : 90;
-
-    const interval = setInterval(() => {
-      setProgress((prev) => {
-        if (prev < maxLimit - 2) {
-          return prev + 1;
-        }
-        return prev;
-      });
-    }, 800);
-
+    const interval = setInterval(() => setProgress((prev) => (prev < 92 ? prev + 1 : prev)), 600);
     return () => clearInterval(interval);
-  }, [status, progressStatus]);
+  }, [status]);
 
   const connectSSE = useCallback((jobId) => {
     if (sseRef.current) sseRef.current.close();
@@ -2827,7 +2790,7 @@ export default function PresentationGenerator({ user }) {
                 </div>
                 <button onClick={handleCancel} className="px-3 py-1.5 rounded-lg border border-[var(--border)] text-xs font-medium text-rose-500 hover:bg-rose-500/10 transition">Cancel</button>
               </div>
-              <PipelineProgress stages={ANALYZE_STAGES} status={progressStatus} progress={progress} message={progressMessage} />
+              <PipelineProgress status={progressStatus} progress={progress} message={progressMessage} />
             </motion.div>
           )}
 
@@ -2871,7 +2834,7 @@ export default function PresentationGenerator({ user }) {
                 </div>
                 <button onClick={handleCancel} className="px-3 py-1.5 rounded-lg border border-[var(--border)] text-xs font-medium text-rose-500 hover:bg-rose-500/10 transition">Cancel</button>
               </div>
-              <PipelineProgress stages={GENERATE_STAGES} status={progressStatus} progress={progress} message={progressMessage} />
+              <PipelineProgress status={progressStatus} progress={progress} message={progressMessage} />
             </motion.div>
           )}
 
