@@ -1675,7 +1675,7 @@ function buildClientSlidePlan(intel, selection, options = {}) {
         title: sec.title || "Section Insights",
         subtitle: sec.summary || "",
         bullets: [...insights.slice(0, 8), ...(sec.summary ? [sec.summary] : [])]
-          .filter(Boolean)
+          .filter((b) => b && !/^---\s*Sheet:/i.test(String(b)) && !/^\d+\s*rows?\s*[×x]/i.test(String(b)))
           .slice(0, 6),
       });
     }
@@ -1804,14 +1804,27 @@ function buildClientSlidePlan(intel, selection, options = {}) {
     }
     if (!split) {
       // Duplicate a findings/kpi style filler from remaining intel
-      if (findings.length) {
-        const f = findings[pool.length % findings.length];
-        pool.push({
-          slideType: "insights",
-          title: "Deep Dive Finding",
-          subtitle: "Expanded from source analysis",
-          bullets: [f],
-        });
+      if (findings.length && pool.length < findings.length + 6) {
+        // Use each finding at most once when expanding
+        const used = new Set(pool.flatMap((s) => s.bullets || []).map(String));
+        const f = findings.find((x) => !used.has(String(x)));
+        if (f) {
+          pool.push({
+            slideType: "insights",
+            title: "Key Finding Detail",
+            subtitle: "From source analysis",
+            bullets: [f],
+          });
+        } else if (kpis.length) {
+          const k = kpis[pool.length % kpis.length];
+          pool.push({
+            slideType: "kpi",
+            title: `Focus Metric: ${k.label}`,
+            subtitle: k.context || "From selected KPIs",
+            kpiCards: [{ label: k.label, value: String(k.value ?? ""), unit: k.unit || "" }],
+            bullets: [`${k.label}: ${k.value}${k.unit ? " " + k.unit : ""}`],
+          });
+        }
       } else if (kpis.length) {
         const k = kpis[pool.length % kpis.length];
         pool.push({
