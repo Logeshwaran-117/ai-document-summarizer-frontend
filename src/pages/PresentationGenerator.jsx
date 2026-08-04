@@ -1499,64 +1499,8 @@ function ensureSlideCount(blueprint, target, intel) {
     slides = [...head, ...mid.slice(0, needMid), ...tail].slice(0, t);
   }
 
-  // Expand if under — insert before closing block
-  let guard = 0;
-  const findings = intel?.keyFindings || [];
-  const kpis = intel?.kpis || [];
-  const sections = intel?.sections || [];
-  while (slides.length < t && guard < 50) {
-    guard += 1;
-    let insertAt = slides.length;
-    for (let i = slides.length - 1; i >= 0; i--) {
-      if (isClosing(slides[i])) insertAt = i;
-      else break;
-    }
-    if (insertAt < 1) insertAt = Math.max(1, slides.length - 1);
-
-    const n = slides.length + 1;
-    let extra;
-    if (findings.length) {
-      const f = findings[(n - 1) % findings.length];
-      extra = {
-        slideType: "insights",
-        title: `Analysis Detail ${n}`,
-        subtitle: "Detailed analysis",
-        bullets: [String(f), "Review related tables for supporting figures.", "Figures should be validated against source registers."],
-        included: true,
-      };
-    } else if (kpis.length) {
-      const k = kpis[(n - 1) % kpis.length];
-      extra = {
-        slideType: "kpi",
-        title: `Metric Focus: ${k.label}`,
-        subtitle: k.context || "From selected KPIs",
-        kpiCards: [{ label: k.label, value: String(k.value ?? ""), unit: k.unit || "", context: k.context || "" }],
-        bullets: [`${k.label}: ${k.value}${k.unit ? " " + k.unit : ""}`, k.context || "See source for full context.", "Selected metric from the source analysis."],
-        included: true,
-      };
-    } else if (sections.length) {
-      const sec = sections[(n - 1) % sections.length];
-      extra = {
-        slideType: "insights",
-        title: sec.title || `Section Detail ${n}`,
-        subtitle: "Expanded section view",
-        bullets: [sec.summary, ...(sec.insights || []).slice(0, 2)].filter(Boolean).slice(0, 4),
-        included: true,
-      };
-    } else {
-      extra = {
-        slideType: "insights",
-        title: `Supporting Point ${n}`,
-        subtitle: "Supporting analysis",
-        bullets: [
-          "Supporting analysis from the selected source material.",
-          "Cross-check related KPI and table slides for figures.",
-        ],
-        included: true,
-      };
-    }
-    slides.splice(insertAt, 0, extra);
-  }
+  // NEVER pad with Analysis Detail / Focus Metric spam — fewer meaningful slides is better
+  // (buildClientSlidePlan is responsible for structure)
 
   return slides.map((s, i) => ({ ...s, slideIndex: i + 1, included: s.included !== false }));
 }
@@ -1814,35 +1758,8 @@ function buildClientSlidePlan(intel, selection, options = {}) {
           subtitle: "From source analysis",
           bullets: [nextFinding],
         });
-      } else if (kpis.length && focusCount < 2) {
-        // At most 2 single-metric focus slides; pick unused KPI labels
-        const usedLabels = new Set(
-          pool.filter((s) => /^Focus Metric:/i.test(String(s.title || ""))).map((s) => s.title)
-        );
-        const k = kpis.find((x) => !usedLabels.has(`Focus Metric: ${x.label}`));
-        if (k) {
-          pool.push({
-            slideType: "kpi",
-            title: `Focus Metric: ${k.label}`,
-            subtitle: k.context || "From selected KPIs",
-            kpiCards: [
-              {
-                label: k.label,
-                value: String(k.value ?? ""),
-                unit: k.unit || "",
-                context: k.context || "",
-              },
-            ],
-            bullets: [
-              `${k.label}: ${k.value}${k.unit ? " " + k.unit : ""}`,
-              k.context || "Selected metric from source analysis",
-            ],
-          });
-        } else {
-          break; // nothing meaningful left
-        }
       } else {
-        // Stop padding — better fewer good slides than 18 empty ones
+        // Stop — do not invent Focus Metric / filler slides
         break;
       }
     }
