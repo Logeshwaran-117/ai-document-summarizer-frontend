@@ -1865,21 +1865,8 @@ function buildClientSlidePlan(intel, selection, options = {}) {
       .slice(0, 12);
   }
 
-  // Final pad if still short of target (rare)
-  while (slides.length < target) {
-    const insertAt = Math.max(1, slides.length - frameEnd.length);
-    slides.splice(insertAt, 0, {
-      slideType: "insights",
-      title: `Supporting Detail ${slides.length - fixedCount + 1}`,
-      subtitle: "Added to meet target slide count",
-      bullets: findings.slice(0, 2).length
-        ? findings.slice(0, 2)
-        : ["Additional context from the selected source material."],
-      included: true,
-    });
-  }
-
-  // If slightly over (frame math), trim middle content only
+  // Do NOT pad with empty "Supporting Detail" slides — fewer good slides is better
+  // If slightly over target, trim middle content only
   if (slides.length > target) {
     const overflow = slides.length - target;
     const middle = slides.slice(frameStart.length, slides.length - frameEnd.length);
